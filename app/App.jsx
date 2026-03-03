@@ -668,6 +668,88 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
             </button>
           </div>
         </div>
+
+        <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Welche Regeln werden geprueft?</div>
+          <SmallText>Unten stehen alle Pruefungen in der Reihenfolge, in der der Checker sie im Tab &quot;Checker&quot; ausfuehrt.</SmallText>
+
+          <ol style={{ marginTop: 10, paddingLeft: 18, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
+            <li style={{ marginBottom: 8 }}>
+              <strong>1. Datei &amp; technische CSV Struktur</strong>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                <li>CSV kann eingelesen werden (Header, Zeilen, leere Zeilen uebersprungen).</li>
+                <li>Header werden aus `header` Zeile oder automatisch aus der ersten Datenzeile ermittelt.</li>
+              </ul>
+            </li>
+
+            <li style={{ marginBottom: 8 }}>
+              <strong>2. Pflichtfelder und Spaltenzuordnung</strong>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                <li>Automatische Zuordnung der Pflichtfelder EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand, shipping_mode, Lieferzeit, Preis und Marke zu passenden Spaltennamen.</li>
+                <li>Hinweis, wenn ein Pflichtfeld gar nicht gefunden werden konnte.</li>
+              </ul>
+            </li>
+
+            <li style={{ marginBottom: 8 }}>
+              <strong>3. Eindeutigkeit von EAN und Titel</strong>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                <li>Suche nach doppelten EAN Werten im gesamten Feed.</li>
+                <li>Suche nach doppelten Produkttiteln im gesamten Feed.</li>
+                <li>Markierung von Zeilen, in denen EAN fehlt.</li>
+                <li>Erkennung von &quot;wissenschaftlicher Schreibweise&quot; bei EAN (z.&nbsp;B. 4.07053E+12) als Formatfehler.</li>
+              </ul>
+            </li>
+
+            <li style={{ marginBottom: 8 }}>
+              <strong>4. Optionale Felder, Bilder und Versand</strong>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                <li>Optionalfelder Material, Farbe und Lieferumfang:
+                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
+                    <li>Beispiele von vorkommenden Werten je Feld.</li>
+                    <li>Liste der EANs, bei denen der jeweilige Wert fehlt.</li>
+                  </ul>
+                </li>
+                <li>Bilder:
+                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
+                    <li>Erkennung aller Bildspalten (image_url… usw.).</li>
+                    <li>EAN mit 0 Bildern, genau 1 Bild und weniger als der Mindestanzahl (`image_min_per_product`).</li>
+                    <li>Kleine Bildvorschau mit ein paar Beispiel‑Bildlinks.</li>
+                  </ul>
+                </li>
+                <li>shipping_mode:
+                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
+                    <li>Erlaubte Werte laut Regel &quot;Erlaubte shipping_mode Werte&quot; (Standard: Paket, Spedition).</li>
+                    <li>Liste der EANs ohne shipping_mode.</li>
+                    <li>Liste der EANs mit ungueltigem shipping_mode Wert.</li>
+                  </ul>
+                </li>
+                <li>Titel und Beschreibung:
+                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
+                    <li>Pruefung Mindestlaenge Titel (`title_min_length`).</li>
+                    <li>Pruefung Mindestlaenge Beschreibung (`description_min_length`).</li>
+                    <li>Hinweis, wenn &quot;siehe oben&quot; im Titel vorkommt.</li>
+                    <li>Hinweis, wenn Material/Farbe gepflegt sind, aber nicht im Titel vorkommen.</li>
+                    <li>Suche nach Werbung, externen Links, Varianten‑Hinweisen und Kontakt‑Hinweisen in der Beschreibung.</li>
+                  </ul>
+                </li>
+                <li>Lieferumfang:
+                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
+                    <li>Pruefung des Lieferumfang‑Formats gegen das Regex &quot;Lieferumfang Pattern&quot; (Standard: Anzahl x Produkt, z.&nbsp;B. 4x Stuhl).</li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+
+            <li style={{ marginBottom: 0 }}>
+              <strong>5. Gesamtscore und Entscheidung</strong>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                <li>Berechnung eines Scores von 0–100 basierend auf fehlenden Pflichtfeldern, Duplikaten, Bildproblemen, Versandproblemen und EAN‑Luecken.</li>
+                <li>Entscheidung, ob wir mit dem Feed starten koennen (`canStart`).</li>
+                <li>Erzeugung einer Mailvorlage mit allen kritischen Punkten und Verbesserungsvorschlaegen.</li>
+              </ul>
+            </li>
+          </ol>
+        </div>
       </div>
     </div>
   );
