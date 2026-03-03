@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
 
+const BRAND_COLOR = "rgb(4,16,103)";
+
 const DEFAULT_RULES = {
     allowed_shipping_mode: ["Paket", "Spedition"],
     title_min_length: 10,
@@ -121,8 +123,22 @@ function buildEmail({ shopName, issues, tips, canStart }) {
 }
 
 function Pill({ tone, children }) {
-  const bg = tone === "ok" ? "#E8F5E9" : tone === "warn" ? "#FFF8E1" : tone === "bad" ? "#FFEBEE" : "#EEF2FF";
-  const fg = tone === "ok" ? "#1B5E20" : tone === "warn" ? "#7A5B00" : tone === "bad" ? "#B71C1C" : "#1E3A8A";
+  const bg =
+    tone === "ok"
+      ? "#E8F5E9"
+      : tone === "warn"
+      ? "#FFF8E1"
+      : tone === "bad"
+      ? "#FFEBEE"
+      : BRAND_COLOR;
+  const fg =
+    tone === "ok"
+      ? "#1B5E20"
+      : tone === "warn"
+      ? "#7A5B00"
+      : tone === "bad"
+      ? "#B71C1C"
+      : "#FFFFFF";
   return (
     <span
       style={{
@@ -1407,28 +1423,52 @@ export default function App() {
           ) : (
             <>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <Pill tone={summary.canStart ? "ok" : "warn"}>{summary.canStart ? "Wir koennen starten" : "Noch nicht startklar"}</Pill>
-                <Pill tone="info">Score {summary.score} of 100</Pill>
+                  <Pill tone={summary.canStart ? "ok" : "warn"}>
+                    {summary.canStart ? "✅  Wir koennen starten" : "🚧  Noch nicht startklar"}
+                  </Pill>
+                  <Pill tone="info">
+                    <strong>⭐ Score {summary.score} von 100</strong>
+                  </Pill>
               </div>
 
               <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>⚠️ Kritisch</div>
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    border: `1px solid ${BRAND_COLOR}`,
+                    background: BRAND_COLOR,
+                    color: "#FFFFFF",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>
+                    ⚠️ <strong>Kritische Punkte</strong>
+                  </div>
                   <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                     {(summary.issues.length ? summary.issues : ["Keine kritischen Fehler erkannt"]).map((x, i) => (
-                      <div key={i} style={{ fontSize: 13, color: "#111827" }}>
-                        {x}
+                      <div key={i} style={{ fontSize: 13 }}>
+                        <strong>•</strong> {x}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>💡 Verbesserungen</div>
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    border: `1px solid ${BRAND_COLOR}`,
+                    background: "#FFFFFF",
+                    color: BRAND_COLOR,
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>
+                    💡 <strong>Verbesserungen</strong>
+                  </div>
                   <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                     {(summary.tips.length ? summary.tips : ["Keine Vorschlaege"]).map((x, i) => (
-                      <div key={i} style={{ fontSize: 13, color: "#111827" }}>
-                        {x}
+                      <div key={i} style={{ fontSize: 13 }}>
+                        <strong>•</strong> {x}
                       </div>
                     ))}
                   </div>
