@@ -200,7 +200,9 @@ function Table({ columns, rows, highlight }) {
                   padding: "10px 12px",
                   borderBottom: "1px solid #E5E7EB",
                   color: "#111827",
-                  whiteSpace: "nowrap",
+                  whiteSpace: "normal",
+                  maxWidth: 180,
+                  minWidth: 140,
                 }}
               >
                 {c.label}
@@ -220,7 +222,10 @@ function Table({ columns, rows, highlight }) {
                       padding: "10px 12px",
                       borderBottom: "1px solid #F3F4F6",
                       color: "#111827",
-                      whiteSpace: "nowrap",
+                      whiteSpace: "normal",
+                      maxWidth: 180,
+                      minWidth: 140,
+                      wordBreak: "break-word",
                     }}
                   >
                     {String(r?.[c.key] ?? "")}
@@ -1162,7 +1167,12 @@ export default function App() {
             <SmallText>Bitte CSV hochladen um Duplikate zu pruefen.</SmallText>
           ) : (
             <>
-              <TextInput label="Schnellsuche nach EAN" value={eanSearch} onChange={setEanSearch} placeholder="EAN eingeben um Listen und Vorschau zu filtern" />
+              <TextInput
+                label="Schnellsuche in allen Spalten"
+                value={eanSearch}
+                onChange={setEanSearch}
+                placeholder="EAN, Titel oder anderer Text zum Filtern"
+              />
               <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <Pill tone={eanColumn ? "ok" : "warn"}>{eanColumn ? `EAN Spalte ${eanColumn}` : "EAN Spalte nicht gefunden"}</Pill>
                 <Pill tone={titleColumn ? "ok" : "warn"}>{titleColumn ? `Titel Spalte ${titleColumn}` : "Titel Spalte nicht gefunden"}</Pill>
@@ -1469,8 +1479,8 @@ export default function App() {
                   rows={rows
                     .filter((r) => {
                       if (!eanSearch) return true;
-                      const c = eanColumn ? String(r[eanColumn] ?? "").trim() : "";
-                      return c.includes(eanSearch);
+                      const q = eanSearch.toLowerCase();
+                      return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
                     })
                     .slice(0, previewCount)}
                 />
