@@ -303,10 +303,12 @@ function ResizableTable({ columns, rows }) {
   return (
     <div
       style={{
-        maxHeight: 320,
+        width: "100%",
+        maxHeight: 260,
         overflow: "auto",
         border: "1px solid #E5E7EB",
         borderRadius: 12,
+        boxSizing: "border-box",
       }}
     >
       <table
@@ -1729,11 +1731,23 @@ export default function App() {
                 und innerhalb der Box horizontal/vertikal scrollen.
               </SmallText>
               <div style={{ marginTop: 10 }}>
+                <TextInput
+                  label="Suche nach EAN (Vorschau)"
+                  value={eanSearch}
+                  onChange={setEanSearch}
+                  placeholder="EAN eingeben um passende Zeilen zu filtern"
+                />
+              </div>
+              <div style={{ marginTop: 10 }}>
                 <ResizableTable
                   columns={headers.map((h) => ({ key: h, label: String(h) }))}
                   rows={rows
                     .filter((r) => {
                       if (!eanSearch) return true;
+                      if (eanColumn) {
+                        const val = String(r[eanColumn] ?? "").trim();
+                        return val.includes(eanSearch);
+                      }
                       const q = eanSearch.toLowerCase();
                       return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
                     })
