@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
 
 const BRAND_COLOR = "rgb(4,16,103)";
@@ -250,6 +250,135 @@ function Table({ columns, rows, highlight }) {
               </tr>
             );
           })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ResizableTable({ columns, rows }) {
+  const [widths, setWidths] = useState(() =>
+    Object.fromEntries(columns.map((c) => [c.key, 110]))
+  );
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    function onMove(e) {
+      if (!dragRef.current) return;
+      const { key, startX, startWidth } = dragRef.current;
+      const delta = e.clientX - startX;
+      setWidths((prev) => {
+        const next = { ...prev };
+        const raw = prev[key] ?? startWidth;
+        next[key] = Math.max(80, raw + delta);
+        return next;
+      });
+    }
+
+    function onUp() {
+      dragRef.current = null;
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  const startResize = (key, event) => {
+    const th = event.currentTarget.parentElement;
+    if (!th) return;
+    const rect = th.getBoundingClientRect();
+    dragRef.current = {
+      key,
+      startX: event.clientX,
+      startWidth: rect.width,
+    };
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  return (
+    <div
+      style={{
+        maxHeight: 320,
+        overflow: "auto",
+        border: "1px solid #E5E7EB",
+        borderRadius: 12,
+      }}
+    >
+      <table
+        style={{
+          borderCollapse: "collapse",
+          fontSize: 13,
+          width: "max-content",
+          minWidth: "100%",
+        }}
+      >
+        <thead>
+          <tr style={{ background: "#F9FAFB" }}>
+            {columns.map((c) => {
+              const w = widths[c.key] ?? 110;
+              return (
+                <th
+                  key={c.key}
+                  style={{
+                    position: "relative",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    borderBottom: "1px solid #E5E7EB",
+                    color: "#111827",
+                    whiteSpace: "normal",
+                    width: w,
+                    maxWidth: w,
+                    minWidth: w,
+                  }}
+                >
+                  {c.label}
+                  <span
+                    onMouseDown={(e) => startResize(c.key, e)}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      width: 6,
+                      height: "100%",
+                      cursor: "col-resize",
+                      userSelect: "none",
+                    }}
+                  />
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              {columns.map((c) => {
+                const w = widths[c.key] ?? 110;
+                return (
+                  <td
+                    key={c.key}
+                    style={{
+                      padding: "8px 12px",
+                      borderBottom: "1px solid #F3F4F6",
+                      color: "#111827",
+                      whiteSpace: "normal",
+                      width: w,
+                      maxWidth: w,
+                      minWidth: w,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {String(r?.[c.key] ?? "")}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -1375,28 +1504,25 @@ export default function App() {
                 <SmallText>Erlaubt sind Paket oder Spedition. Pfeil bedeutet Feld ist leer und es wurde nichts geliefert.</SmallText>
 
                 {mapping.shipping_mode ? (
-                  optionalFindings.invalidShipping.length ? (
-                    <div style={{ marginTop: 10 }}>
-                      <Table
-                        columns={[{ key: "ean", label: "EAN" }, { key: "value", label: "Wert" }]}
-                        rows={optionalFindings.invalidShipping.filter((x) => !eanSearch || String(x.ean).includes(eanSearch)).slice(0, 500)}
-                        highlight={() => true}
-                      />
-                      {optionalFindings.invalidShipping.length > 500 ? (
-                        <SmallText>Es werden nur die ersten 500 ungueltigen Werte gezeigt, damit die Ansicht schnell bleibt.</SmallText>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                      <CollapsibleList
-                        title="shipping_mode fehlt"
-                        items={optionalFindings.missingShipping.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                        tone={optionalFindings.missingShipping.length ? "warn" : "ok"}
-                        hint={optionalFindings.missingShipping.length ? "➜ Feld ist leer" : ""}
-                      />
+                  <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                    <CollapsibleList
+                      title="shipping_mode fehlt"
+                      items={optionalFindings.missingShipping.filter((x) => !eanSearch || String(x).includes(eanSearch))}
+                      tone={optionalFindings.missingShipping.length ? "warn" : "ok"}
+                      hint={optionalFindings.missingShipping.length ? "➜ Feld ist leer" : ""}
+                    />
+                    <CollapsibleList
+                      title="shipping_mode ungueltig (Werte)"
+                      items={optionalFindings.invalidShipping
+                        .filter((x) => !eanSearch || String(x.ean).includes(eanSearch))
+                        .map((x) => `${x.ean}: ${x.value}`)}
+                      tone={optionalFindings.invalidShipping.length ? "warn" : "ok"}
+                      hint={optionalFindings.invalidShipping.length ? "➜ Wert nicht Paket oder Spedition" : ""}
+                    />
+                    {optionalFindings.invalidShipping.length === 0 && optionalFindings.missingShipping.length === 0 ? (
                       <div style={{ color: "#166534", fontSize: 13 }}>Alle shipping_mode Werte sind gueltig.</div>
-                    </div>
-                  )
+                    ) : null}
+                  </div>
                 ) : (
                   <div style={{ marginTop: 10, color: "#92400E", fontSize: 13 }}>shipping_mode Spalte nicht gefunden.</div>
                 )}
@@ -1516,9 +1642,12 @@ export default function App() {
             <SmallText>Bitte CSV hochladen um eine Vorschau zu sehen.</SmallText>
           ) : (
             <>
-              <SmallText>Horizontal scroll ist moeglich. Mit dem Button kannst du mehr Zeilen nachladen.</SmallText>
+              <SmallText>
+                Kompakte Tabellenansicht. Du kannst die Spaltenbreite per Drag am rechten Rand des Spaltenkopfs anpassen
+                und innerhalb der Box horizontal/vertikal scrollen.
+              </SmallText>
               <div style={{ marginTop: 10 }}>
-                <Table
+                <ResizableTable
                   columns={headers.map((h) => ({ key: h, label: String(h) }))}
                   rows={rows
                     .filter((r) => {
