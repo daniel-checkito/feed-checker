@@ -1065,7 +1065,7 @@ export default function App() {
         padding: 24,
         fontFamily: "ui-sans-serif, system-ui",
         boxSizing: "border-box",
-        overflowX: "hidden",
+        overflowX: "auto",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
