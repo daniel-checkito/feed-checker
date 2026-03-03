@@ -217,8 +217,8 @@ function Table({ columns, rows, highlight }) {
                   borderBottom: "1px solid #E5E7EB",
                   color: "#111827",
                   whiteSpace: "normal",
-                  maxWidth: 180,
-                  minWidth: 140,
+                  maxWidth: 140,
+                  minWidth: 110,
                 }}
               >
                 {c.label}
@@ -239,8 +239,8 @@ function Table({ columns, rows, highlight }) {
                       borderBottom: "1px solid #F3F4F6",
                       color: "#111827",
                       whiteSpace: "normal",
-                      maxWidth: 180,
-                      minWidth: 140,
+                      maxWidth: 140,
+                      minWidth: 110,
                       wordBreak: "break-word",
                     }}
                   >
@@ -437,13 +437,14 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
             onClick={() => onSave(draft)}
             disabled={saving}
             style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid #E5E7EB",
-              background: saving ? "#F3F4F6" : "white",
+              padding: "10px 18px",
+              borderRadius: 999,
+              border: `1px solid ${BRAND_COLOR}`,
+              background: saving ? "#9CA3AF" : BRAND_COLOR,
               cursor: saving ? "not-allowed" : "pointer",
               fontSize: 13,
               fontWeight: 800,
+              color: "#FFFFFF",
             }}
           >
             {saving ? "Speichern" : "Speichern"}
@@ -524,13 +525,14 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
                 setDraft(DEFAULT_RULES);
               }}
               style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid #E5E7EB",
-                background: "white",
+                padding: "10px 18px",
+                borderRadius: 999,
+                border: `1px solid ${BRAND_COLOR}`,
+                background: "#FFFFFF",
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 800,
+                color: BRAND_COLOR,
               }}
             >
               Auf Default setzen
@@ -1041,10 +1043,11 @@ export default function App() {
               window.location.hash = "#/checker";
             }}
             style={{
-              padding: "8px 10px",
-              borderRadius: 12,
-              border: "1px solid #E5E7EB",
-              background: route === "checker" ? "#EEF2FF" : "white",
+              padding: "8px 16px",
+              borderRadius: 999,
+              border: `1px solid ${BRAND_COLOR}`,
+              background: route === "checker" ? BRAND_COLOR : "#FFFFFF",
+              color: route === "checker" ? "#FFFFFF" : BRAND_COLOR,
               cursor: "pointer",
               fontSize: 13,
               fontWeight: 800,
@@ -1057,10 +1060,11 @@ export default function App() {
               window.location.hash = "#/rules";
             }}
             style={{
-              padding: "8px 10px",
-              borderRadius: 12,
-              border: "1px solid #E5E7EB",
-              background: route === "rules" ? "#EEF2FF" : "white",
+              padding: "8px 16px",
+              borderRadius: 999,
+              border: `1px solid ${BRAND_COLOR}`,
+              background: route === "rules" ? BRAND_COLOR : "#FFFFFF",
+              color: route === "rules" ? "#FFFFFF" : BRAND_COLOR,
               cursor: "pointer",
               fontSize: 13,
               fontWeight: 800,
@@ -1086,7 +1090,7 @@ export default function App() {
         padding: 24,
         fontFamily: "ui-sans-serif, system-ui",
         boxSizing: "border-box",
-        overflowX: "auto",
+        overflowX: "hidden",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
@@ -1532,14 +1536,15 @@ export default function App() {
                     onClick={() => setPreviewCount((c) => Math.min(rows.length, c + 20))}
                     disabled={previewCount >= rows.length}
                     style={{
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid #E5E7EB",
-                      background: previewCount >= rows.length ? "#F3F4F6" : "white",
-                      cursor: previewCount >= rows.length ? "not-allowed" : "pointer",
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}
+                    padding: "10px 18px",
+                    borderRadius: 999,
+                    border: `1px solid ${BRAND_COLOR}`,
+                    background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR,
+                    cursor: previewCount >= rows.length ? "not-allowed" : "pointer",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#FFFFFF",
+                  }}
                   >
                     20 weitere laden
                   </button>
