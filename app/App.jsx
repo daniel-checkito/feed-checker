@@ -152,6 +152,7 @@ function Pill({ tone, children }) {
         fontWeight: 600,
         lineHeight: "16px",
         whiteSpace: "nowrap",
+        flexShrink: 0,
       }}
     >
       {children}
@@ -162,7 +163,7 @@ function Pill({ tone, children }) {
 function StepCard({ title, status, subtitle, children }) {
   const border =
     status === "ok" ? "#A5D6A7" : status === "warn" ? "#FFE082" : status === "bad" ? "#EF9A9A" : "#E5E7EB";
-  const icon = status === "ok" ? "✅" : status === "warn" ? "⚠️" : status === "bad" ? "⛔" : "⬜";
+  const icon = status === "ok" ? "✅" : status === "warn" ? "⚠️" : status === "bad" ? "⛔" : "⏳";
   return (
     <div
       style={{
@@ -171,22 +172,27 @@ function StepCard({ title, status, subtitle, children }) {
         padding: 16,
         background: "white",
         boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+        boxSizing: "border-box",
+        width: "100%",
+        overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
-      <div style={{
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid #E5E7EB",
-    fontSize: 13,
-  }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: "1px solid #E5E7EB",
+          fontSize: 13,
+          flex: "1 1 auto",
+          minWidth: 0,
+        }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div style={{ fontSize: 18 }}>{icon}</div>
+            <div style={{ fontSize: 18, flexShrink: 0 }}>{icon}</div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
           </div>
           {subtitle ? <div style={{ marginTop: 6, color: "#4B5563", fontSize: 13 }}>{subtitle}</div> : null}
         </div>
-        <div>
+        <div style={{ flexShrink: 0 }}>
           {status === "ok" ? <Pill tone="ok">OK</Pill> : null}
           {status === "warn" ? <Pill tone="warn">Hinweis</Pill> : null}
           {status === "bad" ? <Pill tone="bad">Fehler</Pill> : null}
@@ -204,7 +210,7 @@ function SmallText({ children }) {
 
 function Table({ columns, rows, highlight }) {
   return (
-    <div style={{ overflowX: "auto", maxWidth: "100%", border: "1px solid #E5E7EB", borderRadius: 12 }}>
+    <div style={{ overflowX: "auto", width: "100%", border: "1px solid #E5E7EB", borderRadius: 12, boxSizing: "border-box" }}>
       <table style={{ borderCollapse: "collapse", fontSize: 13, width: "max-content", minWidth: "100%" }}>
         <thead>
           <tr style={{ background: "#F9FAFB" }}>
@@ -216,9 +222,7 @@ function Table({ columns, rows, highlight }) {
                   padding: "10px 12px",
                   borderBottom: "1px solid #E5E7EB",
                   color: "#111827",
-                  whiteSpace: "normal",
-                  maxWidth: 140,
-                  minWidth: 110,
+                  whiteSpace: "nowrap",
                 }}
               >
                 {c.label}
@@ -238,10 +242,7 @@ function Table({ columns, rows, highlight }) {
                       padding: "10px 12px",
                       borderBottom: "1px solid #F3F4F6",
                       color: "#111827",
-                      whiteSpace: "normal",
-                      maxWidth: 140,
-                      minWidth: 110,
-                      wordBreak: "break-word",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {String(r?.[c.key] ?? "")}
@@ -258,7 +259,7 @@ function Table({ columns, rows, highlight }) {
 
 function ResizableTable({ columns, rows }) {
   const [widths, setWidths] = useState(() =>
-    Object.fromEntries(columns.map((c) => [c.key, 110]))
+    Object.fromEntries(columns.map((c) => [c.key, 90]))
   );
   const dragRef = useRef(null);
 
@@ -270,7 +271,7 @@ function ResizableTable({ columns, rows }) {
       setWidths((prev) => {
         const next = { ...prev };
         const raw = prev[key] ?? startWidth;
-        next[key] = Math.max(80, raw + delta);
+        next[key] = Math.max(60, raw + delta);
         return next;
       });
     }
@@ -304,7 +305,7 @@ function ResizableTable({ columns, rows }) {
     <div
       style={{
         width: "100%",
-        maxHeight: 260,
+        maxHeight: 420,
         overflow: "auto",
         border: "1px solid #E5E7EB",
         borderRadius: 12,
@@ -314,22 +315,23 @@ function ResizableTable({ columns, rows }) {
       <table
         style={{
           borderCollapse: "collapse",
-          fontSize: 13,
+          fontSize: 11,
           width: "max-content",
           minWidth: "100%",
+          tableLayout: "fixed",
         }}
       >
         <thead>
           <tr style={{ background: "#F9FAFB" }}>
             {columns.map((c) => {
-              const w = widths[c.key] ?? 110;
+              const w = widths[c.key] ?? 90;
               return (
                 <th
                   key={c.key}
                   style={{
                     position: "relative",
                     textAlign: "left",
-                    padding: "10px 12px",
+                    padding: "6px 8px",
                     borderBottom: "1px solid #E5E7EB",
                     color: "#111827",
                     whiteSpace: "normal",
@@ -358,14 +360,14 @@ function ResizableTable({ columns, rows }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i}>
+            <tr key={i} style={{ background: i % 2 === 0 ? "#FFFFFF" : "#F9FAFB" }}>
               {columns.map((c) => {
-                const w = widths[c.key] ?? 110;
+                const w = widths[c.key] ?? 90;
                 return (
                   <td
                     key={c.key}
                     style={{
-                      padding: "8px 12px",
+                      padding: "4px 8px",
                       borderBottom: "1px solid #F3F4F6",
                       color: "#111827",
                       whiteSpace: "normal",
@@ -427,8 +429,8 @@ function firstImageUrls(rows, imageCols, limit) {
 function CollapsibleList({ title, items, tone, hint }) {
   const count = items.length;
   return (
-    <details style={{ border: "1px solid #E5E7EB", borderRadius: 14, padding: 12, background: "white" }}>
-      <summary style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+    <details style={{ border: "1px solid #E5E7EB", borderRadius: 14, padding: 12, background: "white", boxSizing: "border-box", width: "100%" }}>
+      <summary style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <Pill tone={tone}>{count}</Pill>
         <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>{title}</span>
         {hint ? (
@@ -448,6 +450,7 @@ function CollapsibleList({ title, items, tone, hint }) {
               border: "1px solid #E5E7EB",
               background: "#F9FAFB",
               color: "#111827",
+              wordBreak: "break-all",
             }}
           >
             {x}
@@ -462,12 +465,12 @@ function CollapsibleList({ title, items, tone, hint }) {
 function TextInput({ label, value, onChange, placeholder }) {
   return (
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <div style={{ fontSize: 13, color: "#111827", fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 13, color: "#111827", fontWeight: 700, flexShrink: 0 }}>{label}</div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        style={{ flex: "1 1 260px", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
+        style={{ flex: "1 1 200px", minWidth: 0, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
       />
     </div>
   );
@@ -535,7 +538,6 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
 
   function setArrayField(key, raw) {
     const arr = String(raw || "")
-      // splitte an Komma, Semikolon oder Zeilenumbruch; mehrere Trenner erlauben
       .split(/[,;\n]+/)
       .map((s) => s.trim())
       .filter(Boolean);
@@ -543,7 +545,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui" }}>
+    <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>Regeln</div>
@@ -551,18 +553,20 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
             Global gespeichert. Aenderungen gelten sofort fuer alle.
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <input
-  value={adminToken}
-  onChange={(e) => updateAdminToken(e.target.value)}
-  placeholder="Admin Token"
-  style={{
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid #E5E7EB",
-    fontSize: 13,
-  }}
-/>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            value={adminToken}
+            onChange={(e) => updateAdminToken(e.target.value)}
+            placeholder="Passwort"
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid #E5E7EB",
+              fontSize: 13,
+              minWidth: 0,
+              background: "#FFFFFF",
+            }}
+          />
           {savedAt ? <Pill tone="info">Zuletzt gespeichert {savedAt}</Pill> : <Pill tone="info">Noch nicht gespeichert</Pill>}
           <button
             onClick={() => onSave(draft)}
@@ -578,7 +582,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
               color: "#FFFFFF",
             }}
           >
-            {saving ? "Speichern" : "Speichern"}
+            {saving ? "Speichern..." : "Speichern"}
           </button>
         </div>
       </div>
@@ -593,7 +597,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
             rows={2}
             value={(draft.allowed_shipping_mode || []).join(", ")}
             onChange={(e) => setArrayField("allowed_shipping_mode", e.target.value)}
-            style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
+            style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
           />
         </div>
 
@@ -615,7 +619,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
           <input
             value={draft.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern}
             onChange={(e) => setField("delivery_includes_pattern", e.target.value)}
-            style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
+            style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
           />
         </div>
 
@@ -672,82 +676,164 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
         </div>
 
         <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Welche Regeln werden geprueft?</div>
-          <SmallText>Unten stehen alle Pruefungen in der Reihenfolge, in der der Checker sie im Tab &quot;Checker&quot; ausfuehrt.</SmallText>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Welche Regeln prueft der Checker?</div>
+          <SmallText>
+            Unten sind alle Pruefungen in der gleichen Reihenfolge wie im Tab &quot;Checker&quot;. Pro Schritt steht, was erlaubt ist
+            und was als Problem markiert wird.
+          </SmallText>
 
           <ol style={{ marginTop: 10, paddingLeft: 18, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
             <li style={{ marginBottom: 8 }}>
-              <strong>1. Datei &amp; technische CSV Struktur</strong>
+              <strong>1. Datei hochladen</strong>
               <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>CSV kann eingelesen werden (Header, Zeilen, leere Zeilen uebersprungen).</li>
-                <li>Header werden aus `header` Zeile oder automatisch aus der ersten Datenzeile ermittelt.</li>
+                <li>
+                  <strong>Erwartet:</strong> CSV‑Datei mit Kopfzeile (Headerzeile) und einer Zeile pro Produkt. Trennzeichen z.&nbsp;B. Komma oder
+                  Semikolon.
+                </li>
+                <li>
+                  <strong>Erlaubt:</strong> Leere Zeilen werden ignoriert; zusätzliche Spalten sind ok.
+                </li>
+                <li>
+                  <strong>Nicht erlaubt / problematisch:</strong> Dateien ohne lesbare Kopfzeile, Binärformate (z.&nbsp;B. Excel ohne Export als CSV),
+                  stark kaputte CSV‑Struktur.
+                </li>
               </ul>
             </li>
 
             <li style={{ marginBottom: 8 }}>
-              <strong>2. Pflichtfelder und Spaltenzuordnung</strong>
+              <strong>2. Spalten und Pflichtfelder</strong>
               <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>Automatische Zuordnung der Pflichtfelder EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand, shipping_mode, Lieferzeit, Preis und Marke zu passenden Spaltennamen.</li>
-                <li>Hinweis, wenn ein Pflichtfeld gar nicht gefunden werden konnte.</li>
+                <li>
+                  <strong>Erwartet:</strong> Pflichtfelder wie <code>ean</code>, <code>seller_offer_id</code>, <code>name</code>, <code>category_path</code>,{" "}
+                  <code>description</code>, <code>stock_amount</code>, <code>shipping_mode</code>, <code>delivery_time</code>, <code>price</code>,{" "}
+                  <code>brand</code> muessen per Spaltennamen erkannt werden koennen.
+                </li>
+                <li>
+                  <strong>Erlaubt:</strong> Aehnliche Spaltennamen wie z.&nbsp;B. <code>gtin</code> statt <code>ean</code> oder{" "}
+                  <code>product_name</code> statt <code>name</code>. Der Checker versucht eine automatische Zuordnung.
+                </li>
+                <li>
+                  <strong>Nicht erlaubt / problematisch:</strong> fehlende Pflichtspalten oder komplett untypische Spaltennamen, die keiner Regel
+                  zugeordnet werden koennen. Diese werden als &quot;Nicht gefunden&quot; markiert.
+                </li>
               </ul>
             </li>
 
             <li style={{ marginBottom: 8 }}>
-              <strong>3. Eindeutigkeit von EAN und Titel</strong>
+              <strong>3. Duplikate</strong>
               <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>Suche nach doppelten EAN Werten im gesamten Feed.</li>
-                <li>Suche nach doppelten Produkttiteln im gesamten Feed.</li>
-                <li>Markierung von Zeilen, in denen EAN fehlt.</li>
-                <li>Erkennung von &quot;wissenschaftlicher Schreibweise&quot; bei EAN (z.&nbsp;B. 4.07053E+12) als Formatfehler.</li>
+                <li>
+                  <strong>Erwartet:</strong> Jede EAN und jeder Produkttitel sollte eindeutig sein.
+                </li>
+                <li>
+                  <strong>Erlaubt:</strong> EANs und Titel, die genau einmal vorkommen, leere Titel werden nicht doppelt gezaehlt.
+                </li>
+                <li>
+                  <strong>Nicht erlaubt / problematisch:</strong> doppelte EANs oder doppelte Titel; Zeilen ohne EAN; EAN‑Werte, die wie
+                  wissenschaftliche Schreibweise aussehen (z.&nbsp;B. <code>4.07053E+12</code>) und dadurch kuerzer werden.
+                </li>
               </ul>
             </li>
 
             <li style={{ marginBottom: 8 }}>
-              <strong>4. Optionale Felder, Bilder und Versand</strong>
+              <strong>4. Optionale Felder und Versand</strong>
               <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>Optionalfelder Material, Farbe und Lieferumfang:
+                <li>
+                  <strong>Optionale Felder:</strong> <code>material</code>, <code>color</code>, <code>delivery_includes</code>.
                   <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>Beispiele von vorkommenden Werten je Feld.</li>
-                    <li>Liste der EANs, bei denen der jeweilige Wert fehlt.</li>
+                    <li>
+                      <strong>Erlaubt:</strong> beliebige verstaendliche Werte (z.&nbsp;B. &quot;Holz&quot;, &quot;blau&quot;, &quot;4x Stuhl&quot;).
+                    </li>
+                    <li>
+                      <strong>Nicht erlaubt / problematisch:</strong> komplett leere Felder werden als Verbesserungs‑Potenzial markiert.
+                    </li>
                   </ul>
                 </li>
-                <li>Bilder:
+                <li>
+                  <strong>Lieferumfang:</strong> wird gegen das Regex aus &quot;Lieferumfang Pattern&quot; geprueft (Standard: Anzahl x Produkt).
                   <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>Erkennung aller Bildspalten (image_url… usw.).</li>
-                    <li>EAN mit 0 Bildern, genau 1 Bild und weniger als der Mindestanzahl (`image_min_per_product`).</li>
-                    <li>Kleine Bildvorschau mit ein paar Beispiel‑Bildlinks.</li>
+                    <li>
+                      <strong>Erlaubt:</strong> Formate wie <code>1x Tisch</code>, <code>4x Stuhl</code>, <code>2 x Hocker</code>.
+                    </li>
+                    <li>
+                      <strong>Nicht erlaubt / problematisch:</strong> Freitexte ohne Mengenangabe (z.&nbsp;B. &quot;Tisch und Stuehle&quot;),
+                      die nicht zum Pattern passen.
+                    </li>
                   </ul>
                 </li>
-                <li>shipping_mode:
+                <li>
+                  <strong>shipping_mode:</strong> wird gegen die Liste &quot;Erlaubte shipping_mode Werte&quot; geprueft (Standard: Paket, Spedition).
                   <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>Erlaubte Werte laut Regel &quot;Erlaubte shipping_mode Werte&quot; (Standard: Paket, Spedition).</li>
-                    <li>Liste der EANs ohne shipping_mode.</li>
-                    <li>Liste der EANs mit ungueltigem shipping_mode Wert.</li>
+                    <li>
+                      <strong>Erlaubt:</strong> exakte Werte aus dieser Liste, Gross‑/Kleinschreibung wird ignoriert.
+                    </li>
+                    <li>
+                      <strong>Nicht erlaubt / problematisch:</strong> leere shipping_mode Felder oder andere Texte (z.&nbsp;B. &quot;Post&quot;,
+                      &quot;Abholung&quot;), die nicht in der Liste stehen.
+                    </li>
                   </ul>
                 </li>
-                <li>Titel und Beschreibung:
+                <li>
+                  <strong>Titel &amp; Beschreibung:</strong> werden auf Mindestlaenge und bestimmte Muster geprueft.
                   <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>Pruefung Mindestlaenge Titel (`title_min_length`).</li>
-                    <li>Pruefung Mindestlaenge Beschreibung (`description_min_length`).</li>
-                    <li>Hinweis, wenn &quot;siehe oben&quot; im Titel vorkommt.</li>
-                    <li>Hinweis, wenn Material/Farbe gepflegt sind, aber nicht im Titel vorkommen.</li>
-                    <li>Suche nach Werbung, externen Links, Varianten‑Hinweisen und Kontakt‑Hinweisen in der Beschreibung.</li>
+                    <li>
+                      <strong>Erlaubt:</strong> ausreichend lange, sachliche Beschreibungen ohne Werbung, Links oder Kontaktaufrufe.
+                    </li>
+                    <li>
+                      <strong>Nicht erlaubt / problematisch:</strong> sehr kurze Texte, Hinweise wie &quot;siehe oben&quot;, externe Links
+                      (http/https), starke Werbetexte (&quot;jetzt kaufen&quot;, &quot;Rabatt&quot;), Varianten‑Hinweise (&quot;in verschiedenen Farben&quot;)
+                      und Kontakttexte (&quot;kontaktieren Sie uns&quot;, &quot;Hotline&quot;).
+                    </li>
                   </ul>
                 </li>
-                <li>Lieferumfang:
-                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>Pruefung des Lieferumfang‑Formats gegen das Regex &quot;Lieferumfang Pattern&quot; (Standard: Anzahl x Produkt, z.&nbsp;B. 4x Stuhl).</li>
-                  </ul>
+              </ul>
+            </li>
+
+            <li style={{ marginBottom: 8 }}>
+              <strong>5. Bilder</strong>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                <li>
+                  <strong>Erwartet:</strong> eine oder mehrere Bildspalten (z.&nbsp;B. <code>image_url_0</code>, <code>image1</code>), die
+                  direkt auf Bilddateien verweisen.
+                </li>
+                <li>
+                  <strong>Erlaubt:</strong> mindestens die in &quot;Mindestanzahl Bilder&quot; definierte Anzahl an Bildlinks pro Produkt. URLs duerfen
+                  technisch nicht ladbar sein, werden dann aber trotzdem als Link angezeigt.
+                </li>
+                <li>
+                  <strong>Nicht erlaubt / problematisch:</strong> Produkte ohne Bilder, nur ein Bild oder weniger als die geforderte Mindestanzahl
+                  werden hervorgehoben. Indirekte Links (z.&nbsp;B. auf HTML‑Seiten) koennen zu fehlenden Vorschaubildern fuehren.
+                </li>
+              </ul>
+            </li>
+
+            <li style={{ marginBottom: 8 }}>
+              <strong>6. Zusammenfassung und Score</strong>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                <li>
+                  <strong>Was passiert:</strong> alle vorherigen Pruefungen fliessen in einen Score von 0–100 ein und es wird entschieden, ob der
+                  Feed &quot;startklar&quot; ist.
+                </li>
+                <li>
+                  <strong>Erlaubt:</strong> kleinere Maengel in optionalen Feldern, solange Pflichtfelder, EAN und Versand grundsaetzlich passen.
+                </li>
+                <li>
+                  <strong>Nicht erlaubt / problematisch:</strong> fehlende Pflichtfelder, fehlende oder doppelte EANs sowie starke Versand‑ oder
+                  Bildprobleme fuehren zu einem niedrigen Score und &quot;Noch nicht startklar&quot;.
                 </li>
               </ul>
             </li>
 
             <li style={{ marginBottom: 0 }}>
-              <strong>5. Gesamtscore und Entscheidung</strong>
+              <strong>7. Vorschau</strong>
               <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>Berechnung eines Scores von 0–100 basierend auf fehlenden Pflichtfeldern, Duplikaten, Bildproblemen, Versandproblemen und EAN‑Luecken.</li>
-                <li>Entscheidung, ob wir mit dem Feed starten koennen (`canStart`).</li>
-                <li>Erzeugung einer Mailvorlage mit allen kritischen Punkten und Verbesserungsvorschlaegen.</li>
+                <li>
+                  <strong>Was passiert:</strong> alle Zeilen und Spalten werden 1:1 angezeigt, um die Rohdaten zu kontrollieren.
+                </li>
+                <li>
+                  <strong>Hinweis:</strong> hier werden keine zusaetzlichen Regeln angewendet – die Vorschau dient nur zur manuellen Kontrolle und
+                  zum Nachschlagen einzelner Zeilen.
+                </li>
               </ul>
             </li>
           </ol>
@@ -769,6 +855,7 @@ export default function App() {
           localStorage.setItem("feed_admin_token", value);
         }
       }
+
   const [route, setRoute] = useState(() => {
     if (typeof window === "undefined") return "checker";
     return window.location.hash === "#/rules" ? "rules" : "checker";
@@ -841,6 +928,7 @@ export default function App() {
   useEffect(() => {
     setImageMin(Number(rules?.image_min_per_product ?? DEFAULT_RULES.image_min_per_product));
   }, [rules]);
+
   const [optionalFields] = useState(["material", "color", "delivery_includes"]);
 
   const [requiredFields] = useState([
@@ -908,6 +996,16 @@ export default function App() {
     return { found, missing };
   }, [mapping, requiredFields]);
 
+  const optionalPresence = useMemo(() => {
+    const missing = [];
+    const found = [];
+    for (const f of optionalFields) {
+      if (mapping[f]) found.push({ field: f, column: mapping[f] });
+      else missing.push(f);
+    }
+    return { found, missing };
+  }, [mapping, optionalFields]);
+
   const stage1Status = useMemo(() => {
     if (!headers.length) return "idle";
     return requiredPresence.missing.length === 0 ? "ok" : "warn";
@@ -941,6 +1039,33 @@ export default function App() {
     const titles = Array.from(idxSet).map((i) => String(vals[i] ?? "").trim());
     return uniqueNonEmpty(titles).sort();
   }, [rows, titleColumn]);
+
+  const duplicateTitleRows = useMemo(() => {
+    if (!rows.length || !titleColumn) return [];
+    const titleMap = new Map();
+    rows.forEach((r, idx) => {
+      const t = String(r?.[titleColumn] ?? "").trim();
+      if (!t) return;
+      const arr = titleMap.get(t) || [];
+      arr.push(idx);
+      titleMap.set(t, arr);
+    });
+
+    const out = [];
+    for (const [title, idxs] of titleMap.entries()) {
+      if (idxs.length < 2) continue;
+      idxs.forEach((idx) => {
+        const row = rows[idx];
+        const eanVal = eanColumn ? String(row?.[eanColumn] ?? "").trim() : "";
+        out.push({
+          ean: eanVal || `ROW_${idx + 1}`,
+          title,
+          row: idx + 1,
+        });
+      });
+    }
+    return out;
+  }, [rows, titleColumn, eanColumn]);
 
   const stage2Status = useMemo(() => {
     if (!headers.length) return "idle";
@@ -1090,6 +1215,26 @@ export default function App() {
     const shipBad = optionalFindings.invalidShipping.length > 0 || optionalFindings.missingShipping.length > 0;
     return anyMissing || imagesBad || shipBad ? "warn" : "ok";
   }, [headers, optionalFindings]);
+
+  const imageSamples = useMemo(() => {
+    if (!rows.length || !imageColumns.length) return [];
+    const out = [];
+    for (let i = 0; i < rows.length; i += 1) {
+      const r = rows[i];
+      const urls = [];
+      for (const c of imageColumns) {
+        const u = String(r?.[c] ?? "").trim();
+        if (u) urls.push(u);
+      }
+      if (!urls.length) continue;
+      const id = eanColumn
+        ? String(r?.[eanColumn] ?? "").trim() || `ROW_${i + 1}`
+        : `ROW_${i + 1}`;
+      out.push({ id, urls });
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [rows, imageColumns, eanColumn]);
 
   const summary = useMemo(() => {
     if (!headers.length) {
@@ -1252,9 +1397,7 @@ export default function App() {
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button
-            onClick={() => {
-              window.location.hash = "#/checker";
-            }}
+            onClick={() => { window.location.hash = "#/checker"; }}
             style={{
               padding: "8px 16px",
               borderRadius: 999,
@@ -1269,9 +1412,7 @@ export default function App() {
             Checker
           </button>
           <button
-            onClick={() => {
-              window.location.hash = "#/rules";
-            }}
+            onClick={() => { window.location.hash = "#/rules"; }}
             style={{
               padding: "8px 16px",
               borderRadius: 999,
@@ -1307,19 +1448,21 @@ export default function App() {
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>Feed Pruefung</div>
           <div style={{ marginTop: 6, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
             Schritt fuer Schritt Pruefung fuer CSV Produktdatenfeeds
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", flexShrink: 0 }}>
           <Pill tone={summary.canStart ? "ok" : "warn"}>{summary.canStart ? "Ready" : "Needs fixes"}</Pill>
           <Pill tone="info">Bewertung {summary.score} von 100</Pill>
         </div>
       </div>
 
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
+
+        {/* STEP 1 */}
         <StepCard title="1 Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="CSV Datei hochladen um die Pruefung zu starten">
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <input
@@ -1332,6 +1475,7 @@ export default function App() {
           {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
         </StepCard>
 
+        {/* STEP 2 */}
         <StepCard
           title="2 Spalten und Pflichtfelder"
           status={stage1Status}
@@ -1340,9 +1484,9 @@ export default function App() {
           {!headers.length ? (
             <SmallText>Bitte CSV hochladen um die erkannten Spalten zu sehen.</SmallText>
           ) : (
-            <>
+            <React.Fragment>
               <SmallText>Gefundene Spalten {headers.length}</SmallText>
-              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, maxWidth: "100%" }}>
                 {headers.map((h) => (
                   <span
                     key={String(h)}
@@ -1353,6 +1497,8 @@ export default function App() {
                       border: "1px solid #E5E7EB",
                       background: "#F9FAFB",
                       color: "#111827",
+                      wordBreak: "break-all",
+                      maxWidth: "100%",
                     }}
                   >
                     {String(h)}
@@ -1360,112 +1506,165 @@ export default function App() {
                 ))}
               </div>
 
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Zuordnung Pflichtfelder</div>
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                  {requiredFields.map((f) => {
-                    const col = mapping[f];
-                    return (
-                      <div
-                        key={f}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          padding: 10,
-                          borderRadius: 12,
-                          border: "1px solid #E5E7EB",
-                          background: col ? "#F0FDF4" : "#FFFBEB",
-                        }}
-                      >
-                        <div style={{ fontSize: 13, color: "#111827" }}>{f}</div>
-                        <div style={{ fontSize: 13, color: col ? "#166534" : "#92400E" }}>{col ? `Zugeordnet zu ${col}` : "Nicht gefunden"}</div>
-                      </div>
-                    );
-                  })}
+              <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
+                  <SmallText>Diese Felder muessen fuer jeden Artikel erkannt werden.</SmallText>
+                  <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+                    {requiredFields.map((f) => {
+                      const col = mapping[f];
+                      const missing = !col;
+                      return (
+                        <div
+                          key={f}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: 8,
+                            borderRadius: 10,
+                            border: "1px solid #E5E7EB",
+                            background: missing ? "#FEF3C7" : "#ECFDF3",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <div style={{ fontSize: 12, color: missing ? "#92400E" : "#166534" }}>
+                              {col ? `Spalte ${col}` : "Nicht gefunden"}
+                            </div>
+                            <Pill tone={missing ? "warn" : "ok"}>{missing ? "Fehlt" : "OK"}</Pill>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 12, color: requiredPresence.missing.length ? "#92400E" : "#166534" }}>
+                    {requiredPresence.missing.length
+                      ? `Noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern ohne Zuordnung.`
+                      : `Alle ${requiredFields.length} Pflichtfelder wurden automatisch zugeordnet.`}
+                  </div>
                 </div>
 
-                {requiredPresence.missing.length ? (
-                  <div style={{ marginTop: 12, color: "#92400E", fontSize: 13 }}>Hinweis Einige Pflichtfelder fehlen oder konnten nicht zugeordnet werden.</div>
-                ) : (
-                  <div style={{ marginTop: 12, color: "#166534", fontSize: 13 }}>Alle Pflichtfelder gefunden.</div>
-                )}
+                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Optionale Felder</div>
+                  <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualitaet und Score.</SmallText>
+                  <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+                    {optionalFields.map((f) => {
+                      const col = mapping[f];
+                      const missing = !col;
+                      return (
+                        <div
+                          key={f}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: 8,
+                            borderRadius: 10,
+                            border: "1px solid #E5E7EB",
+                            background: missing ? "#F9FAFB" : "#EEF2FF",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <div style={{ fontSize: 12, color: missing ? "#6B7280" : BRAND_COLOR }}>
+                              {col ? `Spalte ${col}` : "Nicht gefunden"}
+                            </div>
+                            <Pill tone={missing ? "info" : "ok"}>{missing ? "Optional" : "OK"}</Pill>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 12, color: "#4B5563" }}>
+                    {optionalFields.length
+                      ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern wurden automatisch zugeordnet.`
+                      : "Keine optionalen Felder konfiguriert."}
+                  </div>
+                </div>
               </div>
             </>
           )}
         </StepCard>
 
+        {/* STEP 3 */}
         <StepCard title="3 Duplikate" status={stage2Status} subtitle="Wir pruefen doppelte EAN und doppelte Produkttitel">
           {!headers.length ? (
             <SmallText>Bitte CSV hochladen um Duplikate zu pruefen.</SmallText>
           ) : (
             <>
-              <TextInput
-                label="Schnellsuche in allen Spalten"
-                value={eanSearch}
-                onChange={setEanSearch}
-                placeholder="EAN, Titel oder anderer Text zum Filtern"
-              />
-              <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <Pill tone={eanColumn ? "ok" : "warn"}>{eanColumn ? `EAN Spalte ${eanColumn}` : "EAN Spalte nicht gefunden"}</Pill>
                 <Pill tone={titleColumn ? "ok" : "warn"}>{titleColumn ? `Titel Spalte ${titleColumn}` : "Titel Spalte nicht gefunden"}</Pill>
               </div>
 
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte EAN Werte</div>
                   <SmallText>Liste der EAN Werte die mehr als einmal vorkommen</SmallText>
                   <div style={{ marginTop: 10 }}>
                     <CollapsibleList
                       title="Doppelte EAN"
-                      items={duplicateEans.filter((x) => !eanSearch || String(x).includes(eanSearch))}
+                      items={duplicateEans}
                       tone={duplicateEans.length ? "warn" : "ok"}
                     />
                   </div>
                 </div>
 
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Titelwerte</div>
                   <SmallText>Liste der Titel die mehr als einmal vorkommen</SmallText>
                   <div style={{ marginTop: 10 }}>
                     <CollapsibleList
                       title="Doppelte Titel"
-                      items={duplicateTitles.filter((x) => !eanSearch || String(x).toLowerCase().includes(eanSearch.toLowerCase()))}
+                      items={duplicateTitles}
                       tone={duplicateTitles.length ? "warn" : "ok"}
                     />
                   </div>
                 </div>
               </div>
+
+              {duplicateTitleRows.length ? (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Detailansicht doppelte Titel</div>
+                  <SmallText>
+                    Hier siehst du fuer jeden doppelten Titel die zugehoerige EAN bzw. Zeilen‑ID und die Zeilennummer aus dem CSV.
+                  </SmallText>
+                  <div style={{ marginTop: 10 }}>
+                    <Table
+                      columns={[
+                        { key: "title", label: "Titel" },
+                        { key: "ean", label: "EAN / Zeile" },
+                        { key: "row", label: "Zeilennummer" },
+                      ]}
+                      rows={duplicateTitleRows.slice(0, 500)}
+                    />
+                    {duplicateTitleRows.length > 500 ? (
+                      <SmallText>Es werden nur die ersten 500 Zeilen mit doppelten Titeln angezeigt.</SmallText>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
         </StepCard>
 
+        {/* STEP 4 */}
         <StepCard
-          title="4 Optionale Felder, Bilder, Versand"
+          title="4 Optionale Felder und Versand"
           status={stage3Status}
-          subtitle="Wir zeigen EANs fuer fehlende Angaben, fehlende EAN, zu wenige Bilder und Versandprobleme"
+          subtitle="Wir zeigen EANs fuer fehlende Angaben, fehlende EAN und Versandprobleme"
         >
           {!headers.length ? (
             <SmallText>Bitte CSV hochladen um Schritt 4 zu pruefen.</SmallText>
           ) : (
             <>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <div style={{ fontSize: 13, color: "#111827", fontWeight: 700 }}>Mindestanzahl Bilder</div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={imageMin}
-                    onChange={(e) => setImageMin(Number(e.target.value || 3))}
-                    style={{ width: 70, padding: 8, border: "1px solid #E5E7EB", borderRadius: 10 }}
-                  />
-                </div>
-                <Pill tone={imageColumns.length ? "ok" : "warn"}>{imageColumns.length ? `Bildspalten ${imageColumns.length}` : "Keine Bildspalten erkannt"}</Pill>
-                <Pill tone={mapping.shipping_mode ? "ok" : "warn"}>{mapping.shipping_mode ? `shipping_mode ${mapping.shipping_mode}` : "shipping_mode nicht erkannt"}</Pill>
-              </div>
-
-              <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+              <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>EAN fehlt</div>
                   <SmallText>Ohne EAN ist der Datensatz nicht verarbeitbar.</SmallText>
                   <div style={{ marginTop: 10 }}>
@@ -1478,63 +1677,14 @@ export default function App() {
                   </div>
                 </div>
 
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>Bilder mit 0 oder 1</div>
-                  <SmallText>EANs von Produkten mit zu wenigen Bildlinks. Unten werden einige Bildlinks als Vorschau gerendert, falls erreichbar.</SmallText>
-                  <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                    <CollapsibleList
-                      title="EAN ohne Bilder"
-                      items={optionalFindings.imageZeroEans.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                      tone={optionalFindings.imageZeroEans.length ? "bad" : "ok"}
-                    />
-                    <CollapsibleList
-                      title="EAN mit einem Bild"
-                      items={optionalFindings.imageOneEans.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                      tone={optionalFindings.imageOneEans.length ? "warn" : "ok"}
-                    />
-                  </div>
-
-                  {optionalFindings.imagePreviewUrls.length ? (
-                    <div style={{ marginTop: 10, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "white" }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Bild Vorschau</div>
-                      <SmallText>Falls Bilder nicht laden, blockt oft die Quelle oder es ist kein direktes Bild URL.</SmallText>
-                      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 10 }}>
-                        {optionalFindings.imagePreviewUrls.map((u) => (
-                          <a key={u} href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 86 }}>
-                            <img
-                              src={u}
-                              alt="preview"
-                              loading="lazy"
-                              style={{
-                                width: 86,
-                                height: 86,
-                                objectFit: "cover",
-                                borderRadius: 12,
-                                border: "1px solid #E5E7EB",
-                                background: "#F9FAFB",
-                              }}
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                            <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              Link oeffnen
-                            </div>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>Fehlende optionale Angaben</div>
-                  <SmallText>Anzahlen und EAN Listen fuer Material, Farbe, Lieferumfang. Beispiele zeigen Werte aus dem Feed zum Gegencheck.</SmallText>
+                  <SmallText>Material, Farbe, Lieferumfang.</SmallText>
 
                   <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                     <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "white" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Material Beispiele</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Material</div>
                         <div style={{ fontSize: 12, color: "#6B7280" }}>
                           {optionalFindings.samplesByField.material.length ? optionalFindings.samplesByField.material.join(" | ") : "keine Werte"}
                         </div>
@@ -1550,7 +1700,7 @@ export default function App() {
 
                     <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "white" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Farbe Beispiele</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Farbe</div>
                         <div style={{ fontSize: 12, color: "#6B7280" }}>
                           {optionalFindings.samplesByField.color.length ? optionalFindings.samplesByField.color.join(" | ") : "keine Werte"}
                         </div>
@@ -1566,7 +1716,7 @@ export default function App() {
 
                     <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "white" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang Beispiele</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang</div>
                         <div style={{ fontSize: 12, color: "#6B7280" }}>
                           {optionalFindings.samplesByField.delivery_includes.length ? optionalFindings.samplesByField.delivery_includes.join(" | ") : "keine Werte"}
                         </div>
@@ -1585,7 +1735,7 @@ export default function App() {
 
               <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
                 <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>Pruefung shipping_mode</div>
-                <SmallText>Erlaubt sind Paket oder Spedition. Pfeil bedeutet Feld ist leer und es wurde nichts geliefert.</SmallText>
+                <SmallText>Erlaubt sind Paket oder Spedition.</SmallText>
 
                 {mapping.shipping_mode ? (
                   <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
@@ -1596,7 +1746,7 @@ export default function App() {
                       hint={optionalFindings.missingShipping.length ? "➜ Feld ist leer" : ""}
                     />
                     <CollapsibleList
-                      title="shipping_mode ungueltig (Werte)"
+                      title="shipping_mode ungueltig"
                       items={optionalFindings.invalidShipping
                         .filter((x) => !eanSearch || String(x.ean).includes(eanSearch))
                         .map((x) => `${x.ean}: ${x.value}`)}
@@ -1616,7 +1766,7 @@ export default function App() {
                 <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #FDE68A", background: "#FFFBEB" }}>
                   <div style={{ fontWeight: 700, color: "#92400E", fontSize: 13 }}>Hinweis EAN Format</div>
                   <div style={{ marginTop: 6, color: "#92400E", fontSize: 13 }}>
-                    Einige EAN Werte sehen nach wissenschaftlicher Schreibweise aus. Das ist fast immer ein Formatproblem durch Excel.
+                    Einige EAN Werte sehen nach wissenschaftlicher Schreibweise aus.
                   </div>
                   <div style={{ marginTop: 10 }}>
                     <CollapsibleList title="Betroffene EAN" items={optionalFindings.scientificEans.filter((x) => !eanSearch || String(x).includes(eanSearch))} tone="warn" />
@@ -1627,8 +1777,108 @@ export default function App() {
           )}
         </StepCard>
 
+        {/* STEP 5 */}
         <StepCard
-          title="5 Zusammenfassung und Entscheidung"
+          title="5 Bilder"
+          status={headers.length ? (imageColumns.length ? "ok" : "warn") : "idle"}
+          subtitle="Wir pruefen Bilder je Produkt und zeigen Beispielprodukte"
+        >
+          {!headers.length ? (
+            <SmallText>Bitte CSV hochladen um die Bildpruefung zu sehen.</SmallText>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <Pill tone={imageColumns.length ? "ok" : "warn"}>{imageColumns.length ? `Bildspalten ${imageColumns.length}` : "Keine Bildspalten erkannt"}</Pill>
+              </div>
+
+              <SmallText>
+                Unten siehst du eine Uebersicht, wie viele Produkte keine, nur ein oder mehrere Bilder haben, sowie bis zu 5 Beispielprodukte mit allen Bildlinks.
+              </SmallText>
+
+              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Anzahl Bilder pro Produkt</div>
+                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                    <CollapsibleList
+                      title={`0 Bilder (${optionalFindings.imageZeroEans.length})`}
+                      items={optionalFindings.imageZeroEans}
+                      tone={optionalFindings.imageZeroEans.length ? "bad" : "ok"}
+                      hint={optionalFindings.imageZeroEans.length ? "EANs ohne jegliche Bilder" : "Alle Produkte haben mindestens ein Bild."}
+                    />
+                    <CollapsibleList
+                      title={`1 Bild (${optionalFindings.imageOneEans.length})`}
+                      items={optionalFindings.imageOneEans}
+                      tone={optionalFindings.imageOneEans.length ? "warn" : "ok"}
+                      hint={optionalFindings.imageOneEans.length ? "EANs mit genau einem Bild" : ""}
+                    />
+                    <CollapsibleList
+                      title={`Weniger als empfohlen (${optionalFindings.imageLowEans.length})`}
+                      items={optionalFindings.imageLowEans}
+                      tone={optionalFindings.imageLowEans.length ? "warn" : "ok"}
+                      hint={optionalFindings.imageLowEans.length ? "Weniger Bilder als empfohlen (laut Regeln‑Tab)" : ""}
+                    />
+                  </div>
+                </div>
+
+              {imageSamples.length ? (
+                <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                  {imageSamples
+                    .filter((s) => !eanSearch || String(s.id).includes(eanSearch))
+                    .map((sample) => (
+                      <div
+                        key={sample.id}
+                        style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          border: "1px solid #E5E7EB",
+                          background: "#FFFFFF",
+                          minWidth: 0,
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>EAN / Zeile {sample.id}</div>
+                        <SmallText>Alle Bildlinks dieses Produkts (max. 6).</SmallText>
+                        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                          {sample.urls.slice(0, 6).map((u) => (
+                            <div key={u} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <a href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}>
+                                <img
+                                  src={u}
+                                  alt="Bild"
+                                  loading="lazy"
+                                  style={{
+                                    width: 64,
+                                    height: 64,
+                                    objectFit: "cover",
+                                    borderRadius: 12,
+                                    border: "1px solid #E5E7EB",
+                                    background: "#F9FAFB",
+                                  }}
+                                  onError={(e) => {
+                                    e.currentTarget.style.visibility = "hidden";
+                                  }}
+                                />
+                              </a>
+                              <div style={{ fontSize: 11, color: "#4B5563", wordBreak: "break-all" }}>{u}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div style={{ marginTop: 12 }}>
+                  <SmallText>
+                    Es konnten keine Beispielprodukte mit Bildlinks ermittelt werden. Besonders kritisch sind EANs ohne Bilder oder nur einem Bild.
+                  </SmallText>
+                </div>
+              )}
+            </React.Fragment>
+          )}
+        </StepCard>
+
+        {/* STEP 6 */}
+        <StepCard
+          title="6 Zusammenfassung und Entscheidung"
           status={headers.length ? (summary.canStart ? "ok" : "warn") : "idle"}
           subtitle="Kurzes Ergebnis und eine Mailvorlage falls Anpassungen noetig sind"
         >
@@ -1637,53 +1887,27 @@ export default function App() {
           ) : (
             <>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <Pill tone={summary.canStart ? "ok" : "warn"}>
-                    {summary.canStart ? "✅  Wir koennen starten" : "🚧  Noch nicht startklar"}
-                  </Pill>
-                  <Pill tone="info">
-                    <strong>⭐ Score {summary.score} von 100</strong>
-                  </Pill>
+                <Pill tone={summary.canStart ? "ok" : "warn"}>
+                  {summary.canStart ? "✅ Wir koennen starten" : "🚧 Noch nicht startklar"}
+                </Pill>
+                <Pill tone="info">⭐ Score {summary.score} von 100</Pill>
               </div>
 
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    border: `1px solid ${BRAND_COLOR}`,
-                    background: BRAND_COLOR,
-                    color: "#FFFFFF",
-                  }}
-                >
-                  <div style={{ fontWeight: 800, fontSize: 13 }}>
-                    ⚠️ <strong>Kritische Punkte</strong>
-                  </div>
+              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                <div style={{ padding: 12, borderRadius: 14, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, color: "#FFFFFF", minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>⚠️ Kritische Punkte</div>
                   <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                     {(summary.issues.length ? summary.issues : ["Keine kritischen Fehler erkannt"]).map((x, i) => (
-                      <div key={i} style={{ fontSize: 13 }}>
-                        <strong>•</strong> {x}
-                      </div>
+                      <div key={i} style={{ fontSize: 13 }}>• {x}</div>
                     ))}
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    border: `1px solid ${BRAND_COLOR}`,
-                    background: "#FFFFFF",
-                    color: BRAND_COLOR,
-                  }}
-                >
-                  <div style={{ fontWeight: 800, fontSize: 13 }}>
-                    💡 <strong>Verbesserungen</strong>
-                  </div>
+                <div style={{ padding: 12, borderRadius: 14, border: `1px solid ${BRAND_COLOR}`, background: "#FFFFFF", color: BRAND_COLOR, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>💡 Verbesserungen</div>
                   <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                     {(summary.tips.length ? summary.tips : ["Keine Vorschlaege"]).map((x, i) => (
-                      <div key={i} style={{ fontSize: 13 }}>
-                        <strong>•</strong> {x}
-                      </div>
+                      <div key={i} style={{ fontSize: 13 }}>• {x}</div>
                     ))}
                   </div>
                 </div>
@@ -1696,10 +1920,10 @@ export default function App() {
                     value={shopName}
                     onChange={(e) => setShopName(e.target.value)}
                     placeholder="Shopname optional"
-                    style={{ flex: "1 1 220px", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
+                    style={{ flex: "1 1 200px", minWidth: 0, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
                   />
                 </div>
-                <SmallText>Einfach kopieren und in das Mailtool einfuegen. Neutral formuliert und mit Hinweis auf automatische Erstellung.</SmallText>
+                <SmallText>Einfach kopieren und in das Mailtool einfuegen.</SmallText>
                 <textarea
                   value={emailText}
                   readOnly
@@ -1714,6 +1938,7 @@ export default function App() {
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                     lineHeight: "18px",
                     background: "white",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
@@ -1721,18 +1946,16 @@ export default function App() {
           )}
         </StepCard>
 
-        <StepCard title="6 Vorschau" status={headers.length ? "ok" : "idle"} subtitle="Vorschau der Zeilen mit allen Spalten">
+        {/* STEP 7 */}
+        <StepCard title="7 Vorschau" status={headers.length ? "ok" : "idle"} subtitle="Vorschau der Zeilen mit allen Spalten">
           {!headers.length ? (
             <SmallText>Bitte CSV hochladen um eine Vorschau zu sehen.</SmallText>
           ) : (
             <>
-              <SmallText>
-                Kompakte Tabellenansicht. Du kannst die Spaltenbreite per Drag am rechten Rand des Spaltenkopfs anpassen
-                und innerhalb der Box horizontal/vertikal scrollen.
-              </SmallText>
+              <SmallText>Spaltenbreite per Drag am rechten Rand des Spaltenkopfs anpassen.</SmallText>
               <div style={{ marginTop: 10 }}>
                 <TextInput
-                  label="Suche nach EAN (Vorschau)"
+                  label="Suche"
                   value={eanSearch}
                   onChange={setEanSearch}
                   placeholder="EAN eingeben um passende Zeilen zu filtern"
@@ -1761,15 +1984,15 @@ export default function App() {
                     onClick={() => setPreviewCount((c) => Math.min(rows.length, c + 20))}
                     disabled={previewCount >= rows.length}
                     style={{
-                    padding: "10px 18px",
-                    borderRadius: 999,
-                    border: `1px solid ${BRAND_COLOR}`,
-                    background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR,
-                    cursor: previewCount >= rows.length ? "not-allowed" : "pointer",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "#FFFFFF",
-                  }}
+                      padding: "10px 18px",
+                      borderRadius: 999,
+                      border: `1px solid ${BRAND_COLOR}`,
+                      background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR,
+                      cursor: previewCount >= rows.length ? "not-allowed" : "pointer",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "#FFFFFF",
+                    }}
                   >
                     20 weitere laden
                   </button>
@@ -1788,24 +2011,24 @@ export default function App() {
 
   if (route === "rules") {
     return (
-      <div style={{ background: "#F3F4F6", minHeight: "100vh" }}>
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <RulesPage
-  rules={rules}
-  setRules={setRules}
-  onSave={saveRules}
-  saving={rulesSaving}
-  saveError={rulesSaveError}
-  savedAt={rulesSavedAt}
-  adminToken={adminToken}
-  updateAdminToken={updateAdminToken}
-/>
+          rules={rules}
+          setRules={setRules}
+          onSave={saveRules}
+          saving={rulesSaving}
+          saveError={rulesSaveError}
+          savedAt={rulesSavedAt}
+          adminToken={adminToken}
+          updateAdminToken={updateAdminToken}
+        />
       </div>
     );
   }
 
   return (
-    <div style={{ background: "#F3F4F6", minHeight: "100vh" }}>
+    <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
       {topNav}
       {page}
     </div>
