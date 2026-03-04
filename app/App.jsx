@@ -4,12 +4,15 @@ import Papa from "papaparse";
 const BRAND_COLOR = "rgb(4,16,103)";
 
 const DEFAULT_RULES = {
-    allowed_shipping_mode: ["Paket", "Spedition"],
-    title_min_length: 10,
-    description_min_length: 50,
-    image_min_per_product: 3,
-    delivery_includes_pattern: "(^|\\s)(\\d+)\\s*[xX×]\\s*\\S+",
-  };
+  allowed_shipping_mode: ["Paket", "Spedition"],
+  allowed_material: [],
+  allowed_color: [],
+  delivery_includes_allowlist: [],
+  title_min_length: 10,
+  description_min_length: 50,
+  image_min_per_product: 3,
+  delivery_includes_pattern: "(^|\\s)(\\d+)\\s*[xX×]\\s*\\S+",
+};
 
 async function apiGetRules() {
   const res = await fetch("/api/rules", { method: "GET" });
@@ -160,7 +163,7 @@ function Pill({ tone, children }) {
   );
 }
 
-function StepCard({ title, status, subtitle, children }) {
+function StepCard({ title, status, subtitle, action, children }) {
   const border =
     status === "ok" ? "#A5D6A7" : status === "warn" ? "#FFE082" : status === "bad" ? "#EF9A9A" : "#E5E7EB";
   const icon = status === "ok" ? "✅" : status === "warn" ? "⚠️" : status === "bad" ? "⛔" : "⏳";
@@ -178,20 +181,27 @@ function StepCard({ title, status, subtitle, children }) {
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <div style={{
-          padding: "10px 12px",
-          borderRadius: 12,
-          border: "1px solid #E5E7EB",
-          fontSize: 13,
-          flex: "1 1 auto",
-          minWidth: 0,
-        }}>
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid #E5E7EB",
+            fontSize: 13,
+            flex: "1 1 auto",
+            minWidth: 0,
+          }}
+        >
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div style={{ fontSize: 18, flexShrink: 0 }}>{icon}</div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
           </div>
           {subtitle ? <div style={{ marginTop: 6, color: "#4B5563", fontSize: 13 }}>{subtitle}</div> : null}
         </div>
+        {action ? (
+          <div style={{ flexShrink: 0 }}>
+            {action}
+          </div>
+        ) : null}
         <div style={{ flexShrink: 0 }}>
           {status === "ok" ? <Pill tone="ok">OK</Pill> : null}
           {status === "warn" ? <Pill tone="warn">Hinweis</Pill> : null}
@@ -258,22 +268,57 @@ function Table({ columns, rows, highlight }) {
 }
 
 function ResizableTable({ columns, rows }) {
+  const computeInitialWidth = (col) => {
+    const label = String(col.label || col.key || "");
+    // Name-Spalte etwas breiter machen, da sie haeufig angeschaut wird
+    if (String(col.key).toLowerCase() === "name") {
+      const approxName = label.length * 8 + 60;
+      return Math.max(140, approxName);
+    }
+    const approx = label.length * 7 + 24; // grobe Breite basierend auf Zeichenanzahl + Padding
+    return Math.max(90, approx); // Mindestbreite wie bisher beibehalten
+  };
+
   const [widths, setWidths] = useState(() =>
-    Object.fromEntries(columns.map((c) => [c.key, 90]))
+    Object.fromEntries(columns.map((c) => [c.key, computeInitialWidth(c)]))
   );
+  const [rowHeight, setRowHeight] = useState(42); // ca. 3 Textzeilen
+  const [expandedCells, setExpandedCells] = useState(() => new Set());
+  const [descriptionModal, setDescriptionModal] = useState(null); // { title, text }
   const dragRef = useRef(null);
+
+  const isLongTextColumn = (key) => {
+    const norm = normalizeKey(key);
+    return norm.startsWith("description") || norm.includes("beschreibung");
+  };
+
+  const toggleCellExpanded = (rowIndex, colKey) => {
+    setExpandedCells((prev) => {
+      const next = new Set(prev);
+      const id = `${rowIndex}:${colKey}`;
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     function onMove(e) {
       if (!dragRef.current) return;
-      const { key, startX, startWidth } = dragRef.current;
-      const delta = e.clientX - startX;
-      setWidths((prev) => {
-        const next = { ...prev };
-        const raw = prev[key] ?? startWidth;
-        next[key] = Math.max(60, raw + delta);
-        return next;
-      });
+      const { type } = dragRef.current;
+      if (type === "col") {
+        const { key, startX, startWidth } = dragRef.current;
+        const deltaX = e.clientX - startX;
+        const nextWidth = Math.max(90, startWidth + deltaX);
+        setWidths((prev) => ({
+          ...prev,
+          [key]: nextWidth,
+        }));
+      } else if (type === "row") {
+        const { startY, startHeight } = dragRef.current;
+        const deltaY = e.clientY - startY;
+        setRowHeight(Math.max(28, startHeight + deltaY));
+      }
     }
 
     function onUp() {
@@ -293,9 +338,20 @@ function ResizableTable({ columns, rows }) {
     if (!th) return;
     const rect = th.getBoundingClientRect();
     dragRef.current = {
+      type: "col",
       key,
       startX: event.clientX,
       startWidth: rect.width,
+    };
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const startRowResize = (event) => {
+    dragRef.current = {
+      type: "row",
+      startY: event.clientY,
+      startHeight: rowHeight,
     };
     event.preventDefault();
     event.stopPropagation();
@@ -305,7 +361,7 @@ function ResizableTable({ columns, rows }) {
     <div
       style={{
         width: "100%",
-        maxHeight: 420,
+        maxHeight: 720,
         overflow: "auto",
         border: "1px solid #E5E7EB",
         borderRadius: 12,
@@ -319,22 +375,45 @@ function ResizableTable({ columns, rows }) {
           width: "max-content",
           minWidth: "100%",
           tableLayout: "fixed",
+          border: "1px solid #E5E7EB",
         }}
       >
         <thead>
           <tr style={{ background: "#F9FAFB" }}>
+            {/* Index column */}
+            <th
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 2,
+                textAlign: "right",
+                padding: "6px 8px",
+                border: "1px solid #E5E7EB",
+                color: "#6B7280",
+                whiteSpace: "nowrap",
+                background: "#F9FAFB",
+                width: 60,
+                maxWidth: 60,
+                minWidth: 48,
+              }}
+            >
+              #
+            </th>
             {columns.map((c) => {
               const w = widths[c.key] ?? 90;
               return (
                 <th
                   key={c.key}
                   style={{
-                    position: "relative",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 2,
                     textAlign: "left",
                     padding: "6px 8px",
-                    borderBottom: "1px solid #E5E7EB",
+                    border: "1px solid #E5E7EB",
                     color: "#111827",
                     whiteSpace: "normal",
+                    background: "#F9FAFB",
                     width: w,
                     maxWidth: w,
                     minWidth: w,
@@ -360,24 +439,75 @@ function ResizableTable({ columns, rows }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} style={{ background: i % 2 === 0 ? "#FFFFFF" : "#F9FAFB" }}>
+            <tr key={i}>
+              {/* Index cell */}
+              <td
+                style={{
+                  padding: "4px 8px",
+                  border: "1px solid #E5E7EB",
+                  color: "#6B7280",
+                  whiteSpace: "nowrap",
+                  textAlign: "right",
+                  width: 60,
+                  maxWidth: 60,
+                  minWidth: 48,
+                  height: rowHeight,
+                  maxHeight: rowHeight,
+                  overflow: "hidden",
+                  lineHeight: "14px",
+                }}
+              >
+                {i + 1}
+              </td>
               {columns.map((c) => {
                 const w = widths[c.key] ?? 90;
+                const longText = isLongTextColumn(c.key);
+                const cellId = `${i}:${c.key}`;
+                const expanded = longText && expandedCells.has(cellId);
+                const rawValue = String(r?.[c.key] ?? "");
                 return (
                   <td
                     key={c.key}
                     style={{
                       padding: "4px 8px",
-                      borderBottom: "1px solid #F3F4F6",
+                      border: "1px solid #E5E7EB",
                       color: "#111827",
                       whiteSpace: "normal",
                       width: w,
                       maxWidth: w,
                       minWidth: w,
+                      height: expanded ? "auto" : rowHeight,
+                      maxHeight: expanded ? "none" : rowHeight,
+                      overflow: expanded ? "visible" : "hidden",
+                      lineHeight: "14px",
                       wordBreak: "break-word",
                     }}
                   >
-                    {String(r?.[c.key] ?? "")}
+                    {longText ? (
+                      rawValue ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDescriptionModal({ title: c.label || c.key, text: rawValue });
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 999,
+                            border: "1px solid #E5E7EB",
+                            background: "#FFFFFF",
+                            fontSize: 10,
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Beschreibung öffnen
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 10, color: "#9CA3AF" }}>Keine Beschreibung</span>
+                      )
+                    ) : (
+                      rawValue
+                    )}
                   </td>
                 );
               })}
@@ -385,6 +515,80 @@ function ResizableTable({ columns, rows }) {
           ))}
         </tbody>
       </table>
+      <div
+        onMouseDown={startRowResize}
+        style={{
+          height: 6,
+          cursor: "row-resize",
+          background: "#E5E7EB",
+          borderTop: "1px solid #D1D5DB",
+        }}
+      />
+      {descriptionModal ? (
+        <div
+          onClick={() => setDescriptionModal(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.45)",
+            zIndex: 40,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 16,
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 800,
+              width: "100%",
+              maxHeight: "80vh",
+              background: "#FFFFFF",
+              borderRadius: 16,
+              border: "1px solid #E5E7EB",
+              boxShadow: "0 20px 40px rgba(15,23,42,0.25)",
+              padding: 16,
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{descriptionModal.title}</div>
+              <button
+                onClick={() => setDescriptionModal(null)}
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  border: "1px solid #E5E7EB",
+                  background: "#FFFFFF",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                Schließen
+              </button>
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                padding: 10,
+                borderRadius: 12,
+                border: "1px solid #E5E7EB",
+                fontSize: 12,
+                lineHeight: "18px",
+                color: "#111827",
+                overflow: "auto",
+              }}
+            >
+              {descriptionModal.text}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -400,6 +604,46 @@ function uniqueNonEmpty(list) {
     out.push(s);
   }
   return out;
+}
+
+const EXAMPLE_TEMPLATE_VALUES = {
+  // Hinweis: Diese Werte stammen aus dem offiziellen Muster‑Feed.
+  // Wenn ein Partner sie 1:1 unverändert übergibt, behandeln wir sie als Platzhalter / Beispielwerte.
+  two_men_handling: ['"Bordsteinkante" oder "bis in die Wohnung"'],
+  energy_efficiency_label: ['https://beispielprodukt.link.de/eek_label/T12345.jpg'],
+  lighting_included: ['ja oder nein'],
+  illuminant_included: ['ja oder nein'],
+  EPREL_registration_number: ['RF-A19D-W2SV0612-P8'],
+  product_data_sheet: ['https://beispielprodukt.link.de/produktdatenblatt/T12345.pdf'],
+  assembly_instructions: [
+    'https://beispielprodukt.link.de/anleitung/T34567.pdf',
+    'https://beispielprodukt.link.de/anleitung/T12345.pdf',
+  ],
+  size_diameter: ['500 mm'],
+  size_lying_surface: ['140x200 cm'],
+  size_seat_height: ['40 cm'],
+  size_seat_depth: ['50 cm'],
+  size_seat_width: ['50 cm'],
+  weight: ['26,5 kg'],
+  weight_capacity: ['120 kg'],
+  model: ['T12345678-123'],
+  series: ['Premiumline'],
+  cover: ['Samt / 100 % Polyester'],
+};
+
+function groupByValueWithEans(items) {
+  const map = new Map();
+  for (const it of items) {
+    const value = String(it.value ?? "").trim();
+    const ean = String(it.ean ?? "").trim();
+    if (!value || !ean) continue;
+    if (!map.has(value)) map.set(value, new Set());
+    map.get(value).add(ean);
+  }
+  return Array.from(map.entries()).map(([value, eanSet]) => ({
+    value,
+    eans: Array.from(eanSet).sort(),
+  }));
 }
 
 function sampleUniqueValues(rows, col, limit) {
@@ -440,9 +684,9 @@ function CollapsibleList({ title, items, tone, hint }) {
         )}
       </summary>
       <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {items.slice(0, 500).map((x) => (
+        {items.slice(0, 500).map((x, idx) => (
           <span
-            key={x}
+            key={`${x}-${idx}`}
             style={{
               fontSize: 12,
               padding: "6px 10px",
@@ -528,20 +772,38 @@ if (typeof window !== "undefined") {
 function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminToken, updateAdminToken }) {
   const [draft, setDraft] = useState(() => rules);
 
+  const [shippingText, setShippingText] = useState(
+    () => (rules?.allowed_shipping_mode || []).join(", ")
+  );
+  const [materialText, setMaterialText] = useState(
+    () => (rules?.allowed_material || []).join(", ")
+  );
+  const [colorText, setColorText] = useState(
+    () => (rules?.allowed_color || []).join(", ")
+  );
+  const [deliveryIncludesText, setDeliveryIncludesText] = useState(
+    () => (rules?.delivery_includes_allowlist || []).join(", ")
+  );
+
   useEffect(() => {
     setDraft(rules);
+    setShippingText((rules?.allowed_shipping_mode || []).join(", "));
+    setMaterialText((rules?.allowed_material || []).join(", "));
+    setColorText((rules?.allowed_color || []).join(", "));
+    setDeliveryIncludesText((rules?.delivery_includes_allowlist || []).join(", "));
   }, [rules]);
+
+  const [rulesView, setRulesView] = useState("checker"); // "checker" oder "qs"
 
   function setField(key, value) {
     setDraft((r) => ({ ...r, [key]: value }));
   }
 
-  function setArrayField(key, raw) {
-    const arr = String(raw || "")
+  function parseListString(raw) {
+    return String(raw || "")
       .split(/[,;\n]+/)
       .map((s) => s.trim())
       .filter(Boolean);
-    setField(key, arr);
   }
 
   return (
@@ -569,7 +831,17 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
           />
           {savedAt ? <Pill tone="info">Zuletzt gespeichert {savedAt}</Pill> : <Pill tone="info">Noch nicht gespeichert</Pill>}
           <button
-            onClick={() => onSave(draft)}
+            onClick={() => {
+              const next = {
+                ...draft,
+                allowed_shipping_mode: parseListString(shippingText),
+                allowed_material: parseListString(materialText),
+                allowed_color: parseListString(colorText),
+                delivery_includes_allowlist: parseListString(deliveryIncludesText),
+              };
+              setDraft(next);
+              onSave(next);
+            }}
             disabled={saving}
             style={{
               padding: "10px 18px",
@@ -589,255 +861,2055 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
 
       {saveError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler {saveError}</div> : null}
 
-      <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-        <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Erlaubte shipping_mode Werte</div>
-          <SmallText>Kommagetrennt. Beispiel Paket, Spedition</SmallText>
-          <textarea
-            rows={2}
-            value={(draft.allowed_shipping_mode || []).join(", ")}
-            onChange={(e) => setArrayField("allowed_shipping_mode", e.target.value)}
-            style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
-          />
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: "inline-flex", gap: 8, padding: 4, borderRadius: 999, background: "#F3F4F6" }}>
+          <button
+            onClick={() => setRulesView("checker")}
+            style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: "1px solid transparent",
+              background: rulesView === "checker" ? BRAND_COLOR : "transparent",
+              color: rulesView === "checker" ? "#FFFFFF" : "#111827",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Checker
+          </button>
+          <button
+            onClick={() => setRulesView("qs")}
+            style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: "1px solid transparent",
+              background: rulesView === "qs" ? BRAND_COLOR : "transparent",
+              color: rulesView === "qs" ? "#FFFFFF" : "#111827",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            QS/APA
+          </button>
         </div>
 
-        <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Bilder</div>
-          <SmallText>Mindestanzahl Bildlinks pro Produkt</SmallText>
-          <input
-            type="number"
-            min={1}
-            value={draft.image_min_per_product ?? DEFAULT_RULES.image_min_per_product}
-            onChange={(e) => setField("image_min_per_product", Number(e.target.value || 3))}
-            style={{ marginTop: 10, width: 120, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
-          />
-        </div>
+        {rulesView === "checker" ? (
+          <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Erlaubte shipping_mode Werte</div>
+                <SmallText>Kommagetrennt. Beispiel Paket, Spedition</SmallText>
+                <textarea
+                  rows={2}
+                  value={shippingText}
+                  onChange={(e) => setShippingText(e.target.value)}
+                  style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
+                />
+                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(draft.allowed_shipping_mode || []).map((val) => (
+                    <button
+                      key={val}
+                      onClick={() =>
+                        setDraft((r) => ({
+                          ...r,
+                          allowed_shipping_mode: (r.allowed_shipping_mode || []).filter((x) => x !== val),
+                        }))
+                      }
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        border: "1px solid #E5E7EB",
+                        background: "#F9FAFB",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        color: "#111827",
+                      }}
+                    >
+                      {val} ✕
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang Pattern</div>
-          <SmallText>RegExp als String. Default ist Anzahl x Produkt.</SmallText>
-          <input
-            value={draft.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern}
-            onChange={(e) => setField("delivery_includes_pattern", e.target.value)}
-            style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
-          />
-        </div>
+              <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Erlaubte Material Werte</div>
+                <SmallText>Kommagetrennt. Beispiel Holz, Metall, Kunststoff</SmallText>
+                <textarea
+                  rows={2}
+                  value={materialText}
+                  onChange={(e) => setMaterialText(e.target.value)}
+                  style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
+                />
+                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(draft.allowed_material || []).map((val) => (
+                    <button
+                      key={val}
+                      onClick={() =>
+                        setDraft((r) => ({
+                          ...r,
+                          allowed_material: (r.allowed_material || []).filter((x) => x !== val),
+                        }))
+                      }
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        border: "1px solid #E5E7EB",
+                        background: "#F9FAFB",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        color: "#111827",
+                      }}
+                    >
+                      {val} ✕
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Titel und Beschreibung Mindestlaenge</div>
-          <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <div>
-              <SmallText>Titel</SmallText>
-              <input
-                type="number"
-                min={1}
-                value={draft.title_min_length ?? DEFAULT_RULES.title_min_length}
-                onChange={(e) => setField("title_min_length", Number(e.target.value || 10))}
-                style={{ width: 120, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
-              />
-            </div>
-            <div>
-              <SmallText>Beschreibung</SmallText>
-              <input
-                type="number"
-                min={1}
-                value={draft.description_min_length ?? DEFAULT_RULES.description_min_length}
-                onChange={(e) => setField("description_min_length", Number(e.target.value || 50))}
-                style={{ width: 140, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
-              />
+              <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Erlaubte Farbwerte</div>
+                <SmallText>Kommagetrennt. Beispiel weiss, schwarz, blau</SmallText>
+                <textarea
+                  rows={2}
+                  value={colorText}
+                  onChange={(e) => setColorText(e.target.value)}
+                  style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
+                />
+                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(draft.allowed_color || []).map((val) => (
+                    <button
+                      key={val}
+                      onClick={() =>
+                        setDraft((r) => ({
+                          ...r,
+                          allowed_color: (r.allowed_color || []).filter((x) => x !== val),
+                        }))
+                      }
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        border: "1px solid #E5E7EB",
+                        background: "#F9FAFB",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        color: "#111827",
+                      }}
+                    >
+                      {val} ✕
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang Pattern</div>
+                <SmallText>RegExp als String. Default ist Anzahl x Produkt.</SmallText>
+                <input
+                  value={draft.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern}
+                  onChange={(e) => setField("delivery_includes_pattern", e.target.value)}
+                  style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang Allowlist</div>
+                <SmallText>Einzelne Lieferumfang-Werte, die trotz Pattern-Abweichung als gueltig gelten.</SmallText>
+                <textarea
+                  rows={2}
+                  value={deliveryIncludesText}
+                  onChange={(e) => setDeliveryIncludesText(e.target.value)}
+                  style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
+                />
+                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(draft.delivery_includes_allowlist || []).map((val) => (
+                    <button
+                      key={val}
+                      onClick={() =>
+                        setDraft((r) => ({
+                          ...r,
+                          delivery_includes_allowlist: (r.delivery_includes_allowlist || []).filter((x) => x !== val),
+                        }))
+                      }
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        border: "1px solid #E5E7EB",
+                        background: "#F9FAFB",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        color: "#111827",
+                      }}
+                    >
+                      {val} ✕
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Titel und Beschreibung Mindestlaenge</div>
+                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <SmallText>Titel</SmallText>
+                    <input
+                      type="number"
+                      min={1}
+                      value={draft.title_min_length ?? DEFAULT_RULES.title_min_length}
+                      onChange={(e) => setField("title_min_length", Number(e.target.value || 10))}
+                      style={{ width: 120, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
+                    />
+                  </div>
+                  <div>
+                    <SmallText>Beschreibung</SmallText>
+                    <input
+                      type="number"
+                      min={1}
+                      value={draft.description_min_length ?? DEFAULT_RULES.description_min_length}
+                      onChange={(e) => setField("description_min_length", Number(e.target.value || 50))}
+                      style={{ width: 140, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB" }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Regeln JSON</div>
+                <SmallText>Zum Debuggen. Quelle ist immer die API.</SmallText>
+                <pre style={{ marginTop: 10, overflowX: "auto", fontSize: 12, lineHeight: "18px" }}>{JSON.stringify(draft, null, 2)}</pre>
+                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => {
+                      setRules(DEFAULT_RULES);
+                      setDraft(DEFAULT_RULES);
+                    }}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: 999,
+                      border: `1px solid ${BRAND_COLOR}`,
+                      background: "#FFFFFF",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: BRAND_COLOR,
+                    }}
+                  >
+                    Auf Default setzen
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Regel Uebersicht QS/APA</div>
+            <SmallText>Die wichtigsten QS/APA Kriterien fuer Attribute und Bilder.</SmallText>
 
-        <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Regeln JSON</div>
-          <SmallText>Zum Debuggen. Quelle ist immer die API.</SmallText>
-          <pre style={{ marginTop: 10, overflowX: "auto", fontSize: 12, lineHeight: "18px" }}>{JSON.stringify(draft, null, 2)}</pre>
-          <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button
-              onClick={() => {
-                setRules(DEFAULT_RULES);
-                setDraft(DEFAULT_RULES);
-              }}
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+              <StepCard title="QS/APA Attribute" status="ok" subtitle="Herstellerfeed, Titel, Beschreibung, Abmessungen, Lieferumfang, Material, Farbe, Shoptexte">
+                <SmallText>
+                  Wir bewerten ob Pflicht Attribute fuer Inhalte vernuenftig gefuellt sind: Herstellerfeed, gut strukturierte Titel und Beschreibungen,
+                  nachvollziehbare Abmessungen, sauberer Lieferumfang im Format &quot;1x Produkt&quot;, sinnvolle Material und Farbangaben sowie neutrale
+                  shopbezogene Texte ohne zu viel Werbung.
+                </SmallText>
+              </StepCard>
+              <StepCard title="QS/APA Bilder" status="ok" subtitle="1. Bild, Freisteller, Millieu, Anzahl Bilder">
+                <SmallText>
+                  Wir pruefen ob das erste Bild zur Offer passt und keine Dubletten hat, ob es ausreichend Freisteller und Millieu Bilder gibt und wie viele
+                  Bilder pro Produkt vorhanden sind. Daraus entstehen Bildpunkte im QS Tab.
+                </SmallText>
+              </StepCard>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QsPage({ headers, rows }) {
+  const total = rows.length;
+
+  const colByName = (candidates) => {
+    const set = new Set(headers.map((h) => String(h).toLowerCase().trim()));
+    for (const cand of candidates) {
+      const key = String(cand).toLowerCase().trim();
+      if (set.has(key)) return headers.find((h) => String(h).toLowerCase().trim() === key);
+    }
+    return "";
+  };
+
+  const titleCol = colByName(["name", "product_name", "titel", "title"]);
+  const descCol = colByName(["description", "beschreibung", "desc"]);
+  const dimCol = colByName(["abmessungen", "size", "dimensions"]);
+  const deliveryCol = colByName(["lieferumfang", "delivery_includes"]);
+  const brandCol = colByName(["herstellerfeed", "manufacturer", "brand", "marke"]);
+  const eanCol = colByName(["ean", "gtin", "gtin14", "ean13", "barcode"]);
+  const materialCol = colByName(["material", "materials"]);
+  const colorCol = colByName(["color", "farbe"]);
+  const shopCol = colByName(["shopbezogene texte", "shop_text", "marketing_text", "promo_text"]);
+
+  const safeStr = (v) => (v === null || v === undefined ? "" : String(v));
+
+  const filledRate = (col) => {
+    if (!col || !total) return 0;
+    let filled = 0;
+    for (const r of rows) {
+      const v = safeStr(r?.[col]).trim();
+      if (v) filled += 1;
+    }
+    return filled / total;
+  };
+
+  const avgLen = (col) => {
+    if (!col || !total) return 0;
+    let sum = 0;
+    let n = 0;
+    for (const r of rows) {
+      const v = safeStr(r?.[col]).trim();
+      if (!v) continue;
+      sum += v.length;
+      n += 1;
+    }
+    return n ? sum / n : 0;
+  };
+
+  const fmtPct = (x) => `${Math.round((x || 0) * 100)}%`;
+
+  const [scores, setScores] = useState({
+    herstellerfeed: 0,
+    titel: 0,
+    beschreibung: 0,
+    abmessungen: 0,
+    lieferumfang: 0,
+    material: 0,
+    farbe: 0,
+    shoptexte: 0,
+    bildmatch: 0,
+    freisteller: 0,
+    millieu: 0,
+    anzahlbilder: 0,
+  });
+
+  const [autoEnabled, setAutoEnabled] = useState(true);
+
+  const [imageSampleLimit, setImageSampleLimit] = useState(5);
+  const [freistellerChecks, setFreistellerChecks] = useState({});
+  const [freistellerLoading, setFreistellerLoading] = useState(false);
+
+  const imageColumns = useMemo(() => {
+    if (!headers.length) return [];
+    const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
+    return norms
+      .filter((h) => h.norm.startsWith("image_url") || h.norm.startsWith("image") || h.norm.startsWith("img_url"))
+      .map((h) => h.raw);
+  }, [headers]);
+
+  const qsImageSamples = useMemo(() => {
+    if (!rows.length || !imageColumns.length) return [];
+    const out = [];
+    for (let i = 0; i < rows.length; i += 1) {
+      const r = rows[i];
+      const urls = [];
+      for (const c of imageColumns) {
+        const u = safeStr(r?.[c] ?? "").trim();
+        if (u) urls.push(u);
+      }
+      if (!urls.length) continue;
+      const id =
+        eanCol && safeStr(r[eanCol]).trim()
+          ? safeStr(r[eanCol]).trim()
+          : titleCol && safeStr(r[titleCol]).trim()
+          ? safeStr(r[titleCol]).trim()
+          : `ROW_${i + 1}`;
+      out.push({ id, urls, count: urls.length });
+      if (out.length >= 40) break;
+    }
+    return out;
+  }, [rows, imageColumns, eanCol, titleCol]);
+
+  useEffect(() => {
+    if (!qsImageSamples.length) return;
+
+    let cancelled = false;
+
+    async function detectFreistellerForSamples(samples) {
+      setFreistellerLoading(true);
+      const result = {};
+
+      async function checkImage(url) {
+        return new Promise((resolve) => {
+          try {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+              try {
+                const canvas = document.createElement("canvas");
+                const w = img.width;
+                const h = img.height;
+                if (!w || !h) {
+                  resolve(false);
+                  return;
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                  resolve(false);
+                  return;
+                }
+                ctx.drawImage(img, 0, 0);
+                const border = 5;
+                const imgData = ctx.getImageData(0, 0, w, h).data;
+                let whiteLike = 0;
+                let total = 0;
+                const isBorderPixel = (x, y) => x < border || y < border || x >= w - border || y >= h - border;
+                for (let y = 0; y < h; y += 4) {
+                  for (let x = 0; x < w; x += 4) {
+                    if (!isBorderPixel(x, y)) continue;
+                    const idx = (y * w + x) * 4;
+                    const r = imgData[idx];
+                    const g = imgData[idx + 1];
+                    const b = imgData[idx + 2];
+                    total += 1;
+                    if (r >= 240 && g >= 240 && b >= 240) whiteLike += 1;
+                  }
+                }
+                const ratio = total ? whiteLike / total : 0;
+                // Schwelle leicht gelockert: ca. 80% nahezu weisse Randpixel genuegen
+                resolve(ratio >= 0.8);
+              } catch (e) {
+                resolve(false);
+              }
+            };
+            img.onerror = () => resolve(false);
+            img.src = url;
+          } catch (e) {
+            resolve(false);
+          }
+        });
+      }
+
+      for (const sample of samples) {
+        if (cancelled) break;
+        const urls = Array.isArray(sample.urls) ? sample.urls.slice(0, 5) : [];
+        let hasFreisteller = false;
+        let checkedCount = 0;
+        for (const url of urls) {
+          if (cancelled) break;
+          const ok = await checkImage(url);
+          checkedCount += 1;
+          if (ok) {
+            hasFreisteller = true;
+            break;
+          }
+        }
+        result[sample.id] = { hasFreisteller, checkedCount };
+      }
+
+      if (!cancelled) {
+        setFreistellerChecks(result);
+        setFreistellerLoading(false);
+      }
+    }
+
+    if (typeof window === "undefined") {
+      return;
+    }
+    detectFreistellerForSamples(qsImageSamples.slice(0, 10));
+    return () => {
+      cancelled = true;
+    };
+  }, [qsImageSamples]);
+
+  const autoSuggested = useMemo(() => {
+    if (!headers.length || !rows.length) return null;
+
+    const n = rows.length || 1;
+
+    const herstRate = filledRate(brandCol);
+    const herstellerfeed = herstRate >= 0.8 ? 20 : 0;
+
+    let titel = 0;
+    if (titleCol) {
+      const vals = rows.map((r) => safeStr(r[titleCol]).trim().toLowerCase());
+      const filled = vals.filter((v) => v).length;
+      const fillRate = filled / n;
+      const uniq = new Set(vals.filter(Boolean));
+      const dupRate = filled ? 1 - uniq.size / filled : 0;
+      const avg = avgLen(titleCol);
+      if (fillRate >= 0.9 && avg >= 40 && dupRate <= 0.08) titel = 20;
+      else if (fillRate >= 0.8 && avg >= 25) titel = 10;
+      else titel = 0;
+    }
+
+    let beschreibung = 0;
+    if (descCol) {
+      const fillRate = filledRate(descCol);
+      const avg = avgLen(descCol);
+      if (fillRate >= 0.85 && avg >= 80) beschreibung = 10;
+      else if (fillRate >= 0.75 && avg >= 40) beschreibung = 5;
+      else beschreibung = 0;
+    }
+
+    const dimCandidates = [dimCol, titleCol, descCol].filter(Boolean);
+    let abmessungen = 0;
+    if (dimCandidates.length) {
+      const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
+      let hits = 0;
+      let meaningful = 0;
+      for (const r of rows) {
+        const blob = dimCandidates.map((c) => safeStr(r[c])).join(" ");
+        const s = blob.trim();
+        if (!s) continue;
+        meaningful += 1;
+        if (DIM_RE.test(s)) hits += 1;
+      }
+      const rate = meaningful ? hits / meaningful : 0;
+      if (rate >= 0.6) abmessungen = 10;
+      else if (rate >= 0.3) abmessungen = 5;
+      else abmessungen = 0;
+    }
+
+    let lieferumfang = 0;
+    if (deliveryCol) {
+      const DELIVERY_RE = /^\s*(\d+)\s*[xX]\s+.+/;
+      let nonEmpty = 0;
+      let formatOk = 0;
+      for (const r of rows) {
+        const v = safeStr(r[deliveryCol]).trim();
+        if (!v) continue;
+        nonEmpty += 1;
+        if (DELIVERY_RE.test(v)) formatOk += 1;
+      }
+      const filled = nonEmpty / n;
+      const fmt = nonEmpty ? formatOk / nonEmpty : 0;
+      if (filled >= 0.7 && fmt >= 0.7) lieferumfang = 20;
+      else if (filled >= 0.4 && fmt >= 0.35) lieferumfang = 10;
+      else lieferumfang = 0;
+    }
+
+    // Material: Anteil sinnvoll befuellter Material-Spalte
+    let material = 0;
+    if (materialCol) {
+      const rate = filledRate(materialCol);
+      if (rate >= 0.9) {
+        material = 10;
+      } else if (rate > 0) {
+        material = 5;
+      } else {
+        material = 0;
+      }
+    }
+
+    // Auto-Vorschlag fuer Anzahl Bilder basierend auf Durchschnitt
+    let anzahlbilder = 0;
+    if (headers.length && rows.length) {
+      const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
+      const imgCols = norms
+        .filter((h) => h.norm.startsWith("image_url") || h.norm.startsWith("image") || h.norm.startsWith("img_url"))
+        .map((h) => h.raw);
+      if (imgCols.length) {
+        let totalImgs = 0;
+        let rn = 0;
+        for (const r of rows) {
+          let c = 0;
+          for (const col of imgCols) {
+            const v = safeStr(r[col]).trim();
+            if (!v) continue;
+            c += 1;
+          }
+          totalImgs += c;
+          rn += 1;
+        }
+        const avg = rn ? totalImgs / rn : 0;
+        if (avg >= 5) anzahlbilder = 10;
+        else if (avg >= 2) anzahlbilder = 5;
+        else anzahlbilder = 0;
+      }
+    }
+
+    // Shopbezogene Texte: wenn wir keine separaten Shoptexte finden, gibt es 10 Punkte.
+    // Sobald es ueberhaupt Eintraege gibt, wird konservativ 0 Punkte vorgeschlagen.
+    let shoptexte = 10;
+    if (shopCol) {
+      const fill = filledRate(shopCol);
+      if (fill > 0) {
+        shoptexte = 0;
+      }
+    }
+
+    // Auto-Vorschlag fuer Freisteller Score basierend auf Freisteller-Checks
+    let freisteller = 0;
+    if (qsImageSamples.length && freistellerChecks && Object.keys(freistellerChecks).length) {
+      const samples = qsImageSamples.slice(0, 10);
+      let checkedProducts = 0;
+      let withFreisteller = 0;
+      samples.forEach((s) => {
+        const r = freistellerChecks[s.id];
+        if (!r || !r.checkedCount) return;
+        checkedProducts += 1;
+        if (r.hasFreisteller) withFreisteller += 1;
+      });
+      if (checkedProducts > 0) {
+        const share = withFreisteller / checkedProducts;
+        // Schwelle etwas gelockert: bereits ab ca. 70% gibt es 10 Punkte
+        if (share >= 0.7) freisteller = 10;
+        else if (share >= 0.3) freisteller = 5;
+        else freisteller = 0;
+      }
+    }
+
+    return {
+      herstellerfeed,
+      titel,
+      beschreibung,
+      abmessungen,
+      lieferumfang,
+      material,
+      farbe: 0,
+      shoptexte,
+      bildmatch: 0,
+      freisteller,
+      millieu: 0,
+      anzahlbilder,
+    };
+  }, [headers, rows, titleCol, descCol, dimCol, deliveryCol, brandCol, qsImageSamples, freistellerChecks]);
+  useEffect(() => {
+    if (!autoEnabled || !autoSuggested) return;
+    setScores((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (next[key] === 0) next[key] = autoSuggested[key];
+      }
+      return next;
+    });
+  }, [autoEnabled, autoSuggested]);
+
+  const attributeRaw =
+    scores.herstellerfeed +
+    scores.titel +
+    scores.beschreibung +
+    scores.abmessungen +
+    scores.lieferumfang +
+    scores.material +
+    scores.farbe +
+    scores.shoptexte;
+
+  const imageRaw =
+    scores.bildmatch +
+    scores.freisteller +
+    scores.millieu +
+    scores.anzahlbilder;
+
+  const attributeScore = scores.titel === 0 ? 0 : Math.round((attributeRaw / 95) * 90);
+  const imageScore = scores.bildmatch === 0 ? 0 : Math.ceil((imageRaw / 50) * 90);
+  const total180 = attributeScore + imageScore;
+  const totalPercent = (total180 / 180) * 100;
+
+  const apaEligible =
+    attributeScore >= 70 &&
+    imageScore >= 60 &&
+    scores.herstellerfeed === 20 &&
+    scores.titel >= 10 &&
+    scores.beschreibung >= 5 &&
+    scores.abmessungen >= 5 &&
+    scores.lieferumfang >= 10 &&
+    scores.material >= 5 &&
+    scores.farbe >= 5 &&
+    scores.shoptexte >= 5 &&
+    scores.bildmatch === 20 &&
+    scores.freisteller >= 5 &&
+    scores.millieu >= 5 &&
+    scores.anzahlbilder >= 5;
+
+  const avgImageCount = useMemo(() => {
+    if (!rows.length) return 0;
+    if (!headers.length) return 0;
+    const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
+    const imgCols = norms
+      .filter((h) => h.norm.startsWith("image_url") || h.norm.startsWith("image") || h.norm.startsWith("img_url"))
+      .map((h) => h.raw);
+    if (!imgCols.length) return 0;
+    let total = 0;
+    let n = 0;
+    for (const r of rows) {
+      let c = 0;
+      for (const col of imgCols) {
+        const v = safeStr(r[col]).trim();
+        if (!v) continue;
+        c += 1;
+      }
+      total += c;
+      n += 1;
+    }
+    return n ? total / n : 0;
+  }, [rows, headers]);
+
+  const scoreReasons = useMemo(() => {
+    const reasons = {};
+
+    // Herstellerfeed
+    if (!brandCol) {
+      reasons.herstellerfeed = "Keine Marken-Spalte erkannt – 0 Punkte.";
+    } else {
+      const rate = filledRate(brandCol);
+      if (scores.herstellerfeed >= 20) {
+        reasons.herstellerfeed = `Marke in ca. ${fmtPct(rate)} der Produkte gepflegt – 20 Punkte.`;
+      } else {
+        reasons.herstellerfeed = `Marke nur in ca. ${fmtPct(rate)} der Produkte gepflegt – 0 Punkte.`;
+      }
+    }
+
+    // Titel
+    if (!titleCol) {
+      reasons.titel = "Keine Titel-Spalte erkannt – 0 Punkte.";
+    } else {
+      const vals = rows.map((r) => safeStr(r[titleCol]).trim().toLowerCase());
+      const filled = vals.filter((v) => v).length;
+      const fillRate = (rows.length ? filled / rows.length : 0) || 0;
+      const uniq = new Set(vals.filter(Boolean));
+      const dupRate = filled ? 1 - uniq.size / filled : 0;
+      const avg = avgLen(titleCol);
+      if (scores.titel === 20) {
+        reasons.titel = `Titel fast immer vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(
+          avg
+        )} Zeichen, wenige Dubletten – 20 Punkte.`;
+      } else if (scores.titel === 10) {
+        reasons.titel = `Titel oft vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(
+          avg
+        )} Zeichen, aber teils unvollstaendig oder haeufigere Dubletten – 10 Punkte.`;
+      } else {
+        reasons.titel = `Titel selten oder sehr kurz (${fmtPct(fillRate)}, Ø ca. ${Math.round(
+          avg
+        )} Zeichen) – 0 Punkte.`;
+      }
+    }
+
+    // Beschreibung
+    if (!descCol) {
+      reasons.beschreibung = "Keine Beschreibungs-Spalte erkannt – 0 Punkte.";
+    } else {
+      const fillRate = filledRate(descCol);
+      const avg = avgLen(descCol);
+      if (scores.beschreibung === 10) {
+        reasons.beschreibung = `Beschreibungen fuer ca. ${fmtPct(fillRate)} der Produkte, Ø ca. ${Math.round(
+          avg
+        )} Zeichen – 10 Punkte.`;
+      } else if (scores.beschreibung === 5) {
+        reasons.beschreibung = `Beschreibungen teils vorhanden (${fmtPct(
+          fillRate
+        )}), aber eher kurz (Ø ca. ${Math.round(avg)} Zeichen) – 5 Punkte.`;
+      } else {
+        reasons.beschreibung = `Beschreibungen oft fehlend oder sehr kurz (${fmtPct(
+          fillRate
+        )}, Ø ca. ${Math.round(avg)} Zeichen) – 0 Punkte.`;
+      }
+    }
+
+    // Abmessungen
+    const dimCandidates = [dimCol, titleCol, descCol].filter(Boolean);
+    if (!dimCandidates.length) {
+      reasons.abmessungen = "Keine erkennbaren Abmessungs-Angaben – 0 Punkte.";
+    } else {
+      const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
+      let hits = 0;
+      let meaningful = 0;
+      for (const r of rows) {
+        const blob = dimCandidates.map((c) => safeStr(r[c])).join(" ");
+        const s = blob.trim();
+        if (!s) continue;
+        meaningful += 1;
+        if (DIM_RE.test(s)) hits += 1;
+      }
+      const rate = meaningful ? hits / meaningful : 0;
+      if (scores.abmessungen === 10) {
+        reasons.abmessungen = `Verstaendliche Masse in vielen Produkten (${fmtPct(rate)}) – 10 Punkte.`;
+      } else if (scores.abmessungen === 5) {
+        reasons.abmessungen = `Masse nur teilweise vorhanden (${fmtPct(
+          rate
+        )}) – 5 Punkte.`;
+      } else {
+        reasons.abmessungen = `Abmessungen kaum erkennbar (${fmtPct(rate)}) – 0 Punkte.`;
+      }
+    }
+
+    // Lieferumfang
+    if (!deliveryCol) {
+      reasons.lieferumfang = "Keine Lieferumfang-Spalte erkannt – 0 Punkte.";
+    } else {
+      const DELIVERY_RE = /^\s*(\d+)\s*[xX]\s+.+/;
+      let nonEmpty = 0;
+      let formatOk = 0;
+      for (const r of rows) {
+        const v = safeStr(r[deliveryCol]).trim();
+        if (!v) continue;
+        nonEmpty += 1;
+        if (DELIVERY_RE.test(v)) formatOk += 1;
+      }
+      const filled = rows.length ? nonEmpty / rows.length : 0;
+      const fmt = nonEmpty ? formatOk / nonEmpty : 0;
+      if (scores.lieferumfang === 20) {
+        reasons.lieferumfang = `Lieferumfang fast immer gepflegt (${fmtPct(
+          filled
+        )}) und meist im Format "Anzahl x Produkt" (${fmtPct(fmt)}) – 20 Punkte.`;
+      } else if (scores.lieferumfang === 10) {
+        reasons.lieferumfang = `Lieferumfang teils gepflegt (${fmtPct(
+          filled
+        )}) und haeufig im gewuenschten Format (${fmtPct(fmt)}) – 10 Punkte.`;
+      } else {
+        reasons.lieferumfang = `Lieferumfang selten gepflegt (${fmtPct(
+          filled
+        )}) oder kaum im gewuenschten Format (${fmtPct(fmt)}) – 0 Punkte.`;
+      }
+    }
+
+    // Material
+    if (!materialCol) {
+      reasons.material = "Keine Material-Spalte erkannt – 0 Punkte.";
+    } else {
+      const rate = filledRate(materialCol);
+      if (scores.material === 10) {
+        reasons.material = `Material fuer ca. ${fmtPct(rate)} der Produkte sinnvoll gepflegt – 10 Punkte.`;
+      } else if (scores.material === 5) {
+        reasons.material = `Material nur teilweise gepflegt (ca. ${fmtPct(rate)}) oder uneinheitlich – 5 Punkte.`;
+      } else {
+        reasons.material = `Material kaum oder gar nicht gepflegt (ca. ${fmtPct(rate)}) – 0 Punkte.`;
+      }
+    }
+
+    if (scores.farbe === 10) {
+      reasons.farbe = "Farbwerte meist vorhanden und sauber benannt – 10 Punkte.";
+    } else if (scores.farbe === 5) {
+      reasons.farbe = "Farben nur teilweise vorhanden oder uneinheitlich – 5 Punkte.";
+    } else {
+      if (!colorCol) {
+        reasons.farbe = "Keine Farb-Spalte erkannt – 0 Punkte.";
+      } else if (!rows.length) {
+        reasons.farbe = "Keine sinnvollen Farb-Beispiele im Feed gefunden – 0 Punkte.";
+      } else {
+        reasons.farbe = "Kaum verwertbare Farbinformationen im Feed – 0 Punkte.";
+      }
+    }
+
+    if (scores.shoptexte === 10) {
+      reasons.shoptexte = "Keine oder praktisch keine separaten shopbezogenen Texte im Feed – 10 Punkte.";
+    } else if (scores.shoptexte === 5) {
+      reasons.shoptexte = "Nur vereinzelt shopbezogene Texte vorhanden – 5 Punkte (manuell vergeben).";
+    } else {
+      reasons.shoptexte = "Shopbezogene Texte im Feed gefunden (z.B. Marketing-/Shop-Inhalte) – 0 Punkte.";
+    }
+
+    // Bildkriterien – teils automatisch, teils manuell
+    if (scores.bildmatch === 20) {
+      reasons.bildmatch = "Erstes Bild passt konsistent zu den Produkten, keine Auffaelligkeiten – 20 Punkte.";
+    } else {
+      reasons.bildmatch = "Erstes Bild wirkt haeufig unpassend oder uneinheitlich – 0 Punkte.";
+    }
+
+    if (qsImageSamples.length && Object.keys(freistellerChecks || {}).length) {
+      const samples = qsImageSamples.slice(0, 10);
+      let checkedProducts = 0;
+      let withFreisteller = 0;
+      samples.forEach((s) => {
+        const r = freistellerChecks[s.id];
+        if (!r || !r.checkedCount) return;
+        checkedProducts += 1;
+        if (r.hasFreisteller) withFreisteller += 1;
+      });
+      if (checkedProducts > 0) {
+        const share = withFreisteller / checkedProducts;
+        if (scores.freisteller === 10) {
+          reasons.freisteller = `${withFreisteller} von ${checkedProducts} getesteten Produkten mit mindestens einem Freisteller – 10 Punkte.`;
+        } else if (scores.freisteller === 5) {
+          reasons.freisteller = `${withFreisteller} von ${checkedProducts} getesteten Produkten mit Freisteller – 5 Punkte.`;
+        } else {
+          reasons.freisteller = `${withFreisteller} von ${checkedProducts} getesteten Produkten mit Freisteller – 0 Punkte.`;
+        }
+      } else {
+        reasons.freisteller = "Automatische Freisteller-Pruefung konnte keine auswertbaren Bilder finden – 0 Punkte.";
+      }
+    } else {
+      if (scores.freisteller === 10) {
+        reasons.freisteller = "Viele Produkte mit gutem Freistellerbild – 10 Punkte.";
+      } else if (scores.freisteller === 5) {
+        reasons.freisteller = "Nur ein Teil der Produkte mit Freistellerbild – 5 Punkte.";
+      } else {
+        reasons.freisteller = "Kaum Freistellerbilder im Feed – 0 Punkte.";
+      }
+    }
+
+    if (scores.millieu === 10) {
+      reasons.millieu = "Viele Produkte mit ansprechenden Milieubildern – 10 Punkte.";
+    } else if (scores.millieu === 5) {
+      reasons.millieu = "Nur einige Produkte mit Milieubildern – 5 Punkte.";
+    } else {
+      reasons.millieu = "Fast keine Milieubilder im Feed – 0 Punkte.";
+    }
+
+    // Anzahl Bilder
+    const avgImg = avgImageCount || 0;
+    if (scores.anzahlbilder === 10) {
+      reasons.anzahlbilder = `Ø ca. ${avgImg.toFixed(1)} Bilder pro Produkt – 10 Punkte.`;
+    } else if (scores.anzahlbilder === 5) {
+      reasons.anzahlbilder = `Ø ca. ${avgImg.toFixed(1)} Bilder pro Produkt – 5 Punkte.`;
+    } else {
+      reasons.anzahlbilder = `Ø ca. ${avgImg.toFixed(1)} Bilder pro Produkt – 0 Punkte.`;
+    }
+
+    return reasons;
+  }, [
+    rows,
+    headers,
+    brandCol,
+    titleCol,
+    descCol,
+    dimCol,
+    deliveryCol,
+    filledRate,
+    avgLen,
+    fmtPct,
+    scores,
+    avgImageCount,
+    qsImageSamples,
+    freistellerChecks,
+  ]);
+
+  const brandExamples = useMemo(() => {
+    if (!brandCol) return [];
+    return sampleUniqueValues(rows, brandCol, 10);
+  }, [rows, brandCol]);
+
+  const titleExamples = useMemo(() => {
+    if (!titleCol) return [];
+    return sampleUniqueValues(rows, titleCol, 20);
+  }, [rows, titleCol]);
+
+  const descExamples = useMemo(() => {
+    if (!descCol) return [];
+    return sampleUniqueValues(rows, descCol, 20);
+  }, [rows, descCol]);
+
+  const dimExamples = useMemo(() => {
+    if (dimCol) return sampleUniqueValues(rows, dimCol, 20);
+    if (!titleCol && !descCol) return [];
+    const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
+    const texts = [];
+    for (const r of rows) {
+      const blob = [titleCol, descCol].filter(Boolean).map((c) => safeStr(r[c])).join(" ");
+      if (!blob) continue;
+      if (DIM_RE.test(blob)) texts.push(blob);
+      if (texts.length >= 60) break;
+    }
+    return uniqueNonEmpty(texts).slice(0, 20);
+  }, [rows, dimCol, titleCol, descCol]);
+
+  const deliveryExamples = useMemo(() => {
+    if (!deliveryCol) return [];
+    return sampleUniqueValues(rows, deliveryCol, 20);
+  }, [rows, deliveryCol]);
+
+  const materialExamples = useMemo(() => {
+    if (!materialCol) return [];
+    return sampleUniqueValues(rows, materialCol, 20);
+  }, [rows, materialCol]);
+
+  const colorExamples = useMemo(() => {
+    if (!colorCol) return [];
+    return sampleUniqueValues(rows, colorCol, 20);
+  }, [rows, colorCol]);
+
+  const shopExamples = useMemo(() => {
+    if (!shopCol) return [];
+    return sampleUniqueValues(rows, shopCol, 20);
+  }, [rows, shopCol]);
+
+  const [brandExampleLimit, setBrandExampleLimit] = useState(5);
+  const [titleExampleLimit, setTitleExampleLimit] = useState(5);
+  const [descExampleLimit, setDescExampleLimit] = useState(3);
+  const [dimExampleLimit, setDimExampleLimit] = useState(3);
+  const [deliveryExampleLimit, setDeliveryExampleLimit] = useState(3);
+  const [materialExampleLimit, setMaterialExampleLimit] = useState(5);
+  const [colorExampleLimit, setColorExampleLimit] = useState(5);
+  const [shopExampleLimit, setShopExampleLimit] = useState(3);
+
+  if (!headers.length) {
+    return (
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>QS/APA Dashboard</div>
+        <SmallText>Bitte zuerst im Tab &quot;Checker&quot; eine CSV Datei hochladen. Danach nutzt QS/APA die gleichen Daten.</SmallText>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>QS/APA Dashboard</div>
+          <div style={{ marginTop: 6, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
+            {total > 0
+              ? "Wir berechnen einen Vorschlag fuer Attribut- und Bildqualitaet. Diese Bewertung hilft zu entscheiden, ob ein Feed fuer die automatische Produktanlage (APA) geeignet ist."
+              : null}
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <Pill tone="info">{total} Zeilen</Pill>
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }} />
+      </div>
+
+      {/* Drei gleich breite Status-Kacheln fuer Attribute, Bilder und APA */}
+      {total > 0 ? (
+        <div
+          style={{
+            marginTop: 14,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 16,
+              border: "1px solid #A7F3D0",
+              background: "#ECFDF3",
+            }}
+          >
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#047857" }}>
+              Attribute Score
+            </div>
+            <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{attributeScore}</div>
+              <div style={{ fontSize: 12, color: "#6B7280" }}>/ 90</div>
+            </div>
+            <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <SmallText>Bewertung der Inhalts-Attribute.</SmallText>
+              <button
+                onClick={() => {
+                  const txt = `Attribute Score ${attributeScore} von 90`;
+                  if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
+                }}
+                style={{
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: "1px solid #E5E7EB",
+                  background: "#F9FAFB",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Kopieren
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 16,
+              border: "1px solid #BFDBFE",
+              background: "#EFF6FF",
+            }}
+          >
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#1D4ED8" }}>
+              Bild Score
+            </div>
+            <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{imageScore}</div>
+              <div style={{ fontSize: 12, color: "#6B7280" }}>/ 90</div>
+            </div>
+            <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <SmallText>Bewertung von 1. Bild, Freisteller, Millieu & Anzahl.</SmallText>
+              <button
+                onClick={() => {
+                  const txt = `Bild Score ${imageScore} von 90`;
+                  if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
+                }}
+                style={{
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: "1px solid #E5E7EB",
+                  background: "#FFFFFF",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Kopieren
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 16,
+              border: apaEligible ? "1px solid #A7F3D0" : "1px solid #FCA5A5",
+              background: apaEligible ? "#ECFDF3" : "#FEF2F2",
+            }}
+          >
+            <div
               style={{
-                padding: "10px 18px",
-                borderRadius: 999,
-                border: `1px solid ${BRAND_COLOR}`,
-                background: "#FFFFFF",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 800,
-                color: BRAND_COLOR,
+                fontSize: 11,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                color: apaEligible ? "#047857" : "#B91C1C",
               }}
             >
-              Auf Default setzen
-            </button>
+              APA Eignung
+            </div>
+            <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>
+                {apaEligible ? "Geeignet" : "Noch nicht geeignet"}
+              </div>
+            </div>
+            <div style={{ marginTop: 6, fontSize: 12, color: "#374151" }}>
+              {apaEligible
+                ? "✅ Alle benoetigten QS/APA Kriterien erfuellt – Feed kann fuer APA freigeschaltet werden."
+                : "❌ Aktuell nicht fuer APA geeignet – bitte Attribute/Bilder anhand der QS/APA Kriterien verbessern."}
+            </div>
           </div>
         </div>
+      ) : null}
 
-        <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Welche Regeln prueft der Checker?</div>
-          <SmallText>
-            Unten sind alle Pruefungen in der gleichen Reihenfolge wie im Tab &quot;Checker&quot;. Pro Schritt steht, was erlaubt ist
-            und was als Problem markiert wird.
-          </SmallText>
+      {/* Attribute Bereich */}
+      <div style={{ marginTop: 18, padding: 10, borderRadius: 16, border: "1px solid #A7F3D0", background: "#F0FDF4" }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#166534" }}>Attribute Qualitaet</div>
+        <SmallText>Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen.</SmallText>
 
-          <ol style={{ marginTop: 10, paddingLeft: 18, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
-            <li style={{ marginBottom: 8 }}>
-              <strong>1. Datei hochladen</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>
-                  <strong>Erwartet:</strong> CSV‑Datei mit Kopfzeile (Headerzeile) und einer Zeile pro Produkt. Trennzeichen z.&nbsp;B. Komma oder
-                  Semikolon.
-                </li>
-                <li>
-                  <strong>Erlaubt:</strong> Leere Zeilen werden ignoriert; zusätzliche Spalten sind ok.
-                </li>
-                <li>
-                  <strong>Nicht erlaubt / problematisch:</strong> Dateien ohne lesbare Kopfzeile, Binärformate (z.&nbsp;B. Excel ohne Export als CSV),
-                  stark kaputte CSV‑Struktur.
-                </li>
-              </ul>
-            </li>
+        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+        <StepCard
+          title="Herstellerfeed"
+          status={scores.herstellerfeed === 0 ? "bad" : scores.herstellerfeed < 20 ? "warn" : "ok"}
+          subtitle="0 oder 20 Punkte"
+        >
+          {brandExamples.length ? (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {brandExamples.slice(0, brandExampleLimit).map((t, idx) => (
+                  <div
+                    key={`${t}-${idx}`}
+                    style={{
+                      fontSize: 12,
+                      color: "#111827",
+                      padding: "4px 6px",
+                      borderRadius: 8,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                    }}
+                  >
+                    {t}
+                  </div>
+                ))}
+              </div>
+              {brandExampleLimit < brandExamples.length ? (
+                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBrandExampleLimit((n) => Math.min(brandExamples.length, n + 5))
+                    }
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Mehr Beispiele
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>20 Punkte:</strong> Es gibt eine klare Hersteller/Marken Spalte und sie ist fuer ca. ≥80% der Produkte
+                sinnvoll befuellt.
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Es gibt keine passende Spalte oder sie ist bei vielen Produkten leer bzw. offensichtlich
+                falsch.
+              </li>
+            </ul>
+            {brandExamples.length ? (
+              <div
+                style={{
+                  marginTop: 6,
+                  maxHeight: 140,
+                  overflow: "auto",
+                  borderRadius: 8,
+                  border: "1px solid #E5E7EB",
+                  padding: 6,
+                }}
+              >
+                {brandExamples.map((t) => (
+                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </details>
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: 13 }}>Herstellerfeed ok?</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                onClick={() => setScores((s) => ({ ...s, herstellerfeed: 20 }))}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "1px solid #E5E7EB",
+                  background: scores.herstellerfeed === 20 ? "#ECFDF3" : "#FFFFFF",
+                  color: scores.herstellerfeed === 20 ? "#166534" : "#111827",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Ja
+              </button>
+              <button
+                onClick={() => setScores((s) => ({ ...s, herstellerfeed: 0 }))}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "1px solid #E5E7EB",
+                  background: scores.herstellerfeed === 0 ? "#FEF2F2" : "#FFFFFF",
+                  color: scores.herstellerfeed === 0 ? "#B91C1C" : "#111827",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Nein
+              </button>
+            </div>
+          </div>
+          {scoreReasons.herstellerfeed ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.herstellerfeed}</div>
+          ) : null}
+        </StepCard>
 
-            <li style={{ marginBottom: 8 }}>
-              <strong>2. Spalten und Pflichtfelder</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>
-                  <strong>Erwartet:</strong> Pflichtfelder wie <code>ean</code>, <code>seller_offer_id</code>, <code>name</code>, <code>category_path</code>,{" "}
-                  <code>description</code>, <code>stock_amount</code>, <code>shipping_mode</code>, <code>delivery_time</code>, <code>price</code>,{" "}
-                  <code>brand</code> muessen per Spaltennamen erkannt werden koennen.
-                </li>
-                <li>
-                  <strong>Erlaubt:</strong> Aehnliche Spaltennamen wie z.&nbsp;B. <code>gtin</code> statt <code>ean</code> oder{" "}
-                  <code>product_name</code> statt <code>name</code>. Der Checker versucht eine automatische Zuordnung.
-                </li>
-                <li>
-                  <strong>Nicht erlaubt / problematisch:</strong> fehlende Pflichtspalten oder komplett untypische Spaltennamen, die keiner Regel
-                  zugeordnet werden koennen. Diese werden als &quot;Nicht gefunden&quot; markiert.
-                </li>
-              </ul>
-            </li>
+        <StepCard
+          title="Titel"
+          status={scores.titel === 0 ? "bad" : scores.titel < 20 ? "warn" : "ok"}
+          subtitle={titleCol ? `Spalte ${titleCol}` : "Spalte nicht erkannt"}
+        >
+          {titleExamples.length ? (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {titleExamples.slice(0, titleExampleLimit).map((t, idx) => (
+                  <div
+                    key={`${t}-${idx}`}
+                    style={{
+                      fontSize: 12,
+                      color: "#111827",
+                      padding: "4px 6px",
+                      borderRadius: 8,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {t}
+                  </div>
+                ))}
+              </div>
+              {titleExampleLimit < titleExamples.length ? (
+                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTitleExampleLimit((n) => Math.min(titleExamples.length, n + 5))
+                    }
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Mehr Beispiele
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>20 Punkte:</strong> Titel sind fuer ≥90% der Produkte gefuellt, im Schnitt ca. ≥40 Zeichen lang und enthalten
+                Marke, Kategorie und Variantenattribute (z B Farbe, Material, Masse). Es gibt nur wenige Dubletten.
+              </li>
+              <li>
+                <strong>10 Punkte:</strong> Titel sind fuer ≥80% gefuellt und im Schnitt ca. ≥25 Zeichen lang, aber es fehlen haeufig
+                wichtige Infos oder es gibt spuerbar viele Dubletten.
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Viele Produkte haben keinen sinnvollen Titel (sehr kurz, generisch oder komplett fehlend).
+              </li>
+            </ul>
+            {titleExamples.length ? (
+              <div
+                style={{
+                  marginTop: 6,
+                  maxHeight: 150,
+                  overflow: "auto",
+                  borderRadius: 8,
+                  border: "1px solid #E5E7EB",
+                  padding: 8,
+                }}
+              >
+                {titleExamples.map((t) => (
+                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </details>
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>Punkte</div>
+            <select
+              value={scores.titel}
+              onChange={(e) => setScores((s) => ({ ...s, titel: Number(e.target.value) }))}
+              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+            >
+              <option value={0}>0</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
+          {scoreReasons.titel ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.titel}</div>
+          ) : null}
+        </StepCard>
 
-            <li style={{ marginBottom: 8 }}>
-              <strong>3. Duplikate</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>
-                  <strong>Erwartet:</strong> Jede EAN und jeder Produkttitel sollte eindeutig sein.
-                </li>
-                <li>
-                  <strong>Erlaubt:</strong> EANs und Titel, die genau einmal vorkommen, leere Titel werden nicht doppelt gezaehlt.
-                </li>
-                <li>
-                  <strong>Nicht erlaubt / problematisch:</strong> doppelte EANs oder doppelte Titel; Zeilen ohne EAN; EAN‑Werte, die wie
-                  wissenschaftliche Schreibweise aussehen (z.&nbsp;B. <code>4.07053E+12</code>) und dadurch kuerzer werden.
-                </li>
-              </ul>
-            </li>
+        <StepCard
+          title="Beschreibung"
+          status={scores.beschreibung === 0 ? "bad" : scores.beschreibung < 10 ? "warn" : "ok"}
+          subtitle={descCol ? `Spalte ${descCol}` : "Spalte nicht erkannt"}
+        >
+          {descExamples.length ? (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {descExamples.slice(0, descExampleLimit).map((t, idx) => (
+                  <div
+                    key={`${t}-${idx}`}
+                    style={{
+                      fontSize: 12,
+                      color: "#111827",
+                      padding: "4px 6px",
+                      borderRadius: 8,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {t}
+                  </div>
+                ))}
+              </div>
+              {descExampleLimit < descExamples.length ? (
+                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDescExampleLimit((n) => Math.min(descExamples.length, n + 3))
+                    }
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Mehr Beispiele
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>10 Punkte:</strong> Beschreibungen sind fuer ca. ≥85% der Produkte vorhanden, im Schnitt ≥80 Zeichen lang und
+                in Saetzen oder Stichpunkten mit echtem Inhalt (keine reine Keyword-Liste).
+              </li>
+              <li>
+                <strong>5 Punkte:</strong> Beschreibungen sind haeufig vorhanden (ca. ≥75%), aber oft eher kurz (40–80 Zeichen) oder
+                nur oberflaechlich.
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Viele Produkte haben gar keine Beschreibung oder nur extrem kurze, nicht hilfreiche Texte.
+              </li>
+            </ul>
+            {descExamples.length ? (
+              <div
+                style={{
+                  marginTop: 6,
+                  maxHeight: 140,
+                  overflow: "auto",
+                  borderRadius: 8,
+                  border: "1px solid #E5E7EB",
+                  padding: 6,
+                }}
+              >
+                {descExamples.map((t) => (
+                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </details>
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>Punkte</div>
+            <select
+              value={scores.beschreibung}
+              onChange={(e) => setScores((s) => ({ ...s, beschreibung: Number(e.target.value) }))}
+              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+            >
+              <option value={0}>0</option>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+            </select>
+          </div>
+          {scoreReasons.beschreibung ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.beschreibung}</div>
+          ) : null}
+        </StepCard>
 
-            <li style={{ marginBottom: 8 }}>
-              <strong>4. Optionale Felder und Versand</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>
-                  <strong>Optionale Felder:</strong> <code>material</code>, <code>color</code>, <code>delivery_includes</code>.
-                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>
-                      <strong>Erlaubt:</strong> beliebige verstaendliche Werte (z.&nbsp;B. &quot;Holz&quot;, &quot;blau&quot;, &quot;4x Stuhl&quot;).
-                    </li>
-                    <li>
-                      <strong>Nicht erlaubt / problematisch:</strong> komplett leere Felder werden als Verbesserungs‑Potenzial markiert.
-                    </li>
-                  </ul>
-                </li>
-                <li>
-                  <strong>Lieferumfang:</strong> wird gegen das Regex aus &quot;Lieferumfang Pattern&quot; geprueft (Standard: Anzahl x Produkt).
-                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>
-                      <strong>Erlaubt:</strong> Formate wie <code>1x Tisch</code>, <code>4x Stuhl</code>, <code>2 x Hocker</code>.
-                    </li>
-                    <li>
-                      <strong>Nicht erlaubt / problematisch:</strong> Freitexte ohne Mengenangabe (z.&nbsp;B. &quot;Tisch und Stuehle&quot;),
-                      die nicht zum Pattern passen.
-                    </li>
-                  </ul>
-                </li>
-                <li>
-                  <strong>shipping_mode:</strong> wird gegen die Liste &quot;Erlaubte shipping_mode Werte&quot; geprueft (Standard: Paket, Spedition).
-                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>
-                      <strong>Erlaubt:</strong> exakte Werte aus dieser Liste, Gross‑/Kleinschreibung wird ignoriert.
-                    </li>
-                    <li>
-                      <strong>Nicht erlaubt / problematisch:</strong> leere shipping_mode Felder oder andere Texte (z.&nbsp;B. &quot;Post&quot;,
-                      &quot;Abholung&quot;), die nicht in der Liste stehen.
-                    </li>
-                  </ul>
-                </li>
-                <li>
-                  <strong>Titel &amp; Beschreibung:</strong> werden auf Mindestlaenge und bestimmte Muster geprueft.
-                  <ul style={{ marginTop: 2, paddingLeft: 18 }}>
-                    <li>
-                      <strong>Erlaubt:</strong> ausreichend lange, sachliche Beschreibungen ohne Werbung, Links oder Kontaktaufrufe.
-                    </li>
-                    <li>
-                      <strong>Nicht erlaubt / problematisch:</strong> sehr kurze Texte, Hinweise wie &quot;siehe oben&quot;, externe Links
-                      (http/https), starke Werbetexte (&quot;jetzt kaufen&quot;, &quot;Rabatt&quot;), Varianten‑Hinweise (&quot;in verschiedenen Farben&quot;)
-                      und Kontakttexte (&quot;kontaktieren Sie uns&quot;, &quot;Hotline&quot;).
-                    </li>
-                  </ul>
-                </li>
-              </ul>
-            </li>
+        <StepCard
+          title="Abmessungen"
+          status={scores.abmessungen === 0 ? "bad" : scores.abmessungen < 10 ? "warn" : "ok"}
+          subtitle={dimCol ? `Spalte ${dimCol}` : "Spalte nicht erkannt"}
+        >
+          {dimExamples.length ? (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {dimExamples.slice(0, dimExampleLimit).map((t, idx) => (
+                  <div
+                    key={`${t}-${idx}`}
+                    style={{
+                      fontSize: 12,
+                      color: "#111827",
+                      padding: "4px 6px",
+                      borderRadius: 8,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {t}
+                  </div>
+                ))}
+              </div>
+              {dimExampleLimit < dimExamples.length ? (
+                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDimExampleLimit((n) => Math.min(dimExamples.length, n + 3))
+                    }
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Mehr Beispiele
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>10 Punkte:</strong> Bei einem grossen Teil der Produkte stehen verstaendliche Masse mit Einheit (z B 140x200 cm
+                oder HxBxT in cm/mm) in Titel, Beschreibung oder Attributen.
+              </li>
+              <li>
+                <strong>5 Punkte:</strong> Es gibt fuer einige Produkte Masse, aber viele Produkte sind noch ohne Angaben oder nur
+                teilweise beschrieben.
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Abmessungen sind im Feed kaum oder gar nicht erkennbar.
+              </li>
+            </ul>
+            {dimExamples.length ? (
+              <div
+                style={{
+                  marginTop: 6,
+                  maxHeight: 140,
+                  overflow: "auto",
+                  borderRadius: 8,
+                  border: "1px solid #E5E7EB",
+                  padding: 6,
+                }}
+              >
+                {dimExamples.map((t) => (
+                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </details>
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>Punkte</div>
+            <select
+              value={scores.abmessungen}
+              onChange={(e) => setScores((s) => ({ ...s, abmessungen: Number(e.target.value) }))}
+              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+            >
+              <option value={0}>0</option>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+            </select>
+          </div>
+          {scoreReasons.abmessungen ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.abmessungen}</div>
+          ) : null}
+        </StepCard>
 
-            <li style={{ marginBottom: 8 }}>
-              <strong>5. Bilder</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>
-                  <strong>Erwartet:</strong> eine oder mehrere Bildspalten (z.&nbsp;B. <code>image_url_0</code>, <code>image1</code>), die
-                  direkt auf Bilddateien verweisen.
-                </li>
-                <li>
-                  <strong>Erlaubt:</strong> mindestens die in &quot;Mindestanzahl Bilder&quot; definierte Anzahl an Bildlinks pro Produkt. URLs duerfen
-                  technisch nicht ladbar sein, werden dann aber trotzdem als Link angezeigt.
-                </li>
-                <li>
-                  <strong>Nicht erlaubt / problematisch:</strong> Produkte ohne Bilder, nur ein Bild oder weniger als die geforderte Mindestanzahl
-                  werden hervorgehoben. Indirekte Links (z.&nbsp;B. auf HTML‑Seiten) koennen zu fehlenden Vorschaubildern fuehren.
-                </li>
-              </ul>
-            </li>
+        <StepCard
+          title="Lieferumfang"
+          status={scores.lieferumfang === 0 ? "bad" : scores.lieferumfang < 20 ? "warn" : "ok"}
+          subtitle={deliveryCol ? `Spalte ${deliveryCol}` : "Spalte nicht erkannt"}
+        >
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>20 Punkte:</strong> Die meisten Eintraege liegen sauber im Format &quot;Anzahl x Produkt&quot; vor (z B 1x
+                Bettkasten, 4x Stuhl) und nur wenige Produkte haben keinen Lieferumfang.
+              </li>
+              <li>
+                <strong>10 Punkte:</strong> Die Spalte ist teilweise gefuellt oder das Format wird nicht immer konsistent eingehalten,
+                ist aber oft noch verstaendlich.
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Lieferumfang fehlt haeufig oder ist kaum im gewuenschten Format gepflegt.
+              </li>
+            </ul>
+          </details>
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>Punkte</div>
+            <select
+              value={scores.lieferumfang}
+              onChange={(e) => setScores((s) => ({ ...s, lieferumfang: Number(e.target.value) }))}
+              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+            >
+              <option value={0}>0</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
+          {scoreReasons.lieferumfang ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.lieferumfang}</div>
+          ) : null}
+        </StepCard>
 
-            <li style={{ marginBottom: 8 }}>
-              <strong>6. Zusammenfassung und Score</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>
-                  <strong>Was passiert:</strong> alle vorherigen Pruefungen fliessen in einen Score von 0–100 ein und es wird entschieden, ob der
-                  Feed &quot;startklar&quot; ist.
-                </li>
-                <li>
-                  <strong>Erlaubt:</strong> kleinere Maengel in optionalen Feldern, solange Pflichtfelder, EAN und Versand grundsaetzlich passen.
-                </li>
-                <li>
-                  <strong>Nicht erlaubt / problematisch:</strong> fehlende Pflichtfelder, fehlende oder doppelte EANs sowie starke Versand‑ oder
-                  Bildprobleme fuehren zu einem niedrigen Score und &quot;Noch nicht startklar&quot;.
-                </li>
-              </ul>
-            </li>
+        <StepCard
+          title="Material"
+          status={scores.material === 0 ? "bad" : scores.material < 10 ? "warn" : "ok"}
+          subtitle="0 / 5 / 10 Punkte"
+        >
+          {materialExamples.length ? (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {materialExamples.slice(0, materialExampleLimit).map((t, idx) => (
+                  <div
+                    key={`${t}-${idx}`}
+                    style={{
+                      fontSize: 12,
+                      color: "#111827",
+                      padding: "4px 6px",
+                      borderRadius: 8,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {t}
+                  </div>
+                ))}
+              </div>
+              {materialExampleLimit < materialExamples.length ? (
+                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMaterialExampleLimit((n) => Math.min(materialExamples.length, n + 5))
+                    }
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Mehr Beispiele
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>10 Punkte:</strong> Bei den meisten Produkten steht ein klares, sinnvolles Material (z B Massivholz, Metall,
+                100% Baumwolle) in Attributen oder Texten.
+              </li>
+              <li>
+                <strong>5 Punkte:</strong> Material ist nur bei einem Teil der Produkte gepflegt oder haeufig sehr vage (z B
+                &quot;Mischgewebe&quot;, &quot;Material: Holz/Metall&quot; ohne Details).
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Material ist fast nie erkennbar oder komplett unklar.
+              </li>
+            </ul>
+          </details>
+          {materialExamples.length ? (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
+              <div style={{ marginTop: 4, maxHeight: 120, overflow: "auto", borderRadius: 8, border: "1px solid #E5E7EB", padding: 6 }}>
+                {materialExamples.map((t) => (
+                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>Punkte</div>
+            <select
+              value={scores.material}
+              onChange={(e) => setScores((s) => ({ ...s, material: Number(e.target.value) }))}
+              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+            >
+              <option value={0}>0</option>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+            </select>
+          </div>
+          {scoreReasons.material ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.material}</div>
+          ) : null}
+        </StepCard>
 
-            <li style={{ marginBottom: 0 }}>
-              <strong>7. Vorschau</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li>
-                  <strong>Was passiert:</strong> alle Zeilen und Spalten werden 1:1 angezeigt, um die Rohdaten zu kontrollieren.
-                </li>
-                <li>
-                  <strong>Hinweis:</strong> hier werden keine zusaetzlichen Regeln angewendet – die Vorschau dient nur zur manuellen Kontrolle und
-                  zum Nachschlagen einzelner Zeilen.
-                </li>
-              </ul>
-            </li>
-          </ol>
+        <StepCard
+          title="Farbe"
+          status={scores.farbe === 0 ? "bad" : scores.farbe < 10 ? "warn" : "ok"}
+          subtitle="0 / 5 / 10 Punkte"
+        >
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>10 Punkte:</strong> Farbe ist bei den meisten Produkten sauber und einheitlich gepflegt (z B weiss, schwarz,
+                anthrazit, natur).
+              </li>
+              <li>
+                <strong>5 Punkte:</strong> Farben sind nur teilweise vorhanden oder uneinheitlich benannt (z B Mix aus Deutsch/Englisch
+                oder Fantasienamen).
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Die meisten Produkte haben keine erkennbare oder sinnvolle Farbinformation.
+              </li>
+            </ul>
+          </details>
+          {colorExamples.length ? (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
+              <div style={{ marginTop: 4, maxHeight: 120, overflow: "auto", borderRadius: 8, border: "1px solid #E5E7EB", padding: 6 }}>
+                {colorExamples.map((t) => (
+                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>Punkte</div>
+            <select
+              value={scores.farbe}
+              onChange={(e) => setScores((s) => ({ ...s, farbe: Number(e.target.value) }))}
+              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+            >
+              <option value={0}>0</option>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+            </select>
+          </div>
+          {scoreReasons.farbe ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.farbe}</div>
+          ) : null}
+        </StepCard>
+
+        <StepCard
+          title="Shopbezogene Texte"
+          status={scores.shoptexte === 0 ? "bad" : scores.shoptexte < 10 ? "warn" : "ok"}
+          subtitle="0 / 5 / 10 Punkte"
+        >
+          {shopExamples.length ? (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {shopExamples.slice(0, shopExampleLimit).map((t, idx) => (
+                  <div
+                    key={`${t}-${idx}`}
+                    style={{
+                      fontSize: 12,
+                      color: "#111827",
+                      padding: "4px 6px",
+                      borderRadius: 8,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {t}
+                  </div>
+                ))}
+              </div>
+              {shopExampleLimit < shopExamples.length ? (
+                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShopExampleLimit((n) => Math.min(shopExamples.length, n + 3))
+                    }
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Mehr Beispiele
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+              <li>
+                <strong>10 Punkte:</strong> Texte sind groesstenteils neutral beschrieben (Produktvorteile, Funktionen) und enthalten
+                kaum offensichtliche Werbesprache.
+              </li>
+              <li>
+                <strong>5 Punkte:</strong> Es tauchen vereinzelt Marketingbegriffe (Sale, Rabatt, gratis Versand usw.) auf, der
+                Grossteil der Texte bleibt aber neutral.
+              </li>
+              <li>
+                <strong>0 Punkte:</strong> Viele Produkte enthalten starke Werbung direkt im Produkttext (z B &quot;Mega Sale&quot;,
+                &quot;jetzt 50% Rabatt&quot;, &quot;gratis Versand&quot;).
+              </li>
+            </ul>
+          </details>
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>Punkte</div>
+            <select
+              value={scores.shoptexte}
+              onChange={(e) => setScores((s) => ({ ...s, shoptexte: Number(e.target.value) }))}
+              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+            >
+              <option value={0}>0</option>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+            </select>
+          </div>
+          {scoreReasons.shoptexte ? (
+            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.shoptexte}</div>
+          ) : null}
+        </StepCard>
         </div>
+      </div>
+
+      {/* Bilder Bereich */}
+      <div style={{ marginTop: 24, padding: 10, borderRadius: 16, border: "1px solid #BFDBFE", background: "#EFF6FF" }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#1D4ED8" }}>Bild Qualitaet</div>
+        <SmallText>Bewertung von erstem Bild, Freistellern, Millieu und Anzahl Bilder. Darunter siehst du Beispielprodukte.</SmallText>
+
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+          <StepCard
+            title="1. Bild & keine Dopplungen"
+            status={scores.bildmatch === 0 ? "bad" : scores.bildmatch < 20 ? "warn" : "ok"}
+            subtitle="0 / 20 Punkte"
+          >
+            <SmallText>Manuelle Pruefung ob erstes Bild passt und keine systematischen Dubletten.</SmallText>
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                <li>
+                  <strong>20 Punkte:</strong> Das erste Bild passt klar zum Produkt (richtiger Artikel, richtige Variante) und es gibt
+                  keine systematischen Bilddopplungen ueber viele Angebote.
+                </li>
+                <li>
+                  <strong>0 Punkte:</strong> Haeufig werden falsche oder generische Bilder gezeigt oder viele Produkte nutzen dasselbe
+                  unpassende Bild.
+                </li>
+              </ul>
+            </details>
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13 }}>Punkte</div>
+              <select
+                value={scores.bildmatch}
+                onChange={(e) => setScores((s) => ({ ...s, bildmatch: Number(e.target.value) }))}
+                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+              >
+                <option value={0}>0</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+            {scoreReasons.bildmatch ? (
+              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.bildmatch}</div>
+            ) : null}
+          </StepCard>
+
+          <StepCard
+            title="Freisteller"
+            status={scores.freisteller === 0 ? "bad" : scores.freisteller < 10 ? "warn" : "ok"}
+            subtitle="0 / 5 / 10 Punkte"
+          >
+            <SmallText>Manuelle Bewertung, ob gute Freisteller Bilder vorhanden sind.</SmallText>
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                <li>
+                  <strong>10 Punkte:</strong> Die meisten Produkte haben mindestens ein sauberes Freistellerbild mit ruhigem oder
+                  weissem Hintergrund.
+                </li>
+                <li>
+                  <strong>5 Punkte:</strong> Nur ein Teil der Produkte hat Freisteller, andere zeigen nur Millieu- oder unscharfe
+                  Bilder.
+                </li>
+                <li>
+                  <strong>0 Punkte:</strong> Praktisch keine Produkte besitzen Freistellerbilder.
+                </li>
+              </ul>
+            </details>
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13 }}>Punkte</div>
+              <select
+                value={scores.freisteller}
+                onChange={(e) => setScores((s) => ({ ...s, freisteller: Number(e.target.value) }))}
+                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+              >
+                <option value={0}>0</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+              </select>
+            </div>
+            {scoreReasons.freisteller ? (
+              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.freisteller}</div>
+            ) : null}
+          </StepCard>
+
+          <StepCard
+            title="Millieu"
+            status={scores.millieu === 0 ? "bad" : scores.millieu < 10 ? "warn" : "ok"}
+            subtitle="0 / 5 / 10 Punkte"
+          >
+            <SmallText>Manuelle Bewertung, ob Produkte in realistischer Umgebung gezeigt werden.</SmallText>
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                <li>
+                  <strong>10 Punkte:</strong> Viele Produkte zeigen mindestens ein Milieubild (z B Sofa im Wohnzimmer, Bett im
+                  Schlafzimmer) in realistischer Umgebung.
+                </li>
+                <li>
+                  <strong>5 Punkte:</strong> Nur ein Teil der Produkte hat Milieubilder, der Rest zeigt vor allem Freisteller.
+                </li>
+                <li>
+                  <strong>0 Punkte:</strong> Es werden fast ausschliesslich Freisteller ohne Umgebung gezeigt.
+                </li>
+              </ul>
+            </details>
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13 }}>Punkte</div>
+              <select
+                value={scores.millieu}
+                onChange={(e) => setScores((s) => ({ ...s, millieu: Number(e.target.value) }))}
+                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+              >
+                <option value={0}>0</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+              </select>
+            </div>
+            {scoreReasons.millieu ? (
+              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.millieu}</div>
+            ) : null}
+          </StepCard>
+
+          <StepCard
+            title="Anzahl Bilder"
+            status={scores.anzahlbilder === 0 ? "bad" : scores.anzahlbilder < 10 ? "warn" : "ok"}
+            subtitle="0 / 5 / 10 Punkte"
+          >
+            <SmallText>Bewertung basierend auf der durchschnittlichen Bildanzahl pro Produkt.</SmallText>
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
+              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                <li>
+                  <strong>10 Punkte:</strong> Die meisten Produkte haben viele Bilder (z B ≥5), inkl. Detail- und ggf. Milieubildern.
+                </li>
+                <li>
+                  <strong>5 Punkte:</strong> Im Schnitt sind 2–4 Bilder pro Produkt vorhanden.
+                </li>
+                <li>
+                  <strong>0 Punkte:</strong> Die meisten Produkte besitzen nur ein einzelnes Bild.
+                </li>
+              </ul>
+            </details>
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13 }}>Punkte</div>
+              <select
+                value={scores.anzahlbilder}
+                onChange={(e) => setScores((s) => ({ ...s, anzahlbilder: Number(e.target.value) }))}
+                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
+              >
+                <option value={0}>0</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+              </select>
+            </div>
+            {scoreReasons.anzahlbilder ? (
+              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.anzahlbilder}</div>
+            ) : null}
+          </StepCard>
+        </div>
+
+        {qsImageSamples.length ? (
+          <div style={{ marginTop: 12, padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Bild Vorschau (Liste)</div>
+            <SmallText>
+              Jede Zeile ist ein Produkt. Links siehst du ID und Anzahl Bilder, rechts einige Vorschaubilder zum manuellen Check.
+            </SmallText>
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              {qsImageSamples.slice(0, imageSampleLimit).map((sample) => (
+                <div
+                  key={sample.id}
+                  style={{
+                    padding: 6,
+                    borderRadius: 10,
+                    border: "1px solid #E5E7EB",
+                    background: "#FFFFFF",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    minWidth: 0,
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>
+                      {sample.id}
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 11, color: "#6B7280" }}>
+                      {sample.count} Bilder
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {sample.urls.slice(0, 5).map((u) => (
+                      <a key={u} href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 54, height: 54, flexShrink: 0 }}>
+                        <img
+                          src={u}
+                          alt="Bild"
+                          loading="lazy"
+                          style={{
+                            width: 54,
+                            height: 54,
+                            objectFit: "cover",
+                            borderRadius: 8,
+                            border: "1px solid #E5E7EB",
+                            background: "#FFFFFF",
+                          }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {imageSampleLimit < qsImageSamples.length ? (
+              <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setImageSampleLimit((n) => Math.min(qsImageSamples.length, n + 5))}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: "1px solid #E5E7EB",
+                    background: "#FFFFFF",
+                    cursor: "pointer",
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  Mehr Produkte anzeigen
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -858,7 +2930,10 @@ export default function App() {
 
   const [route, setRoute] = useState(() => {
     if (typeof window === "undefined") return "checker";
-    return window.location.hash === "#/rules" ? "rules" : "checker";
+    const hash = window.location.hash;
+    if (hash === "#/rules") return "rules";
+    if (hash === "#/qs") return "qs";
+    return "checker";
   });
 
   const [rules, setRules] = useState(DEFAULT_RULES);
@@ -871,7 +2946,10 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onHash = () => {
-      setRoute(window.location.hash === "#/rules" ? "rules" : "checker");
+      const hash = window.location.hash;
+      if (hash === "#/rules") setRoute("rules");
+      else if (hash === "#/qs") setRoute("qs");
+      else setRoute("checker");
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -914,27 +2992,66 @@ export default function App() {
     }
   }
 
+  function addAllowedRuleValue(kind, value) {
+    const raw = String(value ?? "").trim();
+    if (!raw) return;
+    if (typeof window !== "undefined") {
+      const msg =
+        kind === "material"
+          ? `Diesen Material-Wert als erlaubt speichern?\n\n${raw}`
+          : kind === "color"
+          ? `Diesen Farb-Wert als erlaubt speichern?\n\n${raw}`
+          : kind === "shipping_mode"
+          ? `Diesen shipping_mode-Wert als erlaubt speichern?\n\n${raw}`
+          : `Diesen Lieferumfang-Wert als erlaubt speichern?\n\n${raw}`;
+      if (!window.confirm(msg)) return;
+    }
+    setRules((prev) => {
+      const next = { ...prev };
+      if (kind === "material") {
+        const prevArr = Array.isArray(next.allowed_material) ? next.allowed_material : [];
+        const lower = raw.toLowerCase();
+        const exists = prevArr.some((x) => String(x).toLowerCase().trim() === lower);
+        if (!exists) next.allowed_material = [...prevArr, raw];
+      } else if (kind === "color") {
+        const prevArr = Array.isArray(next.allowed_color) ? next.allowed_color : [];
+        const lower = raw.toLowerCase();
+        const exists = prevArr.some((x) => String(x).toLowerCase().trim() === lower);
+        if (!exists) next.allowed_color = [...prevArr, raw];
+      } else if (kind === "shipping_mode") {
+        const prevArr = Array.isArray(next.allowed_shipping_mode) ? next.allowed_shipping_mode : [];
+        const exists = prevArr.some((x) => String(x).trim() === raw);
+        if (!exists) next.allowed_shipping_mode = [...prevArr, raw];
+      } else if (kind === "delivery_includes") {
+        const prevArr = Array.isArray(next.delivery_includes_allowlist) ? next.delivery_includes_allowlist : [];
+        const exists = prevArr.some((x) => String(x).trim() === raw);
+        if (!exists) next.delivery_includes_allowlist = [...prevArr, raw];
+      }
+      // Persist updated rules (best-effort)
+      saveRules(next);
+      return next;
+    });
+  }
+
   const [fileName, setFileName] = useState("");
   const [rawRows, setRawRows] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [parseError, setParseError] = useState("");
+  const fileInputRef = useRef(null);
 
   const [shopName, setShopName] = useState("");
-  const [previewCount, setPreviewCount] = useState(20);
+  const [previewCount, setPreviewCount] = useState(40);
   const [eanSearch, setEanSearch] = useState("");
 
   const [imageMin, setImageMin] = useState(DEFAULT_RULES.image_min_per_product);
+  const [imageSampleLimitStep5, setImageSampleLimitStep5] = useState(5);
+  const [brokenImageIds, setBrokenImageIds] = useState([]);
 
   useEffect(() => {
     setImageMin(Number(rules?.image_min_per_product ?? DEFAULT_RULES.image_min_per_product));
   }, [rules]);
 
-  const [optionalFields] = useState(["material", "color", "delivery_includes"]);
-
-  const [requiredFields] = useState([
-    "ean",
-    "seller_offer_id",
-    "name",
+  const [optionalFields] = useState([
     "category_path",
     "description",
     "stock_amount",
@@ -942,6 +3059,17 @@ export default function App() {
     "delivery_time",
     "price",
     "brand",
+    "material",
+    "color",
+    "delivery_includes",
+    "washable_cover",
+    "mounting_side",
+  ]);
+
+  const [requiredFields] = useState([
+    "ean",
+    "seller_offer_id",
+    "name",
   ]);
 
   const mapping = useMemo(() => {
@@ -961,6 +3089,8 @@ export default function App() {
       color: ["color", "farbe"],
       delivery_includes: ["delivery_includes", "lieferumfang"],
       size: ["size", "abmessungen", "dimension", "dimensions"],
+      washable_cover: ["washable_cover", "waschbarer bezug", "waschbarer_bezug"],
+      mounting_side: ["mounting_side", "montageseite", "einbau", "links_rechts"],
     };
 
     const m = {};
@@ -1011,18 +3141,22 @@ export default function App() {
     return requiredPresence.missing.length === 0 ? "ok" : "warn";
   }, [headers, requiredPresence]);
 
+  const allRequiredOk = requiredPresence.missing.length === 0;
+
   const eanColumn = mapping.ean;
   const titleColumn = mapping.name;
+  const sellerColumn = mapping.seller_offer_id;
 
   const duplicates = useMemo(() => {
-    if (!rows.length) return { eanDup: new Set(), titleDup: new Set() };
+    if (!rows.length) return { eanDup: new Set(), titleDup: new Set(), sellerDup: new Set() };
     const eanValues = eanColumn ? rows.map((r) => r[eanColumn]) : [];
     const titleValues = titleColumn ? rows.map((r) => r[titleColumn]) : [];
     return {
       eanDup: findDuplicateIndexes(eanValues),
       titleDup: findDuplicateIndexes(titleValues),
+      sellerDup: sellerColumn ? findDuplicateIndexes(rows.map((r) => r[sellerColumn])) : new Set(),
     };
-  }, [rows, eanColumn, titleColumn]);
+  }, [rows, eanColumn, titleColumn, sellerColumn]);
 
   const duplicateEans = useMemo(() => {
     if (!rows.length || !eanColumn) return [];
@@ -1039,6 +3173,14 @@ export default function App() {
     const titles = Array.from(idxSet).map((i) => String(vals[i] ?? "").trim());
     return uniqueNonEmpty(titles).sort();
   }, [rows, titleColumn]);
+
+  const duplicateSellerOfferIds = useMemo(() => {
+    if (!rows.length || !sellerColumn) return [];
+    const vals = rows.map((r) => r[sellerColumn]);
+    const idxSet = findDuplicateIndexes(vals);
+    const ids = Array.from(idxSet).map((i) => String(vals[i] ?? "").trim());
+    return uniqueNonEmpty(ids).sort();
+  }, [rows, sellerColumn]);
 
   const duplicateTitleRows = useMemo(() => {
     if (!rows.length || !titleColumn) return [];
@@ -1069,10 +3211,10 @@ export default function App() {
 
   const stage2Status = useMemo(() => {
     if (!headers.length) return "idle";
-    if (!eanColumn || !titleColumn) return "warn";
-    const dupCount = duplicates.eanDup.size + duplicates.titleDup.size;
+    if (!eanColumn || !titleColumn || !sellerColumn) return "warn";
+    const dupCount = duplicates.eanDup.size + duplicates.titleDup.size + duplicates.sellerDup.size;
     return dupCount === 0 ? "ok" : "warn";
-  }, [headers, eanColumn, titleColumn, duplicates]);
+  }, [headers, eanColumn, titleColumn, sellerColumn, duplicates]);
 
   const optionalFindings = useMemo(() => {
     if (!rows.length) {
@@ -1087,8 +3229,23 @@ export default function App() {
         scientificEans: [],
         invalidShipping: [],
         missingShipping: [],
+        invalidMaterial: [],
+        invalidColor: [],
+        invalidDeliveryIncludes: [],
         titleIssues: { tooShort: [], seeAbove: [], missingAttributes: [] },
-        descriptionIssues: { tooShort: [], advertising: [], externalLinks: [], variants: [], contactHint: [] },
+        descriptionIssues: {
+          tooShort: [],
+          advertising: [],
+          externalLinks: [],
+          variants: [],
+          contactHint: [],
+          templateLike: [],
+          usedOrBware: [],
+        },
+        invalidWashableCover: [],
+        invalidMountingSide: [],
+        invalidDeliveryTime: [],
+        templateValueHits: [],
       };
     }
 
@@ -1104,10 +3261,12 @@ export default function App() {
       });
     }
 
-    const missingEansByField = { material: [], color: [], delivery_includes: [] };
-    for (const f of optionalFields) {
+    const missingEansByField = {};
+    const fieldsForMissing = [...optionalFields, "material", "color", "delivery_includes"];
+    for (const f of fieldsForMissing) {
       const col = mapping[f];
       if (!col) continue;
+      if (!missingEansByField[f]) missingEansByField[f] = [];
       rows.forEach((r, idx) => {
         if (isBlank(r[col])) missingEansByField[f].push(eans[idx]);
       });
@@ -1119,6 +3278,68 @@ export default function App() {
       color: sampleUniqueValues(rows, mapping.color, 5),
       delivery_includes: sampleUniqueValues(rows, mapping.delivery_includes, 5),
     };
+
+    const invalidDeliveryIncludes = [];
+    if (mapping.delivery_includes) {
+      const col = mapping.delivery_includes;
+      let re = null;
+      try {
+        const pattern = String(rules?.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern);
+        re = new RegExp(pattern, "i");
+      } catch (e) {
+        re = null;
+      }
+      const allowList = (rules?.delivery_includes_allowlist || DEFAULT_RULES.delivery_includes_allowlist || []).map((x) =>
+        String(x).trim()
+      );
+      rows.forEach((r, idx) => {
+        const vRaw = String(r[col] ?? "").trim();
+        if (!vRaw) return;
+        if (allowList.includes(vRaw)) return;
+        const ok = re ? re.test(vRaw) : /(^|\s)(\d+)\s*[xX×]\s*\S+/i.test(vRaw);
+        if (!ok) invalidDeliveryIncludes.push({ ean: eans[idx], value: vRaw });
+      });
+    }
+
+    const invalidWashableCover = [];
+    if (mapping.washable_cover) {
+      const col = mapping.washable_cover;
+      rows.forEach((r, idx) => {
+        const raw = String(r[col] ?? "").trim().toLowerCase();
+        if (!raw) return;
+        if (raw !== "ja" && raw !== "nein") {
+          invalidWashableCover.push({ ean: eans[idx], value: raw });
+        }
+      });
+    }
+
+    const invalidMountingSide = [];
+    if (mapping.mounting_side) {
+      const col = mapping.mounting_side;
+      rows.forEach((r, idx) => {
+        const raw = String(r[col] ?? "").trim().toLowerCase();
+        if (!raw) return;
+        if (raw !== "links" && raw !== "rechts" && raw !== "beidseitig") {
+          invalidMountingSide.push({ ean: eans[idx], value: raw });
+        }
+      });
+    }
+
+    const invalidDeliveryTime = [];
+    if (mapping.delivery_time) {
+      const col = mapping.delivery_time;
+      const re = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage|arbeitstage|wochen)\s*$/i;
+      rows.forEach((r, idx) => {
+        const raw = String(r[col] ?? "").trim();
+        if (!raw) {
+          invalidDeliveryTime.push({ ean: eans[idx], value: raw });
+          return;
+        }
+        if (!re.test(raw)) {
+          invalidDeliveryTime.push({ ean: eans[idx], value: raw });
+        }
+      });
+    }
 
     const imageZero = [];
     const imageOne = [];
@@ -1157,6 +3378,48 @@ export default function App() {
       });
     }
 
+    const invalidMaterial = [];
+    const invalidColor = [];
+
+    if (mapping.material && (rules?.allowed_material || DEFAULT_RULES.allowed_material).length) {
+      const col = mapping.material;
+      const allowedBase = (rules?.allowed_material || DEFAULT_RULES.allowed_material).map((x) =>
+        String(x).toLowerCase().trim()
+      );
+      // Blacklist: diese Werte sind immer ungueltig, auch wenn sie evtl. in der Allowlist stehen wuerden.
+      const materialBlacklist = ["keine angabe"];
+      const allowed = allowedBase.filter((token) => token && !materialBlacklist.includes(token));
+      rows.forEach((r, idx) => {
+        const raw = String(r[col] ?? "").trim();
+        if (!raw) return;
+        const v = raw.toLowerCase();
+        // Nur dann als ungueltig markieren, wenn KEIN erlaubter Materialwert als Teilstring enthalten ist.
+        // Beispiel: Erlaubt "holz" -> "massivholz" wird akzeptiert.
+        const containsAllowedToken = allowed.some((token) => token && v.includes(token));
+        if (!containsAllowedToken || materialBlacklist.some((bad) => v.includes(bad))) {
+          invalidMaterial.push({ ean: eans[idx], value: raw });
+        }
+      });
+    }
+
+    if (mapping.color && (rules?.allowed_color || DEFAULT_RULES.allowed_color).length) {
+      const col = mapping.color;
+      const allowed = (rules?.allowed_color || DEFAULT_RULES.allowed_color).map((x) =>
+        String(x).toLowerCase().trim()
+      );
+      rows.forEach((r, idx) => {
+        const raw = String(r[col] ?? "").trim();
+        if (!raw) return;
+        const v = raw.toLowerCase();
+        // Nur dann als ungueltig markieren, wenn KEIN erlaubter Farbwert als Teilstring enthalten ist.
+        // Beispiel: Erlaubt "blau" -> "dunkelblau" wird akzeptiert.
+        const containsAllowedToken = allowed.some((token) => token && v.includes(token));
+        if (!containsAllowedToken) {
+          invalidColor.push({ ean: eans[idx], value: raw });
+        }
+      });
+    }
+
     const titleIssues = { tooShort: [], seeAbove: [], missingAttributes: [] };
     if (mapping.name) {
       const minTitle = Number(rules?.title_min_length ?? DEFAULT_RULES.title_min_length);
@@ -1174,7 +3437,15 @@ export default function App() {
       });
     }
 
-    const descriptionIssues = { tooShort: [], advertising: [], externalLinks: [], variants: [], contactHint: [] };
+    const descriptionIssues = {
+      tooShort: [],
+      advertising: [],
+      externalLinks: [],
+      variants: [],
+      contactHint: [],
+      templateLike: [],
+      usedOrBware: [],
+    };
     if (mapping.description) {
       const minDesc = Number(rules?.description_min_length ?? DEFAULT_RULES.description_min_length);
       rows.forEach((r, idx) => {
@@ -1184,8 +3455,58 @@ export default function App() {
         if (/jetzt kaufen|rabatt|angebot/i.test(desc)) descriptionIssues.advertising.push(eans[idx]);
         if (/auswahl|in verschiedenen|ihrer wahl/i.test(desc)) descriptionIssues.variants.push(eans[idx]);
         if (/kontaktieren sie uns|hotline|kundenservice/i.test(desc)) descriptionIssues.contactHint.push(eans[idx]);
+
+        const eanId = eans[idx];
+        const titleVal = mapping.name ? String(r[mapping.name] ?? "").trim() : "";
+        const descLower = desc.toLowerCase();
+        const titleLower = titleVal.toLowerCase();
+
+        // B-Ware / gebraucht / refurbished Hinweise – nicht erlaubt
+        if (
+          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(
+            descLower
+          ) ||
+          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(
+            titleLower
+          )
+        ) {
+          descriptionIssues.usedOrBware.push(eanId);
+          return;
+        }
+
+        if (desc && titleVal && descLower === titleLower) {
+          descriptionIssues.templateLike.push(eanId);
+          return;
+        }
+
+        const wordCount = desc ? desc.split(/\s+/).filter(Boolean).length : 0;
+        if (wordCount > 0 && wordCount <= 3) {
+          descriptionIssues.templateLike.push(eanId);
+          return;
+        }
+
+        if (/beispieltext|musterbeschreibung|lorem ipsum/i.test(descLower)) {
+          descriptionIssues.templateLike.push(eanId);
+        }
       });
     }
+
+    const templateValueHits = [];
+    const templateColumns = Object.keys(EXAMPLE_TEMPLATE_VALUES);
+    templateColumns.forEach((field) => {
+      const examples = (EXAMPLE_TEMPLATE_VALUES[field] || []).map((v) => String(v).trim().toLowerCase()).filter(Boolean);
+      if (!examples.length) return;
+      const col = mapping[field];
+      if (!col) return;
+      rows.forEach((r, idx) => {
+        const raw = String(r[col] ?? "").trim();
+        if (!raw) return;
+        const v = raw.toLowerCase();
+        if (examples.includes(v)) {
+          templateValueHits.push({ ean: eans[idx], column: field, value: raw });
+        }
+      });
+    });
 
     return {
       missingEansByField,
@@ -1198,10 +3519,17 @@ export default function App() {
       scientificEans: uniqueNonEmpty(scientificEans).sort(),
       invalidShipping,
       missingShipping: uniqueNonEmpty(missingShipping).sort(),
+      invalidMaterial,
+      invalidColor,
+      invalidDeliveryIncludes,
       titleIssues,
       descriptionIssues,
+      invalidWashableCover,
+      invalidMountingSide,
+      invalidDeliveryTime,
+      templateValueHits,
     };
-  }, [rows, optionalFields, mapping, imageColumns, imageMin, eanColumn]);
+  }, [rows, optionalFields, mapping, imageColumns, imageMin, eanColumn, rules]);
 
   const stage3Status = useMemo(() => {
     if (!headers.length) return "idle";
@@ -1209,11 +3537,18 @@ export default function App() {
       optionalFindings.missingEansByField.material.length +
         optionalFindings.missingEansByField.color.length +
         optionalFindings.missingEansByField.delivery_includes.length +
+        (optionalFindings.missingEansByField.delivery_time || []).length +
         optionalFindings.missingEANs.length >
       0;
     const imagesBad = optionalFindings.imageZeroEans.length > 0 || optionalFindings.imageOneEans.length > 0;
     const shipBad = optionalFindings.invalidShipping.length > 0 || optionalFindings.missingShipping.length > 0;
-    return anyMissing || imagesBad || shipBad ? "warn" : "ok";
+    const materialBad = optionalFindings.invalidMaterial?.length > 0;
+    const colorBad = optionalFindings.invalidColor?.length > 0;
+    const deliveryTimeBad = optionalFindings.invalidDeliveryTime?.length > 0;
+    const templateValuesBad = optionalFindings.templateValueHits?.length > 0;
+    return anyMissing || imagesBad || shipBad || materialBad || colorBad || deliveryTimeBad || templateValuesBad
+      ? "warn"
+      : "ok";
   }, [headers, optionalFindings]);
 
   const imageSamples = useMemo(() => {
@@ -1231,9 +3566,31 @@ export default function App() {
         ? String(r?.[eanColumn] ?? "").trim() || `ROW_${i + 1}`
         : `ROW_${i + 1}`;
       out.push({ id, urls });
-      if (out.length >= 5) break;
+      if (out.length >= 50) break;
     }
     return out;
+  }, [rows, imageColumns, eanColumn]);
+
+  const imageBuckets = useMemo(() => {
+    const buckets = {};
+    if (!rows.length || !imageColumns.length) return buckets;
+
+    const ids = rows.map((r, idx) => {
+      if (eanColumn) {
+        const v = String(r?.[eanColumn] ?? "").trim();
+        if (v) return v;
+      }
+      return `ROW_${idx + 1}`;
+    });
+
+    rows.forEach((r, idx) => {
+      const count = countNonEmptyImageLinks(r, imageColumns);
+      const key = count;
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(ids[idx]);
+    });
+
+    return buckets;
   }, [rows, imageColumns, eanColumn]);
 
   const summary = useMemo(() => {
@@ -1293,36 +3650,10 @@ export default function App() {
       if (optionalFindings.imageLowEans.length > 0) {
         tips.push(`Bitte pro Produkt mindestens ${imageMin} Bildlinks liefern.`);
       }
-    }
-
-    if (mapping.delivery_includes) {
-      const col = mapping.delivery_includes;
-      const bad = new Set();
-      let re = null;
-      try {
-        const pattern = String(rules?.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern);
-        re = new RegExp(pattern, "i");
-      } catch (e) {
-        re = null;
-      }
-      rows.forEach((r, idx) => {
-        const v = String(r[col] ?? "").trim();
-        if (!v) return;
-        const ok = re ? re.test(v) : /(^|\s)(\d+)\s*[xX×]\s*\S+/i.test(v);
-        if (!ok) bad.add(idx);
-      });
-      if (bad.size > 0) {
-        issues.push(`Lieferumfang Format ungueltig in ${bad.size} Zeilen.`);
-        tips.push("Lieferumfang bitte im Format Anzahl x Produkt angeben, z B 1x Tisch, 4x Stuhl.");
-      }
-    }
-
-    if (mapping.shipping_mode) {
-      if (optionalFindings.missingShipping.length > 0) {
-        issues.push(`shipping_mode fehlt in ${optionalFindings.missingShipping.length} Artikeln.`);
-      }
-      if (optionalFindings.invalidShipping.length > 0) {
-        issues.push(`shipping_mode ungueltig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`);
+      if (brokenImageIds.length > 0) {
+        issues.push(
+          `Bei ${brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden. Bitte Bild-Links pruefen.`
+        );
       }
     }
 
@@ -1336,21 +3667,134 @@ export default function App() {
     score -= Math.min(15, optionalFindings.invalidShipping.length > 0 ? 15 : 0);
     score -= Math.min(10, optionalFindings.missingShipping.length > 0 ? 10 : 0);
     score -= Math.min(15, eanColumn && rows.some((r) => isBlank(r[eanColumn])) ? 15 : 0);
+    score -= Math.min(20, brokenImageIds.length > 0 ? 20 : 0);
+
+    if (mapping.delivery_includes && optionalFindings.invalidDeliveryIncludes.length > 0) {
+      issues.push(`Lieferumfang Format ungueltig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`);
+      tips.push("Lieferumfang bitte im Format Anzahl x Produkt angeben, z B 1x Tisch, 4x Stuhl.");
+      score -= 5;
+    }
+
+    if (mapping.delivery_time && optionalFindings.invalidDeliveryTime.length > 0) {
+      issues.push(
+        `Lieferzeit ungueltig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`
+      );
+      tips.push('Lieferzeit bitte im Format z B "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" angeben.');
+      score -= 5;
+    }
+
+    if (mapping.description) {
+      if (optionalFindings.descriptionIssues.tooShort.length > 0) {
+        issues.push(
+          `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlaenge laut Regeln-Tab).`
+        );
+        tips.push("Produktbeschreibungen etwas ausfuehrlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).");
+        score -= 3;
+      }
+      if (optionalFindings.descriptionIssues.templateLike.length > 0) {
+        tips.push(
+          "Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden."
+        );
+        score -= 3;
+      }
+      if (optionalFindings.descriptionIssues.usedOrBware.length > 0) {
+        issues.push(
+          `Hinweise auf B-Ware / gebrauchte Ware in ${optionalFindings.descriptionIssues.usedOrBware.length} Artikeln.`
+        );
+        tips.push("Wir koennen keine gebrauchten oder als B-Ware gekennzeichneten Produkte akzeptieren.");
+        score -= 15;
+      }
+    }
+
+    if (mapping.shipping_mode) {
+      if (optionalFindings.missingShipping.length > 0) {
+        issues.push(`shipping_mode fehlt in ${optionalFindings.missingShipping.length} Artikeln.`);
+      }
+      if (optionalFindings.invalidShipping.length > 0) {
+        issues.push(
+          `shipping_mode ungueltig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`
+        );
+      }
+    }
+    if (mapping.description && optionalFindings.descriptionIssues.externalLinks.length > 0) {
+      issues.push(
+        `Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`
+      );
+      tips.push("Bitte in der Beschreibung keine externen Links oder Werbung auf andere Seiten einfuegen.");
+      score -= 3;
+    }
+
     score = Math.max(0, score);
 
+    // Kritische Vollausfaelle fuer shipping_mode / Lieferumfang
+    let shippingAllMissing = false;
+    if (mapping.shipping_mode) {
+      const col = mapping.shipping_mode;
+      shippingAllMissing = rows.length > 0 && rows.every((r) => isBlank(r[col]));
+      if (shippingAllMissing) {
+        issues.push("shipping_mode ist fuer keinen Artikel befuellt.");
+        score -= 10;
+      }
+    }
+
+    let deliveryAllMissing = false;
+    if (mapping.delivery_includes) {
+      const col = mapping.delivery_includes;
+      deliveryAllMissing = rows.length > 0 && rows.every((r) => isBlank(r[col]));
+      if (deliveryAllMissing) {
+        issues.push("Lieferumfang ist fuer keinen Artikel befuellt.");
+        score -= 10;
+      }
+    }
+
     const canStart =
+      score >= 50 &&
       requiredPresence.missing.length === 0 &&
       !!eanColumn &&
       rows.every((r) => !isBlank(r[eanColumn])) &&
-      (mapping.shipping_mode ? rows.every((r) => !isBlank(r[mapping.shipping_mode])) : true);
+      (mapping.shipping_mode ? rows.every((r) => !isBlank(r[mapping.shipping_mode])) : true) &&
+      !shippingAllMissing &&
+      !deliveryAllMissing &&
+      brokenImageIds.length === 0;
 
     return { score, canStart, issues, tips };
-  }, [headers, requiredPresence, duplicates, optionalFindings, imageColumns, imageMin, mapping, rows, eanColumn, titleColumn]);
+  }, [
+    headers,
+    requiredPresence,
+    duplicates,
+    optionalFindings,
+    imageColumns,
+    imageMin,
+    mapping,
+    rows,
+    eanColumn,
+    titleColumn,
+    brokenImageIds,
+  ]);
 
   const emailText = useMemo(() => {
     if (!headers.length) return "";
     return buildEmail({ shopName, issues: summary.issues, tips: summary.tips, canStart: summary.canStart });
   }, [headers, shopName, summary]);
+
+  const [showEmailTemplate, setShowEmailTemplate] = useState(false);
+  const [step2Expanded, setStep2Expanded] = useState(false);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
+  const step6Ref = useRef(null);
+
+  useEffect(() => {
+    // Wenn der Feed nicht startklar ist, Mailvorlage automatisch anzeigen.
+    // Wenn alles OK ist, standardmaessig ausgeblendet lassen.
+    setShowEmailTemplate(!summary.canStart);
+  }, [summary.canStart]);
+
+  useEffect(() => {
+    // Wenn Pflichtfelder nicht vollstaendig zugeordnet sind, immer alle Details in Schritt 2 anzeigen.
+    // Erst ausführen, wenn eine Datei eingelesen wurde (headers.length > 0),
+    // damit Schritt 2 bei einem komplett leeren Zustand nicht "offen" haengen bleibt.
+    if (!headers.length) return;
+    if (!allRequiredOk) setStep2Expanded(true);
+  }, [allRequiredOk, headers.length]);
 
   function onPickFile(file) {
     setPreviewCount(20);
@@ -1358,6 +3802,7 @@ export default function App() {
     setFileName(file?.name || "");
     setRawRows([]);
     setHeaders([]);
+    setBrokenImageIds([]);
 
     if (!file) return;
 
@@ -1412,6 +3857,21 @@ export default function App() {
             Checker
           </button>
           <button
+            onClick={() => { window.location.hash = "#/qs"; }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 999,
+              border: `1px solid ${BRAND_COLOR}`,
+              background: route === "qs" ? BRAND_COLOR : "#FFFFFF",
+              color: route === "qs" ? "#FFFFFF" : BRAND_COLOR,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            QS/APA
+          </button>
+          <button
             onClick={() => { window.location.hash = "#/rules"; }}
             style={{
               padding: "8px 16px",
@@ -1454,25 +3914,134 @@ export default function App() {
             Schritt fuer Schritt Pruefung fuer CSV Produktdatenfeeds
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", flexShrink: 0 }}>
-          <Pill tone={summary.canStart ? "ok" : "warn"}>{summary.canStart ? "Ready" : "Needs fixes"}</Pill>
-          <Pill tone="info">Bewertung {summary.score} von 100</Pill>
-        </div>
+        {/* Header summary removed, summary is now shown under Step 1 */}
       </div>
 
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
 
         {/* STEP 1 */}
-        <StepCard title="1 Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="CSV Datei hochladen um die Pruefung zu starten">
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <StepCard
+          title="1 Datei hochladen"
+          status={headers.length ? "ok" : "idle"}
+          subtitle="CSV Datei hochladen um die Pruefung zu starten"
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              gap: 10,
+              marginTop: 2,
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: `1px solid ${BRAND_COLOR}`,
+                background: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: 700,
+                color: BRAND_COLOR,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              Datei auswaehlen
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                window.open(
+                  "http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx",
+                  "_blank",
+                  "noopener,noreferrer"
+                )
+              }
+              style={{
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: "1px solid #CBD5E1",
+                background: "#F9FAFB",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#111827",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              Feedvorlage (Excel) herunterladen
+            </button>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#6B7280",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              {fileName ? `Aktuelle Datei: ${fileName}` : "Unterstuetzt CSV Dateien mit Kopfzeile"}
+            </div>
             <input
+              ref={fileInputRef}
               type="file"
               accept=".csv,text/csv"
               onChange={(e) => onPickFile(e.target.files?.[0] || null)}
+              style={{ display: "none" }}
             />
-            <div style={{ color: "#6B7280", fontSize: 13 }}>{fileName ? `File ${fileName}` : "Keine Datei ausgewaehlt"}</div>
           </div>
-          {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
+
+          {parseError ? (
+            <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>
+              Fehler beim Einlesen {parseError}
+            </div>
+          ) : null}
+
+          {headers.length ? (
+            <div
+              style={{
+                marginTop: 8,
+                padding: 10,
+                borderRadius: 14,
+                border: `1px solid ${summary.canStart ? "#A7F3D0" : "#FCD34D"}`,
+                background: summary.canStart ? "#ECFDF3" : "#FFFBEB",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Pill tone={summary.canStart ? "ok" : "warn"}>
+                  {summary.canStart ? "✅ Feed ist startklar" : "🚧 Noch nicht startklar"}
+                </Pill>
+                <Pill tone="info">Score {summary.score} / 100</Pill>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Kritisch</div>
+                <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                  {(summary.issues.length ? summary.issues : ["Keine kritischen Fehler erkannt"]).slice(0, 3).map((x, idx) => (
+                    <li key={idx}>{x}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>Optionale Checks</div>
+                <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                  {(summary.tips.length ? summary.tips : ["Keine weiteren Empfehlungen"]).slice(0, 3).map((x, idx) => (
+                    <li key={idx}>{x}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
         </StepCard>
 
         {/* STEP 2 */}
@@ -1484,109 +4053,188 @@ export default function App() {
           {!headers.length ? (
             <SmallText>Bitte CSV hochladen um die erkannten Spalten zu sehen.</SmallText>
           ) : (
-            <React.Fragment>
-              <SmallText>Gefundene Spalten {headers.length}</SmallText>
-              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, maxWidth: "100%" }}>
-                {headers.map((h) => (
-                  <span
-                    key={String(h)}
+            <>
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 8,
+                  borderRadius: 10,
+                  border: `1px solid ${allRequiredOk ? "#A7F3D0" : "#FCD34D"}`,
+                  background: allRequiredOk ? "#ECFDF3" : "#FFFBEB",
+                  fontSize: 12,
+                  color: allRequiredOk ? "#166534" : "#92400E",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <span>
+                  {allRequiredOk
+                    ? "Alle Pflichtfelder wurden korrekt zugeordnet."
+                    : `Es fehlen noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern.`}
+                </span>
+                <span>
+                  {optionalFields.length
+                    ? `${optionalPresence.found.length}/${optionalFields.length} optionale Felder erkannt`
+                    : "Keine optionalen Felder konfiguriert"}
+                </span>
+                {allRequiredOk ? (
+                  <button
+                    type="button"
+                    onClick={() => setStep2Expanded((v) => !v)}
                     style={{
-                      fontSize: 12,
-                      padding: "6px 10px",
+                      padding: "4px 10px",
                       borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#F9FAFB",
-                      color: "#111827",
-                      wordBreak: "break-all",
-                      maxWidth: "100%",
+                      border: "1px solid rgba(22,101,52,0.25)",
+                      background: "#FFFFFF",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    {String(h)}
-                  </span>
-                ))}
+                    {step2Expanded ? "Details ausblenden" : "Details anzeigen"}
+                  </button>
+                ) : null}
               </div>
 
-              <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
-                  <SmallText>Diese Felder muessen fuer jeden Artikel erkannt werden.</SmallText>
-                  <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-                    {requiredFields.map((f) => {
-                      const col = mapping[f];
-                      const missing = !col;
-                      return (
-                        <div
-                          key={f}
+              {(!allRequiredOk || step2Expanded) && (
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                  <div>
+                    <SmallText>
+                      Gefundene Spalten {headers.length}. Pflicht sind nur <code>ean (GTIN14)</code>,{" "}
+                      <code>seller_offer_id</code> und <code>name</code>. Alle anderen Felder sind optional.
+                    </SmallText>
+                    <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6, maxWidth: "100%" }}>
+                      {headers.slice(0, 20).map((h) => (
+                        <span
+                          key={String(h)}
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: 8,
-                            borderRadius: 10,
+                            fontSize: 11,
+                            padding: "4px 8px",
+                            borderRadius: 999,
                             border: "1px solid #E5E7EB",
-                            background: missing ? "#FEF3C7" : "#ECFDF3",
-                            flexWrap: "wrap",
+                            background: "#F9FAFB",
+                            color: "#111827",
+                            wordBreak: "break-all",
+                            maxWidth: "100%",
                           }}
                         >
-                          <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                            <div style={{ fontSize: 12, color: missing ? "#92400E" : "#166534" }}>
-                              {col ? `Spalte ${col}` : "Nicht gefunden"}
-                            </div>
-                            <Pill tone={missing ? "warn" : "ok"}>{missing ? "Fehlt" : "OK"}</Pill>
-                          </div>
+                          {String(h)}
+                        </span>
+                      ))}
+                    </div>
+                    {headers.length > 20 ? (
+                      <details style={{ marginTop: 6 }}>
+                        <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>
+                          Weitere Spalten anzeigen ({headers.length - 20} weitere)
+                        </summary>
+                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6, maxWidth: "100%" }}>
+                          {headers.slice(20).map((h) => (
+                            <span
+                              key={String(h)}
+                              style={{
+                                fontSize: 11,
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                border: "1px solid #E5E7EB",
+                                background: "#F9FAFB",
+                                color: "#111827",
+                                wordBreak: "break-all",
+                                maxWidth: "100%",
+                              }}
+                            >
+                              {String(h)}
+                            </span>
+                          ))}
                         </div>
-                      );
-                    })}
+                      </details>
+                    ) : null}
                   </div>
-                  <div style={{ marginTop: 10, fontSize: 12, color: requiredPresence.missing.length ? "#92400E" : "#166534" }}>
-                    {requiredPresence.missing.length
-                      ? `Noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern ohne Zuordnung.`
-                      : `Alle ${requiredFields.length} Pflichtfelder wurden automatisch zugeordnet.`}
-                  </div>
-                </div>
 
-                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Optionale Felder</div>
-                  <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualitaet und Score.</SmallText>
-                  <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-                    {optionalFields.map((f) => {
-                      const col = mapping[f];
-                      const missing = !col;
-                      return (
-                        <div
-                          key={f}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: 8,
-                            borderRadius: 10,
-                            border: "1px solid #E5E7EB",
-                            background: missing ? "#F9FAFB" : "#EEF2FF",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                            <div style={{ fontSize: 12, color: missing ? "#6B7280" : BRAND_COLOR }}>
-                              {col ? `Spalte ${col}` : "Nicht gefunden"}
+                  <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
+                    <SmallText>Diese Felder muessen fuer jeden Artikel erkannt werden.</SmallText>
+                    <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                      {requiredFields.map((f) => {
+                        const col = mapping[f];
+                        const missing = !col;
+                        return (
+                          <div
+                            key={f}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: 6,
+                              borderRadius: 10,
+                              border: "1px solid #E5E7EB",
+                              background: missing ? "#FEF3C7" : "#ECFDF3",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <div style={{ fontSize: 12, color: missing ? "#92400E" : "#166534" }}>
+                                {col ? `Spalte ${col}` : "Nicht gefunden"}
+                              </div>
+                              <Pill tone={missing ? "warn" : "ok"}>{missing ? "Fehlt" : "OK"}</Pill>
                             </div>
-                            <Pill tone={missing ? "info" : "ok"}>{missing ? "Optional" : "OK"}</Pill>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 12, color: requiredPresence.missing.length ? "#92400E" : "#166534" }}>
+                      {requiredPresence.missing.length
+                        ? `Noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern ohne Zuordnung.`
+                        : `Alle ${requiredFields.length} Pflichtfelder wurden automatisch zugeordnet.`}
+                    </div>
                   </div>
-                  <div style={{ marginTop: 10, fontSize: 12, color: "#4B5563" }}>
-                    {optionalFields.length
-                      ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern wurden automatisch zugeordnet.`
-                      : "Keine optionalen Felder konfiguriert."}
+
+                  <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Optionale Felder</div>
+                    <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualitaet und Score.</SmallText>
+                    <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                      {optionalFields.map((f) => {
+                        const col = mapping[f];
+                        const missing = !col;
+                        return (
+                          <div
+                            key={f}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: 6,
+                              borderRadius: 10,
+                              border: "1px solid #E5E7EB",
+                              background: missing ? "#F9FAFB" : "#EEF2FF",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <div style={{ fontSize: 12, color: missing ? "#6B7280" : BRAND_COLOR }}>
+                                {col ? `Spalte ${col}` : "Nicht gefunden"}
+                              </div>
+                              <Pill tone={missing ? "info" : "ok"}>{missing ? "Optional" : "OK"}</Pill>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 12, color: "#4B5563" }}>
+                      {optionalFields.length
+                        ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern wurden automatisch zugeordnet.`
+                        : "Keine optionalen Felder konfiguriert."}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </>
           )}
         </StepCard>
@@ -1602,51 +4250,52 @@ export default function App() {
                 <Pill tone={titleColumn ? "ok" : "warn"}>{titleColumn ? `Titel Spalte ${titleColumn}` : "Titel Spalte nicht gefunden"}</Pill>
               </div>
 
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte EAN Werte</div>
-                  <SmallText>Liste der EAN Werte die mehr als einmal vorkommen</SmallText>
-                  <div style={{ marginTop: 10 }}>
-                    <CollapsibleList
-                      title="Doppelte EAN"
-                      items={duplicateEans}
-                      tone={duplicateEans.length ? "warn" : "ok"}
-                    />
-                  </div>
-                </div>
+              {duplicateEans.length > 0 || duplicateTitleRows.length > 0 || duplicateSellerOfferIds.length > 0 ? (
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                  {duplicateEans.length > 0 ? (
+                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte EAN Werte</div>
+                      <SmallText>Liste der EAN Werte die mehr als einmal vorkommen</SmallText>
+                      <div style={{ marginTop: 10 }}>
+                        <CollapsibleList title="Doppelte EAN" items={duplicateEans} tone="warn" />
+                      </div>
+                    </div>
+                  ) : null}
 
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Titelwerte</div>
-                  <SmallText>Liste der Titel die mehr als einmal vorkommen</SmallText>
-                  <div style={{ marginTop: 10 }}>
-                    <CollapsibleList
-                      title="Doppelte Titel"
-                      items={duplicateTitles}
-                      tone={duplicateTitles.length ? "warn" : "ok"}
-                    />
-                  </div>
-                </div>
-              </div>
+                  {duplicateTitleRows.length > 0 ? (
+                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Titel</div>
+                      
+                      <div style={{ marginTop: 10 }}>
+                        <CollapsibleList
+                          title="Doppelte Titel"
+                          items={groupByValueWithEans(
+                            duplicateTitleRows.map((x) => ({ value: x.title, ean: x.ean }))
+                          )
+                            .filter((g) =>
+                              !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                            )
+                            .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                          tone="warn"
+                          hint="Jede Zeile zeigt einen Titel und alle EANs, die diesen Titel mehrfach verwenden"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
 
-              {duplicateTitleRows.length ? (
-                <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Detailansicht doppelte Titel</div>
-                  <SmallText>
-                    Hier siehst du fuer jeden doppelten Titel die zugehoerige EAN bzw. Zeilen‑ID und die Zeilennummer aus dem CSV.
-                  </SmallText>
-                  <div style={{ marginTop: 10 }}>
-                    <Table
-                      columns={[
-                        { key: "title", label: "Titel" },
-                        { key: "ean", label: "EAN / Zeile" },
-                        { key: "row", label: "Zeilennummer" },
-                      ]}
-                      rows={duplicateTitleRows.slice(0, 500)}
-                    />
-                    {duplicateTitleRows.length > 500 ? (
-                      <SmallText>Es werden nur die ersten 500 Zeilen mit doppelten Titeln angezeigt.</SmallText>
-                    ) : null}
-                  </div>
+                  {duplicateSellerOfferIds.length > 0 ? (
+                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Seller_Offer_ID Werte</div>
+                      <SmallText>Liste der Seller_Offer_ID Werte die mehr als einmal vorkommen</SmallText>
+                      <div style={{ marginTop: 10 }}>
+                        <CollapsibleList
+                          title="Doppelte Seller_Offer_ID"
+                          items={duplicateSellerOfferIds}
+                          tone="warn"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </>
@@ -1657,110 +4306,458 @@ export default function App() {
         <StepCard
           title="4 Optionale Felder und Versand"
           status={stage3Status}
-          subtitle="Wir zeigen EANs fuer fehlende Angaben, fehlende EAN und Versandprobleme"
+        
         >
           {!headers.length ? (
             <SmallText>Bitte CSV hochladen um Schritt 4 zu pruefen.</SmallText>
           ) : (
             <>
-              <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>EAN fehlt</div>
-                  <SmallText>Ohne EAN ist der Datensatz nicht verarbeitbar.</SmallText>
-                  <div style={{ marginTop: 10 }}>
-                    <CollapsibleList
-                      title="Zeilen ohne EAN"
-                      items={optionalFindings.missingEANs.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                      tone={optionalFindings.missingEANs.length ? "bad" : "ok"}
-                      hint={optionalFindings.missingEANs.length ? "➜ bitte EAN nachliefern" : ""}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>Fehlende optionale Angaben</div>
-                  <SmallText>Material, Farbe, Lieferumfang.</SmallText>
-
-                  <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                    <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "white" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Material</div>
-                        <div style={{ fontSize: 12, color: "#6B7280" }}>
-                          {optionalFindings.samplesByField.material.length ? optionalFindings.samplesByField.material.join(" | ") : "keine Werte"}
-                        </div>
-                      </div>
-                      <div style={{ marginTop: 10 }}>
-                        <CollapsibleList
-                          title="Material fehlt"
-                          items={optionalFindings.missingEansByField.material.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                          tone={optionalFindings.missingEansByField.material.length ? "warn" : "ok"}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "white" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Farbe</div>
-                        <div style={{ fontSize: 12, color: "#6B7280" }}>
-                          {optionalFindings.samplesByField.color.length ? optionalFindings.samplesByField.color.join(" | ") : "keine Werte"}
-                        </div>
-                      </div>
-                      <div style={{ marginTop: 10 }}>
-                        <CollapsibleList
-                          title="Farbe fehlt"
-                          items={optionalFindings.missingEansByField.color.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                          tone={optionalFindings.missingEansByField.color.length ? "warn" : "ok"}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "white" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang</div>
-                        <div style={{ fontSize: 12, color: "#6B7280" }}>
-                          {optionalFindings.samplesByField.delivery_includes.length ? optionalFindings.samplesByField.delivery_includes.join(" | ") : "keine Werte"}
-                        </div>
-                      </div>
-                      <div style={{ marginTop: 10 }}>
-                        <CollapsibleList
-                          title="Lieferumfang fehlt"
-                          items={optionalFindings.missingEansByField.delivery_includes.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                          tone={optionalFindings.missingEansByField.delivery_includes.length ? "warn" : "ok"}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>Pruefung shipping_mode</div>
-                <SmallText>Erlaubt sind Paket oder Spedition.</SmallText>
-
-                {mapping.shipping_mode ? (
-                  <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                    <CollapsibleList
-                      title="shipping_mode fehlt"
-                      items={optionalFindings.missingShipping.filter((x) => !eanSearch || String(x).includes(eanSearch))}
-                      tone={optionalFindings.missingShipping.length ? "warn" : "ok"}
-                      hint={optionalFindings.missingShipping.length ? "➜ Feld ist leer" : ""}
-                    />
-                    <CollapsibleList
-                      title="shipping_mode ungueltig"
-                      items={optionalFindings.invalidShipping
-                        .filter((x) => !eanSearch || String(x.ean).includes(eanSearch))
-                        .map((x) => `${x.ean}: ${x.value}`)}
-                      tone={optionalFindings.invalidShipping.length ? "warn" : "ok"}
-                      hint={optionalFindings.invalidShipping.length ? "➜ Wert nicht Paket oder Spedition" : ""}
-                    />
-                    {optionalFindings.invalidShipping.length === 0 && optionalFindings.missingShipping.length === 0 ? (
-                      <div style={{ color: "#166534", fontSize: 13 }}>Alle shipping_mode Werte sind gueltig.</div>
+              {/* Titel Checks */}
+              {optionalFindings.titleIssues.tooShort.length > 0 ||
+              optionalFindings.titleIssues.seeAbove.length > 0 ||
+              optionalFindings.titleIssues.missingAttributes.length > 0 ||
+              optionalFindings.descriptionIssues.templateLike.length > 0 ||
+              optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Titel Qualitaet</div>
+                  <SmallText>
+                    </SmallText>
+                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                    {optionalFindings.titleIssues.tooShort.length > 0 ? (
+                      <CollapsibleList
+                        title="Titel zu kurz"
+                        items={optionalFindings.titleIssues.tooShort
+                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                          .map((x) => `${x}`)}
+                        tone="warn"
+                        hint="EANs/Zeilen deren Titel kuerzer als die im Regeln-Tab definierte Mindestlaenge sind"
+                      />
+                    ) : null}
+                    {optionalFindings.titleIssues.seeAbove.length > 0 ? (
+                      <CollapsibleList
+                        title='Titel enthaelt "siehe oben"'
+                        items={optionalFindings.titleIssues.seeAbove
+                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                          .map((x) => `${x}`)}
+                        tone="warn"
+                        hint='Titel, die einen Hinweis wie "siehe oben" enthalten und dadurch unklar sind'
+                      />
+                    ) : null}
+                    {optionalFindings.descriptionIssues.templateLike.length > 0 ? (
+                      <CollapsibleList
+                        title="Beschreibung wirkt wie Platzhalter"
+                        items={optionalFindings.descriptionIssues.templateLike
+                          .filter((ean) => !eanSearch || String(ean).includes(eanSearch))
+                          .map((ean) => {
+                            let titleVal = "";
+                            let descVal = "";
+                            if (eanColumn && titleColumn && mapping.description) {
+                              const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
+                              if (row) {
+                                titleVal = String(row[titleColumn] ?? "").trim();
+                                descVal = String(row[mapping.description] ?? "").trim();
+                              }
+                            }
+                            const preview =
+                              descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
+                            if (titleVal) {
+                              return `${ean}: ${titleVal} – ${preview}`;
+                            }
+                            return `${ean}: ${preview}`;
+                          })}
+                        tone="warn"
+                        hint="Beschreibung entspricht z.B. exakt dem Titel, ist extrem kurz oder enthaelt typische Beispieltexte"
+                      />
+                    ) : null}
+                    {optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
+                      <CollapsibleList
+                        title="Hinweise auf B-Ware / gebraucht"
+                        items={optionalFindings.descriptionIssues.usedOrBware
+                          .filter((ean) => !eanSearch || String(ean).includes(eanSearch))
+                          .map((ean) => {
+                            let titleVal = "";
+                            let descVal = "";
+                            if (eanColumn && titleColumn && mapping.description) {
+                              const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
+                              if (row) {
+                                titleVal = String(row[titleColumn] ?? "").trim();
+                                descVal = String(row[mapping.description] ?? "").trim();
+                              }
+                            }
+                            const preview =
+                              descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
+                            if (titleVal) {
+                              return `${ean}: ${titleVal} – ${preview}`;
+                            }
+                            return `${ean}: ${preview}`;
+                          })}
+                        tone="bad"
+                        hint="Produkte, deren Beschreibung auf B-Ware, gebrauchte oder generalueberholte Ware hindeutet"
+                      />
                     ) : null}
                   </div>
-                ) : (
-                  <div style={{ marginTop: 10, color: "#92400E", fontSize: 13 }}>shipping_mode Spalte nicht gefunden.</div>
-                )}
+                </div>
+              ) : null}
+
+              {/* EAN fehlt */}
+              {optionalFindings.missingEANs.length > 0 ? (
+                <div style={{ marginTop: 14 }}>
+                  <CollapsibleList
+                    title="Zeilen ohne EAN"
+                    items={optionalFindings.missingEANs
+                      .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                      .map((x) => `${x}: None`)}
+                    tone="bad"
+                    hint="➜ bitte EAN nachliefern"
+                  />
+                </div>
+              ) : null}
+
+              {/* Material */}
+              {(optionalFindings.missingEansByField.material.length > 0 ||
+                (optionalFindings.invalidMaterial?.length || 0) > 0) && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Material</div>
+                  <SmallText>
+                    {optionalFindings.samplesByField.material.length
+                      ? optionalFindings.samplesByField.material.join(" | ")
+                      : "keine Beispielwerte gefunden"}
+                  </SmallText>
+                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                    {optionalFindings.missingEansByField.material.length > 0 ? (
+                      <CollapsibleList
+                        title="Material fehlt"
+                        items={optionalFindings.missingEansByField.material
+                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                          .map((x) => `${x}: None`)}
+                        tone="warn"
+                      />
+                    ) : null}
+                    {optionalFindings.invalidMaterial?.length ? (
+                      <CollapsibleList
+                        title="Material ausserhalb erlaubter Werte"
+                        items={groupByValueWithEans(optionalFindings.invalidMaterial)
+                          .filter((g) =>
+                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                          )
+                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                        tone="warn"
+                        hint="Werte, die nicht in der Material-Liste im Regeln-Tab stehen, gruppiert nach Wert"
+                      />
+                    ) : null}
+                    {optionalFindings.invalidMaterial?.length ? (
+                      <div>
+                        <SmallText>Einzelne Material-Werte als erlaubt markieren:</SmallText>
+                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {uniqueNonEmpty(optionalFindings.invalidMaterial.map((x) => x.value)).map((val) => (
+                            <button
+                              key={val}
+                              onClick={() => addAllowedRuleValue("material", val)}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                border: "1px solid #E5E7EB",
+                                background: "#FFFFFF",
+                                fontSize: 11,
+                                cursor: "pointer",
+                                color: "#111827",
+                              }}
+                            >
+                              {val} als erlaubt speichern
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {/* Farbe */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Farbe</div>
+                <SmallText>
+                  {optionalFindings.samplesByField.color.length
+                    ? optionalFindings.samplesByField.color.join(" | ")
+                    : "keine Beispielwerte gefunden"}
+                </SmallText>
+                <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                  {optionalFindings.missingEansByField.color.length > 0 ? (
+                    <CollapsibleList
+                      title="Farbe fehlt"
+                      items={optionalFindings.missingEansByField.color
+                        .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                        .map((x) => `${x}: None`)}
+                      tone="warn"
+                    />
+                  ) : null}
+                  {optionalFindings.invalidColor?.length ? (
+                    <>
+                      <CollapsibleList
+                        title="Farbe ausserhalb erlaubter Werte"
+                        items={groupByValueWithEans(optionalFindings.invalidColor)
+                          .filter((g) =>
+                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                          )
+                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                        tone="warn"
+                        hint="Werte, die nicht in der Farb-Liste im Regeln-Tab stehen, gruppiert nach Wert"
+                      />
+                      <div>
+                        <SmallText>Einzelne Farb-Werte als erlaubt markieren:</SmallText>
+                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {uniqueNonEmpty(optionalFindings.invalidColor.map((x) => x.value)).map((val) => (
+                            <button
+                              key={val}
+                              onClick={() => addAllowedRuleValue("color", val)}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                border: "1px solid #E5E7EB",
+                                background: "#FFFFFF",
+                                fontSize: 11,
+                                cursor: "pointer",
+                                color: "#111827",
+                              }}
+                            >
+                              {val} als erlaubt speichern
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+                  {optionalFindings.missingEansByField.color.length === 0 &&
+                  !(optionalFindings.invalidColor?.length > 0) ? (
+                    <SmallText>Alle Farbwerte sind gueltig.</SmallText>
+                  ) : null}
+                </div>
               </div>
+
+              {/* Lieferumfang */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang</div>
+                <SmallText>
+                  {optionalFindings.samplesByField.delivery_includes.length
+                    ? optionalFindings.samplesByField.delivery_includes.join(" | ")
+                    : "keine Beispielwerte gefunden"}
+                </SmallText>
+                <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                  {optionalFindings.missingEansByField.delivery_includes.length > 0 ? (
+                    <CollapsibleList
+                      title="Lieferumfang fehlt"
+                      items={optionalFindings.missingEansByField.delivery_includes
+                        .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                        .map((x) => `${x}: None`)}
+                      tone="warn"
+                    />
+                  ) : null}
+                  {optionalFindings.invalidDeliveryIncludes?.length ? (
+                    <div>
+                      <CollapsibleList
+                        title="Lieferumfang ausserhalb Pattern"
+                        items={groupByValueWithEans(optionalFindings.invalidDeliveryIncludes)
+                          .filter((g) =>
+                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                          )
+                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                        tone="warn"
+                        hint="Werte, die nicht zum aktuellen Lieferumfang-Pattern passen, gruppiert nach Wert"
+                      />
+                      <div style={{ marginTop: 8 }}>
+                        <SmallText>Einzelne Lieferumfang-Werte als erlaubt markieren:</SmallText>
+                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {uniqueNonEmpty(optionalFindings.invalidDeliveryIncludes.map((x) => x.value)).map((val) => (
+                            <button
+                              key={val}
+                              onClick={() => addAllowedRuleValue("delivery_includes", val)}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                border: "1px solid #E5E7EB",
+                                background: "#FFFFFF",
+                                fontSize: 11,
+                                cursor: "pointer",
+                                color: "#111827",
+                              }}
+                            >
+                              {val} als erlaubt speichern
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {optionalFindings.missingEansByField.delivery_includes.length === 0 &&
+                  !(optionalFindings.invalidDeliveryIncludes?.length > 0) ? (
+                    <SmallText>Alle Lieferumfang-Werte sind gueltig.</SmallText>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Lieferzeit / delivery_time – nur anzeigen, wenn es Probleme gibt */}
+              {mapping.delivery_time &&
+              ((optionalFindings.missingEansByField.delivery_time &&
+                optionalFindings.missingEansByField.delivery_time.length > 0) ||
+                (optionalFindings.invalidDeliveryTime?.length > 0)) ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferzeit (delivery_time)</div>
+                  <SmallText>Erwartetes Format z B &quot;3-5 Werktage&quot; oder &quot;2 Wochen&quot; ohne zusaetzlichen Fliesstext.</SmallText>
+                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                    {optionalFindings.missingEansByField.delivery_time &&
+                    optionalFindings.missingEansByField.delivery_time.length > 0 ? (
+                      <CollapsibleList
+                        title="Lieferzeit fehlt"
+                        items={optionalFindings.missingEansByField.delivery_time
+                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                          .map((x) => `${x}: None`)}
+                        tone="warn"
+                      />
+                    ) : null}
+                    {optionalFindings.invalidDeliveryTime?.length ? (
+                      <CollapsibleList
+                        title="Lieferzeit ausserhalb erlaubter Formate"
+                        items={groupByValueWithEans(optionalFindings.invalidDeliveryTime)
+                          .filter((g) =>
+                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                          )
+                          .map((g) => `${g.value || "(leer)"} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                        tone="warn"
+                        hint='Erwartet werden Angaben wie "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" ohne Mischformen.'
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Beispielwerte aus Muster-Feed */}
+              {optionalFindings.templateValueHits && optionalFindings.templateValueHits.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Beispielwerte aus Muster-Feed</div>
+                  <SmallText>
+                    In diesen Feldern scheinen noch Beispiel-/Demo-Werte aus dem Muster-Feed zu stehen. Bitte fuer echte Produkte
+                    entfernen oder korrekt ausfuellen.
+                  </SmallText>
+                  <div style={{ marginTop: 8 }}>
+                    <CollapsibleList
+                      title="Felder mit Beispielwerten"
+                      items={groupByValueWithEans(optionalFindings.templateValueHits)
+                        .filter((g) =>
+                          !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                        )
+                        .map(
+                          (g) =>
+                            `${g.value} (${g.eans.length} EANs, Spalte ${g.column || "unbekannt"}): ${g.eans.join(", ")}`
+                        )}
+                      tone="warn"
+                      hint="Werte, die wie Beispielangaben aus einem Muster-Feed aussehen (z.B. Demo-URLs, Platzhalter)."
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Waschbarer Bezug */}
+              {mapping.washable_cover && optionalFindings.invalidWashableCover.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Waschbarer Bezug (washable_cover)</div>
+                  <SmallText>Erlaubt sind nur die Werte &quot;ja&quot; oder &quot;nein&quot;.</SmallText>
+                  <div style={{ marginTop: 8 }}>
+                    <CollapsibleList
+                      title="Ungültige washable_cover Werte"
+                      items={groupByValueWithEans(optionalFindings.invalidWashableCover)
+                        .filter((g) =>
+                          !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                        )
+                        .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                      tone="warn"
+                      hint='Waschbarer Bezug sollte nur "ja" oder "nein" enthalten'
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Montageseite / mounting_side */}
+              {mapping.mounting_side && optionalFindings.invalidMountingSide.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Montageseite (mounting_side)</div>
+                  <SmallText>
+                    Erlaubt sind nur die Werte &quot;links&quot;, &quot;rechts&quot; oder &quot;beidseitig&quot; – Kombinationen wie
+                    &quot;links, rechts, beidseitig&quot; sind nicht erlaubt.
+                  </SmallText>
+                  <div style={{ marginTop: 8 }}>
+                    <CollapsibleList
+                      title="Ungültige mounting_side Werte"
+                      items={groupByValueWithEans(optionalFindings.invalidMountingSide)
+                        .filter((g) =>
+                          !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                        )
+                        .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                      tone="warn"
+                      hint='Montageseite sollte nur "links", "rechts" oder "beidseitig" enthalten'
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* shipping_mode – nur anzeigen, wenn es Probleme gibt */}
+              {mapping.shipping_mode &&
+              (optionalFindings.missingShipping.length > 0 || optionalFindings.invalidShipping.length > 0) ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>shipping_mode</div>
+                  <SmallText>
+                    Erlaubt sind Paket oder Spedition. Weitere erlaubte Werte koennen im Regeln Tab gepflegt werden.
+                  </SmallText>
+
+                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                    {optionalFindings.missingShipping.length > 0 ? (
+                      <CollapsibleList
+                        title="shipping_mode fehlt"
+                        items={optionalFindings.missingShipping
+                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
+                          .map((x) => `${x}: None`)}
+                        tone="warn"
+                        hint="Felder ohne Versandart"
+                      />
+                    ) : null}
+                    {optionalFindings.invalidShipping.length > 0 ? (
+                      <CollapsibleList
+                        title="shipping_mode ausserhalb erlaubter Werte"
+                        items={groupByValueWithEans(optionalFindings.invalidShipping)
+                          .filter((g) =>
+                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
+                          )
+                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                        tone="warn"
+                        hint="Werte, die nicht in der shipping_mode-Liste im Regeln-Tab stehen, gruppiert nach Wert"
+                      />
+                    ) : null}
+                    {optionalFindings.invalidShipping.length ? (
+                      <div>
+                        <SmallText>Einzelne Versandarten als erlaubt markieren:</SmallText>
+                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {uniqueNonEmpty(optionalFindings.invalidShipping.map((x) => x.value)).map((val) => (
+                            <button
+                              key={val}
+                              onClick={() => addAllowedRuleValue("shipping_mode", val)}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 999,
+                                border: "1px solid #E5E7EB",
+                                background: "#FFFFFF",
+                                fontSize: 11,
+                                cursor: "pointer",
+                                color: "#111827",
+                              }}
+                            >
+                              {val} als erlaubt speichern
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {optionalFindings.scientificEans.length > 0 ? (
                 <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #FDE68A", background: "#FFFBEB" }}>
@@ -1780,7 +4777,15 @@ export default function App() {
         {/* STEP 5 */}
         <StepCard
           title="5 Bilder"
-          status={headers.length ? (imageColumns.length ? "ok" : "warn") : "idle"}
+          status={
+            !headers.length
+              ? "idle"
+              : !imageColumns.length
+              ? "warn"
+              : brokenImageIds.length > 0
+              ? "bad"
+              : "ok"
+          }
           subtitle="Wir pruefen Bilder je Produkt und zeigen Beispielprodukte"
         >
           {!headers.length ? (
@@ -1795,51 +4800,86 @@ export default function App() {
                 Unten siehst du eine Uebersicht, wie viele Produkte keine, nur ein oder mehrere Bilder haben, sowie bis zu 5 Beispielprodukte mit allen Bildlinks.
               </SmallText>
 
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
                 <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Anzahl Bilder pro Produkt</div>
                   <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                    <CollapsibleList
-                      title={`0 Bilder (${optionalFindings.imageZeroEans.length})`}
-                      items={optionalFindings.imageZeroEans}
-                      tone={optionalFindings.imageZeroEans.length ? "bad" : "ok"}
-                      hint={optionalFindings.imageZeroEans.length ? "EANs ohne jegliche Bilder" : "Alle Produkte haben mindestens ein Bild."}
-                    />
-                    <CollapsibleList
-                      title={`1 Bild (${optionalFindings.imageOneEans.length})`}
-                      items={optionalFindings.imageOneEans}
-                      tone={optionalFindings.imageOneEans.length ? "warn" : "ok"}
-                      hint={optionalFindings.imageOneEans.length ? "EANs mit genau einem Bild" : ""}
-                    />
-                    <CollapsibleList
-                      title={`Weniger als empfohlen (${optionalFindings.imageLowEans.length})`}
-                      items={optionalFindings.imageLowEans}
-                      tone={optionalFindings.imageLowEans.length ? "warn" : "ok"}
-                      hint={optionalFindings.imageLowEans.length ? "Weniger Bilder als empfohlen (laut Regeln‑Tab)" : ""}
-                    />
+                    {(() => {
+                      const items = [];
+                      const keys = Object.keys(imageBuckets || {})
+                        .map((k) => Number(k))
+                        .filter((k) => Number.isFinite(k) && k >= 0);
+
+                      if (!keys.length) {
+                        items.push(
+                          <SmallText key="no-images">
+                            Es konnten keine Bildinformationen ermittelt werden.
+                          </SmallText>
+                        );
+                        return items;
+                      }
+
+                      const maxN = Math.max(...keys);
+                      for (let n = 0; n <= maxN; n += 1) {
+                        const list = imageBuckets[n] || [];
+                        if (!list.length) continue;
+                        const tone = n === 0 ? "bad" : n === 1 ? "warn" : "ok";
+                        const title =
+                          n === 0
+                            ? `0 Bilder (${list.length})`
+                            : n === 1
+                            ? `1 Bild (${list.length})`
+                            : `${n} Bilder (${list.length})`;
+                        const hint =
+                          n === 0
+                            ? "EANs ohne jegliche Bilder"
+                            : n === 1
+                            ? "EANs mit genau einem Bild"
+                            : `EANs mit genau ${n} Bildern`;
+                        items.push(
+                          <CollapsibleList
+                            key={`img-${n}`}
+                            title={title}
+                            items={list}
+                            tone={tone}
+                            hint={hint}
+                          />
+                        );
+                      }
+                      return items;
+                    })()}
                   </div>
                 </div>
+              </div>
 
               {imageSamples.length ? (
-                <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                   {imageSamples
                     .filter((s) => !eanSearch || String(s.id).includes(eanSearch))
+                    .slice(0, imageSampleLimitStep5)
                     .map((sample) => (
                       <div
                         key={sample.id}
                         style={{
-                          padding: 12,
+                          padding: 10,
                           borderRadius: 14,
                           border: "1px solid #E5E7EB",
                           background: "#FFFFFF",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 10,
                           minWidth: 0,
                         }}
                       >
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>EAN / Zeile {sample.id}</div>
-                        <SmallText>Alle Bildlinks dieses Produkts (max. 6).</SmallText>
-                        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                        <div style={{ minWidth: 0, maxWidth: 220 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {sample.id}
+                          </div>
+                  
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                           {sample.urls.slice(0, 6).map((u) => (
-                            <div key={u} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <div key={u} style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
                               <a href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}>
                                 <img
                                   src={u}
@@ -1854,16 +4894,69 @@ export default function App() {
                                     background: "#F9FAFB",
                                   }}
                                   onError={(e) => {
-                                    e.currentTarget.style.visibility = "hidden";
+                                    e.currentTarget.style.display = "none";
+                                    const textEl = e.currentTarget.parentElement?.nextElementSibling;
+                                    if (textEl && textEl instanceof HTMLElement) {
+                                      textEl.style.display = "block";
+                                    }
+                                  setBrokenImageIds((prev) => {
+                                    const set = new Set(prev);
+                                    set.add(sample.id);
+                                    return Array.from(set);
+                                  });
                                   }}
                                 />
                               </a>
-                              <div style={{ fontSize: 11, color: "#4B5563", wordBreak: "break-all" }}>{u}</div>
+                              <div
+                                style={{
+                                  display: "none",
+                                  fontSize: 10,
+                                  color: "#4B5563",
+                                  wordBreak: "break-all",
+                                  maxWidth: 180,
+                                }}
+                              >
+                                {u}
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     ))}
+                  {imageSampleLimitStep5 <
+                  imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length ? (
+                    <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        onClick={() =>
+                          setImageSampleLimitStep5((n) =>
+                            Math.min(
+                              imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length,
+                              n + 5
+                            )
+                          )
+                        }
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          border: "1px solid #E5E7EB",
+                          background: "#FFFFFF",
+                          cursor: "pointer",
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Mehr Produkte anzeigen
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {brokenImageIds.length ? (
+                    <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>
+                      Warnung: Bei {brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden.
+                      Bitte pruefen, ob die Bild-Links fuer diese EANs funktionieren: {brokenImageIds.slice(0, 10).join(", ")}
+                      {brokenImageIds.length > 10 ? " …" : ""}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div style={{ marginTop: 12 }}>
@@ -1872,28 +4965,56 @@ export default function App() {
                   </SmallText>
                 </div>
               )}
-            </React.Fragment>
+            </>
           )}
         </StepCard>
 
         {/* STEP 6 */}
-        <StepCard
-          title="6 Zusammenfassung und Entscheidung"
-          status={headers.length ? (summary.canStart ? "ok" : "warn") : "idle"}
-          subtitle="Kurzes Ergebnis und eine Mailvorlage falls Anpassungen noetig sind"
-        >
-          {!headers.length ? (
-            <SmallText>Bitte CSV hochladen um die Zusammenfassung zu sehen.</SmallText>
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <Pill tone={summary.canStart ? "ok" : "warn"}>
-                  {summary.canStart ? "✅ Wir koennen starten" : "🚧 Noch nicht startklar"}
-                </Pill>
-                <Pill tone="info">⭐ Score {summary.score} von 100</Pill>
-              </div>
+          <div ref={step6Ref}>
+            <StepCard
+              title="6 Zusammenfassung und Entscheidung"
+              status={headers.length ? (summary.canStart ? "ok" : "warn") : "idle"}
+              subtitle="Kurzes Ergebnis und eine Mailvorlage falls Anpassungen noetig sind"
+            >
+              {headers.length ? (
+                <>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <Pill tone={summary.canStart ? "ok" : "warn"}>
+                      {summary.canStart ? "✅ Wir koennen starten" : "🚧 Noch nicht startklar"}
+                    </Pill>
+                    <Pill tone="info">⭐ Score {summary.score} von 100</Pill>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFileName("");
+                      setRawRows([]);
+                      setHeaders([]);
+                      setParseError("");
+                      setPreviewCount(40);
+                      setEanSearch("");
+                      setShopName("");
+                      setShowEmailTemplate(false);
+                      fileInputRef.current?.click();
+                    }}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 999,
+                      border: `1px solid ${BRAND_COLOR}`,
+                      background: "#FFFFFF",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: BRAND_COLOR,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Neue Datei pruefen
+                  </button>
+                </div>
 
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
                 <div style={{ padding: 12, borderRadius: 14, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, color: "#FFFFFF", minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: 13 }}>⚠️ Kritische Punkte</div>
                   <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
@@ -1911,40 +5032,74 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-              </div>
+                </div>
 
-              <div style={{ marginTop: 14 }}>
+                <div style={{ marginTop: 14 }}>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Mailvorlage</div>
-                  <input
-                    value={shopName}
-                    onChange={(e) => setShopName(e.target.value)}
-                    placeholder="Shopname optional"
-                    style={{ flex: "1 1 200px", minWidth: 0, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
-                  />
+                  {summary.canStart ? (
+                    <button
+                      onClick={() => setShowEmailTemplate((v) => !v)}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 999,
+                        border: "1px solid #E5E7EB",
+                        background: "#FFFFFF",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#111827",
+                      }}
+                    >
+                      {showEmailTemplate ? "Mailvorlage ausblenden" : "Mailvorlage erstellen"}
+                    </button>
+                  ) : (
+                    <SmallText>Feed ist noch nicht startklar – Mailvorlage wird automatisch angezeigt.</SmallText>
+                  )}
                 </div>
-                <SmallText>Einfach kopieren und in das Mailtool einfuegen.</SmallText>
-                <textarea
-                  value={emailText}
-                  readOnly
-                  rows={14}
-                  style={{
-                    marginTop: 10,
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 14,
-                    border: "1px solid #E5E7EB",
-                    fontSize: 12,
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                    lineHeight: "18px",
-                    background: "white",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </StepCard>
+
+                {showEmailTemplate ? (
+                  <>
+                    <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                      <input
+                        value={shopName}
+                        onChange={(e) => setShopName(e.target.value)}
+                        placeholder="Shopname optional"
+                        style={{
+                          flex: "1 1 200px",
+                          minWidth: 0,
+                          padding: 10,
+                          borderRadius: 12,
+                          border: "1px solid #E5E7EB",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </div>
+                    <SmallText>Einfach kopieren und in das Mailtool einfuegen.</SmallText>
+                    <textarea
+                      value={emailText}
+                      readOnly
+                      rows={14}
+                      style={{
+                        marginTop: 10,
+                        width: "100%",
+                        padding: 12,
+                        borderRadius: 14,
+                        border: "1px solid #E5E7EB",
+                        fontSize: 12,
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                        lineHeight: "18px",
+                        background: "white",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </>
+                ) : null}
+                  </div>
+                </>
+              ) : null}
+            </StepCard>
+          </div>
 
         {/* STEP 7 */}
         <StepCard title="7 Vorschau" status={headers.length ? "ok" : "idle"} subtitle="Vorschau der Zeilen mit allen Spalten">
@@ -1952,7 +5107,26 @@ export default function App() {
             <SmallText>Bitte CSV hochladen um eine Vorschau zu sehen.</SmallText>
           ) : (
             <>
-              <SmallText>Spaltenbreite per Drag am rechten Rand des Spaltenkopfs anpassen.</SmallText>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <SmallText>Spaltenbreite per Drag am rechten Rand des Spaltenkopfs anpassen.</SmallText>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFullscreen(true)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    border: `1px solid ${BRAND_COLOR}`,
+                    background: "#FFFFFF",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    color: BRAND_COLOR,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Vorschau maximieren
+                </button>
+              </div>
               <div style={{ marginTop: 10 }}>
                 <TextInput
                   label="Suche"
@@ -2002,9 +5176,78 @@ export default function App() {
           )}
         </StepCard>
 
+        {previewFullscreen && headers.length ? (
+          <div
+            onClick={() => setPreviewFullscreen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15,23,42,0.65)",
+              zIndex: 50,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                maxWidth: 1400,
+                maxHeight: "90vh",
+                background: "#FFFFFF",
+                borderRadius: 16,
+                padding: 16,
+                boxShadow: "0 25px 50px -12px rgba(15,23,42,0.45)",
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>Vorschau Vollbild</div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFullscreen(false)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    border: "1px solid #E5E7EB",
+                    background: "#F9FAFB",
+                    fontSize: 11,
+                    cursor: "pointer",
+                    color: "#111827",
+                  }}
+                >
+                  Schliessen
+                </button>
+              </div>
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <ResizableTable
+                  columns={headers.map((h) => ({ key: h, label: String(h) }))}
+                  rows={rows
+                    .filter((r) => {
+                      if (!eanSearch) return true;
+                      if (eanColumn) {
+                        const val = String(r[eanColumn] ?? "").trim();
+                        return val.includes(eanSearch);
+                      }
+                      const q = eanSearch.toLowerCase();
+                      return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
+                    })
+                    .slice(0, Math.max(previewCount, 200))}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div style={{ marginTop: 2, color: "#6B7280", fontSize: 12, lineHeight: "18px" }}>
           Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
         </div>
+
       </div>
     </div>
   );
@@ -2023,6 +5266,15 @@ export default function App() {
           adminToken={adminToken}
           updateAdminToken={updateAdminToken}
         />
+      </div>
+    );
+  }
+
+  if (route === "qs") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <QsPage headers={headers} rows={rows} />
       </div>
     );
   }
