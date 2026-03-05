@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
+import NewToolPage from "./NewToolPage";
 
 const BRAND_COLOR = "rgb(4,16,103)";
 
@@ -2933,6 +2934,7 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
     if (hash === "#/qs") return "qs";
+    if (hash === "#/shop-performance") return "shop-performance";
     return "checker";
   });
 
@@ -2949,6 +2951,7 @@ export default function App() {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/qs") setRoute("qs");
+      else if (hash === "#/shop-performance") setRoute("shop-performance");
       else setRoute("checker");
     };
     window.addEventListener("hashchange", onHash);
@@ -3885,6 +3888,23 @@ export default function App() {
             }}
           >
             Regeln
+          </button>
+          <button
+            onClick={() => {
+              window.location.hash = "#/shop-performance";
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 999,
+              border: `1px solid ${BRAND_COLOR}`,
+              background: route === "shop-performance" ? BRAND_COLOR : "#FFFFFF",
+              color: route === "shop-performance" ? "#FFFFFF" : BRAND_COLOR,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            Shop Performance
           </button>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -5275,6 +5295,15 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <QsPage headers={headers} rows={rows} />
+      </div>
+    );
+  }
+
+  if (route === "shop-performance") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <NewToolPage />
       </div>
     );
   }
