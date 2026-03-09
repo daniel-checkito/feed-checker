@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
-import NewToolPage from "./NewToolPage";
+import ShopPerformance from "./shop-performance";
+import Onboarding from "./onboarding";
+import Lieferzeiten from "./Lieferzeiten";
+   
 
 const BRAND_COLOR = "rgb(4,16,103)";
 
@@ -909,9 +912,9 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
                   style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
                 />
                 <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {(draft.allowed_shipping_mode || []).map((val) => (
+                  {(draft.allowed_shipping_mode || []).map((val, idx) => (
                     <button
-                      key={val}
+                      key={`${val}-${idx}`}
                       onClick={() =>
                         setDraft((r) => ({
                           ...r,
@@ -944,9 +947,9 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
                   style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
                 />
                 <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {(draft.allowed_material || []).map((val) => (
+                  {(draft.allowed_material || []).map((val, idx) => (
                     <button
-                      key={val}
+                      key={`${val}-${idx}`}
                       onClick={() =>
                         setDraft((r) => ({
                           ...r,
@@ -979,9 +982,9 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
                   style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
                 />
                 <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {(draft.allowed_color || []).map((val) => (
+                  {(draft.allowed_color || []).map((val, idx) => (
                     <button
-                      key={val}
+                      key={`${val}-${idx}`}
                       onClick={() =>
                         setDraft((r) => ({
                           ...r,
@@ -1024,9 +1027,9 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
                   style={{ marginTop: 10, width: "100%", padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
                 />
                 <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {(draft.delivery_includes_allowlist || []).map((val) => (
+                  {(draft.delivery_includes_allowlist || []).map((val, idx) => (
                     <button
-                      key={val}
+                      key={`${val}-${idx}`}
                       onClick={() =>
                         setDraft((r) => ({
                           ...r,
@@ -2934,7 +2937,9 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
     if (hash === "#/qs") return "qs";
+    if (hash === "#/lieferzeiten") return "lieferzeiten";
     if (hash === "#/shop-performance") return "shop-performance";
+    if (hash === "#/onboarding") return "onboarding";
     return "checker";
   });
 
@@ -2951,7 +2956,9 @@ export default function App() {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/qs") setRoute("qs");
+      else if (hash === "#/lieferzeiten") setRoute("lieferzeiten");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
+      else if (hash === "#/onboarding") setRoute("onboarding");
       else setRoute("checker");
     };
     window.addEventListener("hashchange", onHash);
@@ -3875,6 +3882,23 @@ export default function App() {
             QS/APA
           </button>
           <button
+            onClick={() => {
+              window.location.hash = "#/lieferzeiten";
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 999,
+              border: `1px solid ${BRAND_COLOR}`,
+              background: route === "lieferzeiten" ? BRAND_COLOR : "#FFFFFF",
+              color: route === "lieferzeiten" ? "#FFFFFF" : BRAND_COLOR,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            Lieferzeiten
+          </button>
+          <button
             onClick={() => { window.location.hash = "#/rules"; }}
             style={{
               padding: "8px 16px",
@@ -3888,6 +3912,23 @@ export default function App() {
             }}
           >
             Regeln
+          </button>
+          <button
+            onClick={() => {
+              window.location.hash = "#/onboarding";
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 999,
+              border: `1px solid ${BRAND_COLOR}`,
+              background: route === "onboarding" ? BRAND_COLOR : "#FFFFFF",
+              color: route === "onboarding" ? "#FFFFFF" : BRAND_COLOR,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            Onboarding
           </button>
           <button
             onClick={() => {
@@ -5299,11 +5340,29 @@ export default function App() {
     );
   }
 
+  if (route === "lieferzeiten") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <Lieferzeiten />
+      </div>
+    );
+  }
+
   if (route === "shop-performance") {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
-        <NewToolPage />
+        <ShopPerformance />
+      </div>
+    );
+  }
+
+  if (route === "onboarding") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <Onboarding />
       </div>
     );
   }
