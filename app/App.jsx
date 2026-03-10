@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
 import ShopPerformance from "./shop-performance";
 import Onboarding from "./onboarding";
-import Lieferzeiten from "./Lieferzeiten";
    
 
 const BRAND_COLOR = "rgb(4,16,103)";
@@ -109,22 +108,35 @@ function findDuplicateIndexes(values) {
   return dup;
 }
 
+function normalizePreviewText(value) {
+  const s = String(value ?? "");
+  if (!s) return s;
+  return s
+    // Replace Unicode replacement chars (�) by a neutral quote
+    .replace(/\uFFFD/g, '"')
+    // Normalize common smart quotes to straight equivalents
+    .replace(/[„“”]/g, '"')
+    .replace(/[‚‘’]/g, "'")
+    // Optionally collapse weird double quotes patterns like ""Text""
+    .replace(/"{2,}([^"]*?)"{2,}/g, '"$1"');
+}
+
 function buildEmail({ shopName, issues, tips, canStart }) {
-  const subject = "CHECK24 Produktdatenfeed Pruefung Ergebnisse und naechste Schritte";
+  const subject = "CHECK24 Produktdatenfeed Prüfung – Ergebnisse und nächste Schritte";
   const greeting = shopName ? `Hallo ${shopName},` : "Hallo,";
 
   const intro =
-    "wir haben Ihren Produktdatenfeed automatisiert geprueft. Unten finden Sie die wichtigsten Punkte, die fuer eine erfolgreiche automatische Produktanlage angepasst werden sollten.";
+    "wir haben Ihren Produktdatenfeed automatisiert geprüft. Unten finden Sie die wichtigsten Punkte, die für eine erfolgreiche automatische Produktanlage angepasst werden sollten.";
 
   const issueLines = issues.length ? issues.map((x) => `⚠️ ${x}`).join("\n") : "⚠️ Keine kritischen Fehler erkannt.";
 
-  const tipLines = tips.length ? tips.map((x) => `💡 ${x}`).join("\n") : "💡 Keine weiteren Verbesserungsvorschlaege.";
+  const tipLines = tips.length ? tips.map((x) => `💡 ${x}`).join("\n") : "💡 Keine weiteren Verbesserungsvorschläge.";
 
   const decision = canStart
-    ? "Wir koennen mit dem Feed starten."
-    : "Bitte passen Sie die Punkte oben an. Erst danach koennen wir mit dem Feed starten.";
+    ? "Wir können mit dem Feed starten."
+    : "Bitte passen Sie die Punkte oben an. Erst danach können wir mit dem Feed starten.";
 
-  const closing = "Viele Gruesse\nCHECK24 Shopping\n\nHinweis Dies ist eine automatisch erstellte Nachricht.";
+  const closing = "Viele Grüße\nCHECK24 Shopping\n\nHinweis Dies ist eine automatisch erstellte Nachricht.";
 
   return [`Betreff: ${subject}`, "", greeting, "", intro, "", issueLines, "", tipLines, "", decision, "", closing].join("\n");
 }
@@ -169,51 +181,50 @@ function Pill({ tone, children }) {
 
 function StepCard({ title, status, subtitle, action, children }) {
   const border =
-    status === "ok" ? "#A5D6A7" : status === "warn" ? "#FFE082" : status === "bad" ? "#EF9A9A" : "#E5E7EB";
-  const icon = status === "ok" ? "✅" : status === "warn" ? "⚠️" : status === "bad" ? "⛔" : "⏳";
+    status === "ok" ? "#BBF7D0" : status === "warn" ? "#FDE68A" : status === "bad" ? "#FCA5A5" : "#E5E7EB";
+  const bg =
+    status === "ok" ? "#F0FDF4" : status === "warn" ? "#FFFBEB" : status === "bad" ? "#FEF2F2" : "#FFFFFF";
+  const icon =
+    status === "ok" ? "✅" : status === "warn" ? "⚠️" : status === "bad" ? "⛔" : "⏳";
+
   return (
     <div
       style={{
         border: `1px solid ${border}`,
         borderRadius: 16,
-        padding: 16,
-        background: "white",
-        boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+        padding: 14,
+        background: bg,
+        boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
         boxSizing: "border-box",
         width: "100%",
         overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #E5E7EB",
-            fontSize: 13,
-            flex: "1 1 auto",
-            minWidth: 0,
-          }}
-        >
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div style={{ fontSize: 18, flexShrink: 0 }}>{icon}</div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: "1 1 auto" }}>
+          <div style={{ fontSize: 18, flexShrink: 0 }}>{icon}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#111827" }}>{title}</div>
+            {subtitle ? (
+              <div style={{ marginTop: 4, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>{subtitle}</div>
+            ) : null}
           </div>
-          {subtitle ? <div style={{ marginTop: 6, color: "#4B5563", fontSize: 13 }}>{subtitle}</div> : null}
         </div>
         {action ? (
-          <div style={{ flexShrink: 0 }}>
+          <div style={{ flexShrink: 0, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             {action}
           </div>
         ) : null}
-        <div style={{ flexShrink: 0 }}>
-          {status === "ok" ? <Pill tone="ok">OK</Pill> : null}
-          {status === "warn" ? <Pill tone="warn">Hinweis</Pill> : null}
-          {status === "bad" ? <Pill tone="bad">Fehler</Pill> : null}
-          {status === "idle" ? <Pill tone="info">Wartet</Pill> : null}
-        </div>
       </div>
-      <div style={{ marginTop: 14 }}>{children}</div>
+      {children ? <div style={{ marginTop: 12 }}>{children}</div> : null}
     </div>
   );
 }
@@ -271,24 +282,25 @@ function Table({ columns, rows, highlight }) {
   );
 }
 
-function ResizableTable({ columns, rows }) {
+function ResizableTable({ columns, rows, highlightedCells }) {
   const computeInitialWidth = (col) => {
     const label = String(col.label || col.key || "");
-    // Name-Spalte etwas breiter machen, da sie haeufig angeschaut wird
     if (String(col.key).toLowerCase() === "name") {
       const approxName = label.length * 8 + 60;
       return Math.max(140, approxName);
     }
-    const approx = label.length * 7 + 24; // grobe Breite basierend auf Zeichenanzahl + Padding
-    return Math.max(90, approx); // Mindestbreite wie bisher beibehalten
+    const approx = label.length * 7 + 24;
+    return Math.max(90, approx);
   };
 
   const [widths, setWidths] = useState(() =>
     Object.fromEntries(columns.map((c) => [c.key, computeInitialWidth(c)]))
   );
-  const [rowHeight, setRowHeight] = useState(42); // ca. 3 Textzeilen
+  const MIN_ROW_HEIGHT = 28;
+  const MAX_ROW_HEIGHT = 60; // hard cap ~4–5 lines incl. padding
+  const [rowHeight, setRowHeight] = useState(40);
   const [expandedCells, setExpandedCells] = useState(() => new Set());
-  const [descriptionModal, setDescriptionModal] = useState(null); // { title, text }
+  const [descriptionModal, setDescriptionModal] = useState(null);
   const dragRef = useRef(null);
 
   const isLongTextColumn = (key) => {
@@ -321,7 +333,8 @@ function ResizableTable({ columns, rows }) {
       } else if (type === "row") {
         const { startY, startHeight } = dragRef.current;
         const deltaY = e.clientY - startY;
-        setRowHeight(Math.max(28, startHeight + deltaY));
+        const next = startHeight + deltaY;
+        setRowHeight(Math.min(MAX_ROW_HEIGHT, Math.max(MIN_ROW_HEIGHT, next)));
       }
     }
 
@@ -384,7 +397,6 @@ function ResizableTable({ columns, rows }) {
       >
         <thead>
           <tr style={{ background: "#F9FAFB" }}>
-            {/* Index column */}
             <th
               style={{
                 position: "sticky",
@@ -442,9 +454,10 @@ function ResizableTable({ columns, rows }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
-            <tr key={i}>
-              {/* Index cell */}
+          {rows.map((r, i) => {
+            const zebra = i % 2 === 0 ? "#FFFFFF" : "#F9FAFB";
+            return (
+              <tr key={i} style={{ background: zebra }}>
               <td
                 style={{
                   padding: "4px 8px",
@@ -459,6 +472,7 @@ function ResizableTable({ columns, rows }) {
                   maxHeight: rowHeight,
                   overflow: "hidden",
                   lineHeight: "14px",
+                  background: zebra,
                 }}
               >
                 {i + 1}
@@ -469,9 +483,16 @@ function ResizableTable({ columns, rows }) {
                 const cellId = `${i}:${c.key}`;
                 const expanded = longText && expandedCells.has(cellId);
                 const rawValue = String(r?.[c.key] ?? "");
+                const displayValue = normalizePreviewText(rawValue);
+                const isHighlighted =
+                  highlightedCells && highlightedCells.has(cellId);
+                const tooltip = isHighlighted
+                  ? "In diesem Feld liegt ein Problem vor (z.B. fehlender Pflichtwert oder Dublette)."
+                  : "";
                 return (
                   <td
                     key={c.key}
+                    title={tooltip}
                     style={{
                       padding: "4px 8px",
                       border: "1px solid #E5E7EB",
@@ -485,6 +506,7 @@ function ResizableTable({ columns, rows }) {
                       overflow: expanded ? "visible" : "hidden",
                       lineHeight: "14px",
                       wordBreak: "break-word",
+                      background: isHighlighted ? "#FEE2E2" : zebra,
                     }}
                   >
                     {longText ? (
@@ -492,7 +514,7 @@ function ResizableTable({ columns, rows }) {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDescriptionModal({ title: c.label || c.key, text: rawValue });
+                            setDescriptionModal({ title: c.label || c.key, text: displayValue });
                           }}
                           style={{
                             padding: "4px 8px",
@@ -510,13 +532,14 @@ function ResizableTable({ columns, rows }) {
                         <span style={{ fontSize: 10, color: "#9CA3AF" }}>Keine Beschreibung</span>
                       )
                     ) : (
-                      rawValue
+                      displayValue
                     )}
                   </td>
                 );
               })}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       <div
@@ -611,8 +634,6 @@ function uniqueNonEmpty(list) {
 }
 
 const EXAMPLE_TEMPLATE_VALUES = {
-  // Hinweis: Diese Werte stammen aus dem offiziellen Muster‑Feed.
-  // Wenn ein Partner sie 1:1 unverändert übergibt, behandeln wir sie als Platzhalter / Beispielwerte.
   two_men_handling: ['"Bordsteinkante" oder "bis in die Wohnung"'],
   energy_efficiency_label: ['https://beispielprodukt.link.de/eek_label/T12345.jpg'],
   lighting_included: ['ja oder nein'],
@@ -674,8 +695,26 @@ function firstImageUrls(rows, imageCols, limit) {
   return uniqueNonEmpty(urls).slice(0, limit);
 }
 
-function CollapsibleList({ title, items, tone, hint }) {
+function CollapsibleList({ title, items, tone, hint, onAddValue }) {
   const count = items.length;
+  const shownItems = items.slice(0, 500);
+  const parsed = shownItems.map((raw) => {
+    const text = String(raw ?? "");
+    const isLong = text.length > 60;
+    const isValueWithEans = text.includes(" EANs:");
+    let valuePart = "";
+    let restPart = "";
+    if (isValueWithEans) {
+      const idx = text.indexOf(" – ");
+      if (idx !== -1) {
+        valuePart = text.slice(0, idx);
+        restPart = text.slice(idx + 3);
+      }
+    }
+    return { text, isLong, isValueWithEans, valuePart, restPart };
+  });
+  const hasLong = parsed.some((p) => p.isLong || p.isValueWithEans);
+
   return (
     <details style={{ border: "1px solid #E5E7EB", borderRadius: 14, padding: 12, background: "white", boxSizing: "border-box", width: "100%" }}>
       <summary style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -687,23 +726,86 @@ function CollapsibleList({ title, items, tone, hint }) {
           <span style={{ fontSize: 12, color: "#6B7280" }}>zum Oeffnen klicken</span>
         )}
       </summary>
-      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {items.slice(0, 500).map((x, idx) => (
-          <span
-            key={`${x}-${idx}`}
-            style={{
-              fontSize: 12,
-              padding: "6px 10px",
-              borderRadius: 999,
-              border: "1px solid #E5E7EB",
-              background: "#F9FAFB",
-              color: "#111827",
-              wordBreak: "break-all",
-            }}
-          >
-            {x}
-          </span>
-        ))}
+      <div
+        style={{
+          marginTop: 10,
+          display: "flex",
+          flexDirection: hasLong ? "column" : "row",
+          flexWrap: hasLong ? "nowrap" : "wrap",
+          gap: hasLong ? 0 : 8,
+        }}
+      >
+        {parsed.map((item, idx) => {
+          if (item.isLong || item.isValueWithEans) {
+            const canAdd = !!onAddValue && item.isValueWithEans && item.valuePart;
+            return (
+              <div
+                key={`${item.text}-${idx}`}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "6px 4px",
+                  borderBottom: "1px solid #F3F4F6",
+                  fontSize: 12,
+                  lineHeight: "18px",
+                  color: "#111827",
+                  wordBreak: "break-word",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {item.isValueWithEans && item.valuePart && item.restPart ? (
+                    <>
+                      <div style={{ fontWeight: 600 }}>{item.valuePart}</div>
+                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{item.restPart}</div>
+                    </>
+                  ) : (
+                    item.text
+                  )}
+                </div>
+                {canAdd ? (
+                  <button
+                    type="button"
+                    onClick={() => onAddValue(item.valuePart)}
+                    style={{
+                      marginLeft: 8,
+                      padding: "4px 6px",
+                      borderRadius: 999,
+                      border: "1px solid #D1D5DB",
+                      background: "#FFFFFF",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      lineHeight: "12px",
+                      color: "#111827",
+                      flexShrink: 0,
+                    }}
+                    title="Diesen Wert als erlaubt speichern"
+                  >
+                    +
+                  </button>
+                ) : null}
+              </div>
+            );
+          }
+
+          return (
+            <span
+              key={`${item.text}-${idx}`}
+              style={{
+                fontSize: 12,
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid #E5E7EB",
+                background: "#F9FAFB",
+                color: "#111827",
+                wordBreak: "break-all",
+              }}
+            >
+              {item.text}
+            </span>
+          );
+        })}
       </div>
       {items.length > 500 ? <SmallText>Es werden nur die ersten 500 Werte angezeigt, damit die Ansicht schnell bleibt.</SmallText> : null}
     </details>
@@ -797,7 +899,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
     setDeliveryIncludesText((rules?.delivery_includes_allowlist || []).join(", "));
   }, [rules]);
 
-  const [rulesView, setRulesView] = useState("checker"); // "checker" oder "qs"
+  const [rulesView, setRulesView] = useState("checker");
 
   function setField(key, value) {
     setDraft((r) => ({ ...r, [key]: value }));
@@ -1019,7 +1121,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
 
               <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang Allowlist</div>
-                <SmallText>Einzelne Lieferumfang-Werte, die trotz Pattern-Abweichung als gueltig gelten.</SmallText>
+                <SmallText>Einzelne Lieferumfang-Werte, die trotz Pattern-Abweichung als gültig gelten.</SmallText>
                 <textarea
                   rows={2}
                   value={deliveryIncludesText}
@@ -1053,7 +1155,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
               </div>
 
               <div style={{ padding: 14, borderRadius: 14, border: "1px solid #E5E7EB", background: "white" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Titel und Beschreibung Mindestlaenge</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Mindestlänge für Titel und Beschreibung</div>
                 <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <div>
                     <SmallText>Titel</SmallText>
@@ -1107,21 +1209,21 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
           </div>
         ) : (
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Regel Uebersicht QS/APA</div>
-            <SmallText>Die wichtigsten QS/APA Kriterien fuer Attribute und Bilder.</SmallText>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Regelübersicht QS/APA</div>
+            <SmallText>Die wichtigsten QS/APA Kriterien für Attribute und Bilder.</SmallText>
 
             <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
               <StepCard title="QS/APA Attribute" status="ok" subtitle="Herstellerfeed, Titel, Beschreibung, Abmessungen, Lieferumfang, Material, Farbe, Shoptexte">
                 <SmallText>
-                  Wir bewerten ob Pflicht Attribute fuer Inhalte vernuenftig gefuellt sind: Herstellerfeed, gut strukturierte Titel und Beschreibungen,
-                  nachvollziehbare Abmessungen, sauberer Lieferumfang im Format &quot;1x Produkt&quot;, sinnvolle Material und Farbangaben sowie neutrale
+                  Wir bewerten, ob Pflichtattribute für Inhalte vernünftig gefüllt sind: Herstellerfeed, gut strukturierte Titel und Beschreibungen,
+                  nachvollziehbare Abmessungen, sauberer Lieferumfang im Format &quot;1x Produkt&quot;, sinnvolle Material- und Farbangaben sowie neutrale
                   shopbezogene Texte ohne zu viel Werbung.
                 </SmallText>
               </StepCard>
-              <StepCard title="QS/APA Bilder" status="ok" subtitle="1. Bild, Freisteller, Millieu, Anzahl Bilder">
+              <StepCard title="QS/APA Bilder" status="ok" subtitle="1. Bild, Freisteller, Milieu, Anzahl Bilder">
                 <SmallText>
-                  Wir pruefen ob das erste Bild zur Offer passt und keine Dubletten hat, ob es ausreichend Freisteller und Millieu Bilder gibt und wie viele
-                  Bilder pro Produkt vorhanden sind. Daraus entstehen Bildpunkte im QS Tab.
+                  Wir prüfen, ob das erste Bild zur Offer passt und keine Dubletten hat, ob es ausreichend Freisteller- und Milieu-Bilder gibt und wie viele
+                  Bilder pro Produkt vorhanden sind. Daraus entstehen Bildpunkte im QS-Tab.
                 </SmallText>
               </StepCard>
             </div>
@@ -1206,7 +1308,16 @@ function QsPage({ headers, rows }) {
     if (!headers.length) return [];
     const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
     return norms
-      .filter((h) => h.norm.startsWith("image_url") || h.norm.startsWith("image") || h.norm.startsWith("img_url"))
+      .filter((h) => {
+        const n = h.norm;
+        return (
+          n.startsWith("image_url") ||
+          n.startsWith("image") ||
+          n.startsWith("img_url") ||
+          n.includes("bild") ||
+          n.includes("image")
+        );
+      })
       .map((h) => h.raw);
   }, [headers]);
 
@@ -1277,12 +1388,17 @@ function QsPage({ headers, rows }) {
                     const g = imgData[idx + 1];
                     const b = imgData[idx + 2];
                     total += 1;
-                    if (r >= 240 && g >= 240 && b >= 240) whiteLike += 1;
+                    const brightness = (r + g + b) / 3;
+                    const maxChannel = Math.max(r, g, b);
+                    const minChannel = Math.min(r, g, b);
+                    const chroma = maxChannel - minChannel;
+                    if (brightness >= 235 && chroma <= 20) {
+                      whiteLike += 1;
+                    }
                   }
                 }
                 const ratio = total ? whiteLike / total : 0;
-                // Schwelle leicht gelockert: ca. 80% nahezu weisse Randpixel genuegen
-                resolve(ratio >= 0.8);
+                resolve(ratio >= 0.5);
               } catch (e) {
                 resolve(false);
               }
@@ -1394,7 +1510,6 @@ function QsPage({ headers, rows }) {
       else lieferumfang = 0;
     }
 
-    // Material: Anteil sinnvoll befuellter Material-Spalte
     let material = 0;
     if (materialCol) {
       const rate = filledRate(materialCol);
@@ -1407,7 +1522,6 @@ function QsPage({ headers, rows }) {
       }
     }
 
-    // Auto-Vorschlag fuer Anzahl Bilder basierend auf Durchschnitt
     let anzahlbilder = 0;
     if (headers.length && rows.length) {
       const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
@@ -1434,8 +1548,6 @@ function QsPage({ headers, rows }) {
       }
     }
 
-    // Shopbezogene Texte: wenn wir keine separaten Shoptexte finden, gibt es 10 Punkte.
-    // Sobald es ueberhaupt Eintraege gibt, wird konservativ 0 Punkte vorgeschlagen.
     let shoptexte = 10;
     if (shopCol) {
       const fill = filledRate(shopCol);
@@ -1444,7 +1556,6 @@ function QsPage({ headers, rows }) {
       }
     }
 
-    // Auto-Vorschlag fuer Freisteller Score basierend auf Freisteller-Checks
     let freisteller = 0;
     if (qsImageSamples.length && freistellerChecks && Object.keys(freistellerChecks).length) {
       const samples = qsImageSamples.slice(0, 10);
@@ -1458,7 +1569,6 @@ function QsPage({ headers, rows }) {
       });
       if (checkedProducts > 0) {
         const share = withFreisteller / checkedProducts;
-        // Schwelle etwas gelockert: bereits ab ca. 70% gibt es 10 Punkte
         if (share >= 0.7) freisteller = 10;
         else if (share >= 0.3) freisteller = 5;
         else freisteller = 0;
@@ -1480,11 +1590,13 @@ function QsPage({ headers, rows }) {
       anzahlbilder,
     };
   }, [headers, rows, titleCol, descCol, dimCol, deliveryCol, brandCol, qsImageSamples, freistellerChecks]);
+
   useEffect(() => {
     if (!autoEnabled || !autoSuggested) return;
     setScores((prev) => {
       const next = { ...prev };
       for (const key of Object.keys(next)) {
+        if (key === "herstellerfeed") continue;
         if (next[key] === 0) next[key] = autoSuggested[key];
       }
       return next;
@@ -1554,7 +1666,6 @@ function QsPage({ headers, rows }) {
   const scoreReasons = useMemo(() => {
     const reasons = {};
 
-    // Herstellerfeed
     if (!brandCol) {
       reasons.herstellerfeed = "Keine Marken-Spalte erkannt – 0 Punkte.";
     } else {
@@ -1566,7 +1677,6 @@ function QsPage({ headers, rows }) {
       }
     }
 
-    // Titel
     if (!titleCol) {
       reasons.titel = "Keine Titel-Spalte erkannt – 0 Punkte.";
     } else {
@@ -1577,42 +1687,28 @@ function QsPage({ headers, rows }) {
       const dupRate = filled ? 1 - uniq.size / filled : 0;
       const avg = avgLen(titleCol);
       if (scores.titel === 20) {
-        reasons.titel = `Titel fast immer vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(
-          avg
-        )} Zeichen, wenige Dubletten – 20 Punkte.`;
+        reasons.titel = `Titel fast immer vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(avg)} Zeichen, wenige Dubletten – 20 Punkte.`;
       } else if (scores.titel === 10) {
-        reasons.titel = `Titel oft vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(
-          avg
-        )} Zeichen, aber teils unvollstaendig oder haeufigere Dubletten – 10 Punkte.`;
+        reasons.titel = `Titel oft vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(avg)} Zeichen, aber teils unvollständig oder häufigere Dubletten – 10 Punkte.`;
       } else {
-        reasons.titel = `Titel selten oder sehr kurz (${fmtPct(fillRate)}, Ø ca. ${Math.round(
-          avg
-        )} Zeichen) – 0 Punkte.`;
+        reasons.titel = `Titel selten oder sehr kurz (${fmtPct(fillRate)}, Ø ca. ${Math.round(avg)} Zeichen) – 0 Punkte.`;
       }
     }
 
-    // Beschreibung
     if (!descCol) {
       reasons.beschreibung = "Keine Beschreibungs-Spalte erkannt – 0 Punkte.";
     } else {
       const fillRate = filledRate(descCol);
       const avg = avgLen(descCol);
       if (scores.beschreibung === 10) {
-        reasons.beschreibung = `Beschreibungen fuer ca. ${fmtPct(fillRate)} der Produkte, Ø ca. ${Math.round(
-          avg
-        )} Zeichen – 10 Punkte.`;
+        reasons.beschreibung = `Beschreibungen für ca. ${fmtPct(fillRate)} der Produkte, Ø ca. ${Math.round(avg)} Zeichen – 10 Punkte.`;
       } else if (scores.beschreibung === 5) {
-        reasons.beschreibung = `Beschreibungen teils vorhanden (${fmtPct(
-          fillRate
-        )}), aber eher kurz (Ø ca. ${Math.round(avg)} Zeichen) – 5 Punkte.`;
+        reasons.beschreibung = `Beschreibungen teils vorhanden (${fmtPct(fillRate)}), aber eher kurz (Ø ca. ${Math.round(avg)} Zeichen) – 5 Punkte.`;
       } else {
-        reasons.beschreibung = `Beschreibungen oft fehlend oder sehr kurz (${fmtPct(
-          fillRate
-        )}, Ø ca. ${Math.round(avg)} Zeichen) – 0 Punkte.`;
+        reasons.beschreibung = `Beschreibungen oft fehlend oder sehr kurz (${fmtPct(fillRate)}, Ø ca. ${Math.round(avg)} Zeichen) – 0 Punkte.`;
       }
     }
 
-    // Abmessungen
     const dimCandidates = [dimCol, titleCol, descCol].filter(Boolean);
     if (!dimCandidates.length) {
       reasons.abmessungen = "Keine erkennbaren Abmessungs-Angaben – 0 Punkte.";
@@ -1629,17 +1725,14 @@ function QsPage({ headers, rows }) {
       }
       const rate = meaningful ? hits / meaningful : 0;
       if (scores.abmessungen === 10) {
-        reasons.abmessungen = `Verstaendliche Masse in vielen Produkten (${fmtPct(rate)}) – 10 Punkte.`;
+        reasons.abmessungen = `Verständliche Maße in vielen Produkten (${fmtPct(rate)}) – 10 Punkte.`;
       } else if (scores.abmessungen === 5) {
-        reasons.abmessungen = `Masse nur teilweise vorhanden (${fmtPct(
-          rate
-        )}) – 5 Punkte.`;
+        reasons.abmessungen = `Maße nur teilweise vorhanden (${fmtPct(rate)}) – 5 Punkte.`;
       } else {
         reasons.abmessungen = `Abmessungen kaum erkennbar (${fmtPct(rate)}) – 0 Punkte.`;
       }
     }
 
-    // Lieferumfang
     if (!deliveryCol) {
       reasons.lieferumfang = "Keine Lieferumfang-Spalte erkannt – 0 Punkte.";
     } else {
@@ -1655,21 +1748,14 @@ function QsPage({ headers, rows }) {
       const filled = rows.length ? nonEmpty / rows.length : 0;
       const fmt = nonEmpty ? formatOk / nonEmpty : 0;
       if (scores.lieferumfang === 20) {
-        reasons.lieferumfang = `Lieferumfang fast immer gepflegt (${fmtPct(
-          filled
-        )}) und meist im Format "Anzahl x Produkt" (${fmtPct(fmt)}) – 20 Punkte.`;
+        reasons.lieferumfang = `Lieferumfang fast immer gepflegt (${fmtPct(filled)}) und meist im Format "Anzahl x Produkt" (${fmtPct(fmt)}) – 20 Punkte.`;
       } else if (scores.lieferumfang === 10) {
-        reasons.lieferumfang = `Lieferumfang teils gepflegt (${fmtPct(
-          filled
-        )}) und haeufig im gewuenschten Format (${fmtPct(fmt)}) – 10 Punkte.`;
+        reasons.lieferumfang = `Lieferumfang teils gepflegt (${fmtPct(filled)}) und häufig im gewünschten Format (${fmtPct(fmt)}) – 10 Punkte.`;
       } else {
-        reasons.lieferumfang = `Lieferumfang selten gepflegt (${fmtPct(
-          filled
-        )}) oder kaum im gewuenschten Format (${fmtPct(fmt)}) – 0 Punkte.`;
+        reasons.lieferumfang = `Lieferumfang selten gepflegt (${fmtPct(filled)}) oder kaum im gewünschten Format (${fmtPct(fmt)}) – 0 Punkte.`;
       }
     }
 
-    // Material
     if (!materialCol) {
       reasons.material = "Keine Material-Spalte erkannt – 0 Punkte.";
     } else {
@@ -1705,7 +1791,6 @@ function QsPage({ headers, rows }) {
       reasons.shoptexte = "Shopbezogene Texte im Feed gefunden (z.B. Marketing-/Shop-Inhalte) – 0 Punkte.";
     }
 
-    // Bildkriterien – teils automatisch, teils manuell
     if (scores.bildmatch === 20) {
       reasons.bildmatch = "Erstes Bild passt konsistent zu den Produkten, keine Auffaelligkeiten – 20 Punkte.";
     } else {
@@ -1752,7 +1837,6 @@ function QsPage({ headers, rows }) {
       reasons.millieu = "Fast keine Milieubilder im Feed – 0 Punkte.";
     }
 
-    // Anzahl Bilder
     const avgImg = avgImageCount || 0;
     if (scores.anzahlbilder === 10) {
       reasons.anzahlbilder = `Ø ca. ${avgImg.toFixed(1)} Bilder pro Produkt – 10 Punkte.`;
@@ -1779,6 +1863,187 @@ function QsPage({ headers, rows }) {
     qsImageSamples,
     freistellerChecks,
   ]);
+
+  const attributeItems = useMemo(() => {
+    const base = [
+      {
+        id: "herstellerfeed",
+        label: "Herstellerfeed",
+        status: scores.herstellerfeed === 0 ? "bad" : scores.herstellerfeed < 20 ? "warn" : "ok",
+        columnLabel: brandCol || "",
+        editable: true,
+        options: [0, 20],
+        value: scores.herstellerfeed,
+        onChange: (v) => setScores((s) => ({ ...s, herstellerfeed: v })),
+        description: scoreReasons.herstellerfeed,
+      },
+      {
+        id: "titel",
+        label: "Titel",
+        status: scores.titel === 0 ? "bad" : scores.titel < 20 ? "warn" : "ok",
+        columnLabel: titleCol || "",
+        editable: true,
+        options: [0, 10, 20],
+        value: scores.titel,
+        onChange: (v) => setScores((s) => ({ ...s, titel: v })),
+        description: scoreReasons.titel,
+      },
+      {
+        id: "beschreibung",
+        label: "Beschreibung",
+        status: scores.beschreibung === 0 ? "bad" : scores.beschreibung < 10 ? "warn" : "ok",
+        columnLabel: descCol || "",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.beschreibung,
+        onChange: (v) => setScores((s) => ({ ...s, beschreibung: v })),
+        description: scoreReasons.beschreibung,
+      },
+      {
+        id: "abmessungen",
+        label: "Abmessungen",
+        status: scores.abmessungen === 0 ? "bad" : scores.abmessungen < 10 ? "warn" : "ok",
+        columnLabel: dimCol || "",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.abmessungen,
+        onChange: (v) => setScores((s) => ({ ...s, abmessungen: v })),
+        description: scoreReasons.abmessungen,
+      },
+      {
+        id: "lieferumfang",
+        label: "Lieferumfang",
+        status: scores.lieferumfang === 0 ? "bad" : scores.lieferumfang < 20 ? "warn" : "ok",
+        columnLabel: deliveryCol || "",
+        editable: true,
+        options: [0, 10, 20],
+        value: scores.lieferumfang,
+        onChange: (v) => setScores((s) => ({ ...s, lieferumfang: v })),
+        description: scoreReasons.lieferumfang,
+      },
+      {
+        id: "material",
+        label: "Material",
+        status: scores.material === 0 ? "bad" : scores.material < 10 ? "warn" : "ok",
+        columnLabel: materialCol || "",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.material,
+        onChange: (v) => setScores((s) => ({ ...s, material: v })),
+        description: scoreReasons.material,
+      },
+      {
+        id: "farbe",
+        label: "Farbe",
+        status: scores.farbe === 0 ? "bad" : scores.farbe < 10 ? "warn" : "ok",
+        columnLabel: colorCol || "",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.farbe,
+        onChange: (v) => setScores((s) => ({ ...s, farbe: v })),
+        description: scoreReasons.farbe,
+      },
+      {
+        id: "shoptexte",
+        label: "Shopbezogene Texte",
+        status: scores.shoptexte === 0 ? "bad" : scores.shoptexte < 10 ? "warn" : "ok",
+        columnLabel: shopCol || "",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.shoptexte,
+        onChange: (v) => setScores((s) => ({ ...s, shoptexte: v })),
+        description: scoreReasons.shoptexte,
+      },
+    ];
+
+    const criteria = {
+      herstellerfeed: ["20 P: Marke in fast allen Zeilen vorhanden und sinnvoll befüllt.", "0 P: Marke fehlt häufig oder ist nicht nutzbar."],
+      titel: ["20 P: Titel fast immer vorhanden, lang genug und ohne viele Dubletten.", "10 P: Titel oft vorhanden, aber teils kurz oder doppelt.", "0 P: Titel fehlen häufig oder sind sehr kurz."],
+      beschreibung: ["10 P: Beschreibungen in den meisten Zeilen, mit vernünftiger Länge.", "5 P: Beschreibungen teils vorhanden, eher kurz.", "0 P: Beschreibungen fehlen oft oder sind extrem kurz."],
+      abmessungen: ["10 P: Verständliche Maße in vielen Produkten (z. B. 90x200 cm).", "5 P: Maße nur teilweise oder unklar vorhanden.", "0 P: Kaum verwertbare Maße."],
+      lieferumfang: ["20 P: Lieferumfang fast immer im Format '1x Produkt' gepflegt.", "10 P: Lieferumfang teils gepflegt und oft im korrekten Format.", "0 P: Lieferumfang selten gepflegt oder unklar."],
+      material: ["10 P: Material fuer die meisten Produkte sinnvoll gepflegt.", "5 P: Material nur teilweise gepflegt oder uneinheitlich.", "0 P: Material kaum oder gar nicht gepflegt."],
+      farbe: ["10 P: Farben meist vorhanden und sauber benannt.", "5 P: Farben nur teilweise vorhanden oder uneinheitlich.", "0 P: Farbinfos fehlen weitgehend."],
+      shoptexte: ["10 P: Keine bzw. kaum separate shopbezogene Texte im Feed.", "5 P: Nur vereinzelt shopbezogene Texte vorhanden.", "0 P: Viele shopbezogene/marketinglastige Texte im Feed."],
+    };
+
+    return base.map((item) => ({
+      ...item,
+      criteria: criteria[item.id] || [],
+    }));
+  }, [scores, brandCol, titleCol, descCol, dimCol, deliveryCol, materialCol, colorCol, shopCol, scoreReasons]);
+
+  const imageItems = useMemo(() => {
+    const base = [
+      {
+        id: "bildmatch",
+        label: "1. Bild & keine Dopplungen",
+        status: scores.bildmatch === 0 ? "bad" : scores.bildmatch < 20 ? "warn" : "ok",
+        editable: true,
+        options: [0, 20],
+        value: scores.bildmatch,
+        onChange: (v) => setScores((s) => ({ ...s, bildmatch: v })),
+        description: scoreReasons.bildmatch,
+      },
+      {
+        id: "freisteller",
+        label: "Freisteller",
+        status: scores.freisteller === 0 ? "bad" : scores.freisteller < 10 ? "warn" : "ok",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.freisteller,
+        onChange: (v) => setScores((s) => ({ ...s, freisteller: v })),
+        description: scoreReasons.freisteller,
+      },
+      {
+        id: "millieu",
+        label: "Millieu",
+        status: scores.millieu === 0 ? "bad" : scores.millieu < 10 ? "warn" : "ok",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.millieu,
+        onChange: (v) => setScores((s) => ({ ...s, millieu: v })),
+        description: scoreReasons.millieu,
+      },
+      {
+        id: "anzahlbilder",
+        label: "Anzahl Bilder",
+        status: scores.anzahlbilder === 0 ? "bad" : scores.anzahlbilder < 10 ? "warn" : "ok",
+        editable: true,
+        options: [0, 5, 10],
+        value: scores.anzahlbilder,
+        onChange: (v) => setScores((s) => ({ ...s, anzahlbilder: v })),
+        description: scoreReasons.anzahlbilder,
+      },
+    ];
+
+    const crit = {
+      bildmatch: [
+        "20 P: Erstes Bild passt konsistent zum Produkt, keine erkennbaren Dubletten.",
+        "0 P: Erstes Bild häufig unpassend oder Dubletten auffällig.",
+      ],
+      freisteller: [
+        "10 P: Viele Produkte mit gutem Freistellerbild.",
+        "5 P: Nur ein Teil der Produkte mit Freistellerbild.",
+        "0 P: Kaum Freistellerbilder im Feed.",
+      ],
+      millieu: [
+        "10 P: Viele Produkte mit ansprechenden Milieubildern.",
+        "5 P: Nur einige Produkte mit Milieubildern.",
+        "0 P: Fast keine Milieubilder im Feed.",
+      ],
+      anzahlbilder: [
+        "10 P: Durchschnittlich viele Bilder pro Produkt (z. B. ≥ 5).",
+        "5 P: Mittelmäßige Bildanzahl pro Produkt.",
+        "0 P: Sehr wenige Bilder pro Produkt.",
+      ],
+    };
+
+    return base.map((item) => ({
+      ...item,
+      criteria: crit[item.id] || [],
+    }));
+  }, [scores, scoreReasons]);
 
   const brandExamples = useMemo(() => {
     if (!brandCol) return [];
@@ -1849,22 +2114,22 @@ function QsPage({ headers, rows }) {
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>QS/APA Dashboard</div>
-          <div style={{ marginTop: 6, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
-            {total > 0
-              ? "Wir berechnen einen Vorschlag fuer Attribut- und Bildqualitaet. Diese Bewertung hilft zu entscheiden, ob ein Feed fuer die automatische Produktanlage (APA) geeignet ist."
-              : null}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>QS/APA Dashboard</div>
+            {total > 0 ? <Pill tone="info">{total} Zeilen</Pill> : null}
           </div>
-          <div style={{ marginTop: 6 }}>
-            <Pill tone="info">{total} Zeilen</Pill>
-          </div>
+          {total > 0 ? (
+            <div style={{ marginTop: 4, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
+              Wir berechnen einen Vorschlag fuer Attribut- und Bildqualitt. Diese Bewertung hilft zu entscheiden, ob ein Feed
+              fuer die automatische Produktanlage (APA) geeignet ist.
+            </div>
+          ) : null}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }} />
       </div>
 
-      {/* Drei gleich breite Status-Kacheln fuer Attribute, Bilder und APA */}
       {total > 0 ? (
         <div
           style={{
@@ -1874,17 +2139,8 @@ function QsPage({ headers, rows }) {
             gap: 10,
           }}
         >
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 16,
-              border: "1px solid #A7F3D0",
-              background: "#ECFDF3",
-            }}
-          >
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#047857" }}>
-              Attribute Score
-            </div>
+          <div style={{ padding: 12, borderRadius: 16, border: "1px solid #A7F3D0", background: "#ECFDF3" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#047857" }}>Attribute Score</div>
             <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{attributeScore}</div>
               <div style={{ fontSize: 12, color: "#6B7280" }}>/ 90</div>
@@ -1896,33 +2152,15 @@ function QsPage({ headers, rows }) {
                   const txt = `Attribute Score ${attributeScore} von 90`;
                   if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
                 }}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  border: "1px solid #E5E7EB",
-                  background: "#F9FAFB",
-                  cursor: "pointer",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                }}
+                style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
               >
                 Kopieren
               </button>
             </div>
           </div>
 
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 16,
-              border: "1px solid #BFDBFE",
-              background: "#EFF6FF",
-            }}
-          >
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#1D4ED8" }}>
-              Bild Score
-            </div>
+          <div style={{ padding: 12, borderRadius: 16, border: "1px solid #BFDBFE", background: "#EFF6FF" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#1D4ED8" }}>Bild Score</div>
             <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{imageScore}</div>
               <div style={{ fontSize: 12, color: "#6B7280" }}>/ 90</div>
@@ -1934,44 +2172,17 @@ function QsPage({ headers, rows }) {
                   const txt = `Bild Score ${imageScore} von 90`;
                   if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
                 }}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  border: "1px solid #E5E7EB",
-                  background: "#FFFFFF",
-                  cursor: "pointer",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                }}
+                style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
               >
                 Kopieren
               </button>
             </div>
           </div>
 
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 16,
-              border: apaEligible ? "1px solid #A7F3D0" : "1px solid #FCA5A5",
-              background: apaEligible ? "#ECFDF3" : "#FEF2F2",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-                color: apaEligible ? "#047857" : "#B91C1C",
-              }}
-            >
-              APA Eignung
-            </div>
+          <div style={{ padding: 12, borderRadius: 16, border: apaEligible ? "1px solid #A7F3D0" : "1px solid #FCA5A5", background: apaEligible ? "#ECFDF3" : "#FEF2F2" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: apaEligible ? "#047857" : "#B91C1C" }}>APA Eignung</div>
             <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>
-                {apaEligible ? "Geeignet" : "Noch nicht geeignet"}
-              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{apaEligible ? "Geeignet" : "Noch nicht geeignet"}</div>
             </div>
             <div style={{ marginTop: 6, fontSize: 12, color: "#374151" }}>
               {apaEligible
@@ -1982,912 +2193,108 @@ function QsPage({ headers, rows }) {
         </div>
       ) : null}
 
-      {/* Attribute Bereich */}
       <div style={{ marginTop: 18, padding: 10, borderRadius: 16, border: "1px solid #A7F3D0", background: "#F0FDF4" }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#166534" }}>Attribute Qualitaet</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#166534" }}>Attribute Qualität</div>
         <SmallText>Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen.</SmallText>
 
-        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
-        <StepCard
-          title="Herstellerfeed"
-          status={scores.herstellerfeed === 0 ? "bad" : scores.herstellerfeed < 20 ? "warn" : "ok"}
-          subtitle="0 oder 20 Punkte"
-        >
-          {brandExamples.length ? (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {brandExamples.slice(0, brandExampleLimit).map((t, idx) => (
-                  <div
-                    key={`${t}-${idx}`}
-                    style={{
-                      fontSize: 12,
-                      color: "#111827",
-                      padding: "4px 6px",
-                      borderRadius: 8,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                    }}
-                  >
-                    {t}
+        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 8 }}>
+          {attributeItems.map((item) => {
+            const toneColor = item.status === "ok" ? "#16A34A" : item.status === "bad" ? "#DC2626" : "#F59E0B";
+            const icon = "●";
+            const hasColumn = !!item.columnLabel;
+            const columnText = hasColumn ? `Spalte: ${item.columnLabel}` : "Spalte nicht erkannt";
+
+            return (
+              <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: 7, borderRadius: 12, border: "1px solid #E5E7EB", borderLeft: `4px solid ${toneColor}`, background: "#FFFFFF", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: 10, color: toneColor }}>{icon}</span>
+                    <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{columnText}</div>
+                    </div>
                   </div>
-                ))}
-              </div>
-              {brandExampleLimit < brandExamples.length ? (
-                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBrandExampleLimit((n) => Math.min(brandExamples.length, n + 5))
-                    }
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Mehr Beispiele
-                  </button>
+                  <div>
+                    {item.editable ? (
+                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", fontSize: 12, background: "#FFFFFF", cursor: "pointer" }}>
+                        {item.options.map((opt) => (<option key={opt} value={opt}>{opt} P</option>))}
+                      </select>
+                    ) : (
+                      <span style={{ padding: "3px 8px", borderRadius: 999, background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
+                    )}
+                  </div>
                 </div>
-              ) : null}
-            </div>
-          ) : null}
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>20 Punkte:</strong> Es gibt eine klare Hersteller/Marken Spalte und sie ist fuer ca. ≥80% der Produkte
-                sinnvoll befuellt.
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Es gibt keine passende Spalte oder sie ist bei vielen Produkten leer bzw. offensichtlich
-                falsch.
-              </li>
-            </ul>
-            {brandExamples.length ? (
-              <div
-                style={{
-                  marginTop: 6,
-                  maxHeight: 140,
-                  overflow: "auto",
-                  borderRadius: 8,
-                  border: "1px solid #E5E7EB",
-                  padding: 6,
-                }}
-              >
-                {brandExamples.map((t) => (
-                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
-                    {t}
-                  </div>
-                ))}
+                {item.description ? <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>{item.description}</div> : null}
+                {item.criteria && item.criteria.length ? (
+                  <details style={{ marginTop: 4 }}>
+                    <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>Kriterien fuer Punkte anzeigen</summary>
+                    <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
+                      {item.criteria.map((line, idx) => (<li key={idx}>{line}</li>))}
+                    </ul>
+                  </details>
+                ) : null}
               </div>
-            ) : null}
-          </details>
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <div style={{ fontSize: 13 }}>Herstellerfeed ok?</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button
-                onClick={() => setScores((s) => ({ ...s, herstellerfeed: 20 }))}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "1px solid #E5E7EB",
-                  background: scores.herstellerfeed === 20 ? "#ECFDF3" : "#FFFFFF",
-                  color: scores.herstellerfeed === 20 ? "#166534" : "#111827",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Ja
-              </button>
-              <button
-                onClick={() => setScores((s) => ({ ...s, herstellerfeed: 0 }))}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "1px solid #E5E7EB",
-                  background: scores.herstellerfeed === 0 ? "#FEF2F2" : "#FFFFFF",
-                  color: scores.herstellerfeed === 0 ? "#B91C1C" : "#111827",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Nein
-              </button>
-            </div>
-          </div>
-          {scoreReasons.herstellerfeed ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.herstellerfeed}</div>
-          ) : null}
-        </StepCard>
-
-        <StepCard
-          title="Titel"
-          status={scores.titel === 0 ? "bad" : scores.titel < 20 ? "warn" : "ok"}
-          subtitle={titleCol ? `Spalte ${titleCol}` : "Spalte nicht erkannt"}
-        >
-          {titleExamples.length ? (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {titleExamples.slice(0, titleExampleLimit).map((t, idx) => (
-                  <div
-                    key={`${t}-${idx}`}
-                    style={{
-                      fontSize: 12,
-                      color: "#111827",
-                      padding: "4px 6px",
-                      borderRadius: 8,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {t}
-                  </div>
-                ))}
-              </div>
-              {titleExampleLimit < titleExamples.length ? (
-                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTitleExampleLimit((n) => Math.min(titleExamples.length, n + 5))
-                    }
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Mehr Beispiele
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>20 Punkte:</strong> Titel sind fuer ≥90% der Produkte gefuellt, im Schnitt ca. ≥40 Zeichen lang und enthalten
-                Marke, Kategorie und Variantenattribute (z B Farbe, Material, Masse). Es gibt nur wenige Dubletten.
-              </li>
-              <li>
-                <strong>10 Punkte:</strong> Titel sind fuer ≥80% gefuellt und im Schnitt ca. ≥25 Zeichen lang, aber es fehlen haeufig
-                wichtige Infos oder es gibt spuerbar viele Dubletten.
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Viele Produkte haben keinen sinnvollen Titel (sehr kurz, generisch oder komplett fehlend).
-              </li>
-            </ul>
-            {titleExamples.length ? (
-              <div
-                style={{
-                  marginTop: 6,
-                  maxHeight: 150,
-                  overflow: "auto",
-                  borderRadius: 8,
-                  border: "1px solid #E5E7EB",
-                  padding: 8,
-                }}
-              >
-                {titleExamples.map((t) => (
-                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
-                    {t}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </details>
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13 }}>Punkte</div>
-            <select
-              value={scores.titel}
-              onChange={(e) => setScores((s) => ({ ...s, titel: Number(e.target.value) }))}
-              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-            >
-              <option value={0}>0</option>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-            </select>
-          </div>
-          {scoreReasons.titel ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.titel}</div>
-          ) : null}
-        </StepCard>
-
-        <StepCard
-          title="Beschreibung"
-          status={scores.beschreibung === 0 ? "bad" : scores.beschreibung < 10 ? "warn" : "ok"}
-          subtitle={descCol ? `Spalte ${descCol}` : "Spalte nicht erkannt"}
-        >
-          {descExamples.length ? (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {descExamples.slice(0, descExampleLimit).map((t, idx) => (
-                  <div
-                    key={`${t}-${idx}`}
-                    style={{
-                      fontSize: 12,
-                      color: "#111827",
-                      padding: "4px 6px",
-                      borderRadius: 8,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {t}
-                  </div>
-                ))}
-              </div>
-              {descExampleLimit < descExamples.length ? (
-                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDescExampleLimit((n) => Math.min(descExamples.length, n + 3))
-                    }
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Mehr Beispiele
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>10 Punkte:</strong> Beschreibungen sind fuer ca. ≥85% der Produkte vorhanden, im Schnitt ≥80 Zeichen lang und
-                in Saetzen oder Stichpunkten mit echtem Inhalt (keine reine Keyword-Liste).
-              </li>
-              <li>
-                <strong>5 Punkte:</strong> Beschreibungen sind haeufig vorhanden (ca. ≥75%), aber oft eher kurz (40–80 Zeichen) oder
-                nur oberflaechlich.
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Viele Produkte haben gar keine Beschreibung oder nur extrem kurze, nicht hilfreiche Texte.
-              </li>
-            </ul>
-            {descExamples.length ? (
-              <div
-                style={{
-                  marginTop: 6,
-                  maxHeight: 140,
-                  overflow: "auto",
-                  borderRadius: 8,
-                  border: "1px solid #E5E7EB",
-                  padding: 6,
-                }}
-              >
-                {descExamples.map((t) => (
-                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
-                    {t}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </details>
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13 }}>Punkte</div>
-            <select
-              value={scores.beschreibung}
-              onChange={(e) => setScores((s) => ({ ...s, beschreibung: Number(e.target.value) }))}
-              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-            >
-              <option value={0}>0</option>
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-            </select>
-          </div>
-          {scoreReasons.beschreibung ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.beschreibung}</div>
-          ) : null}
-        </StepCard>
-
-        <StepCard
-          title="Abmessungen"
-          status={scores.abmessungen === 0 ? "bad" : scores.abmessungen < 10 ? "warn" : "ok"}
-          subtitle={dimCol ? `Spalte ${dimCol}` : "Spalte nicht erkannt"}
-        >
-          {dimExamples.length ? (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {dimExamples.slice(0, dimExampleLimit).map((t, idx) => (
-                  <div
-                    key={`${t}-${idx}`}
-                    style={{
-                      fontSize: 12,
-                      color: "#111827",
-                      padding: "4px 6px",
-                      borderRadius: 8,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {t}
-                  </div>
-                ))}
-              </div>
-              {dimExampleLimit < dimExamples.length ? (
-                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDimExampleLimit((n) => Math.min(dimExamples.length, n + 3))
-                    }
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Mehr Beispiele
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>10 Punkte:</strong> Bei einem grossen Teil der Produkte stehen verstaendliche Masse mit Einheit (z B 140x200 cm
-                oder HxBxT in cm/mm) in Titel, Beschreibung oder Attributen.
-              </li>
-              <li>
-                <strong>5 Punkte:</strong> Es gibt fuer einige Produkte Masse, aber viele Produkte sind noch ohne Angaben oder nur
-                teilweise beschrieben.
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Abmessungen sind im Feed kaum oder gar nicht erkennbar.
-              </li>
-            </ul>
-            {dimExamples.length ? (
-              <div
-                style={{
-                  marginTop: 6,
-                  maxHeight: 140,
-                  overflow: "auto",
-                  borderRadius: 8,
-                  border: "1px solid #E5E7EB",
-                  padding: 6,
-                }}
-              >
-                {dimExamples.map((t) => (
-                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
-                    {t}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </details>
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13 }}>Punkte</div>
-            <select
-              value={scores.abmessungen}
-              onChange={(e) => setScores((s) => ({ ...s, abmessungen: Number(e.target.value) }))}
-              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-            >
-              <option value={0}>0</option>
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-            </select>
-          </div>
-          {scoreReasons.abmessungen ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.abmessungen}</div>
-          ) : null}
-        </StepCard>
-
-        <StepCard
-          title="Lieferumfang"
-          status={scores.lieferumfang === 0 ? "bad" : scores.lieferumfang < 20 ? "warn" : "ok"}
-          subtitle={deliveryCol ? `Spalte ${deliveryCol}` : "Spalte nicht erkannt"}
-        >
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>20 Punkte:</strong> Die meisten Eintraege liegen sauber im Format &quot;Anzahl x Produkt&quot; vor (z B 1x
-                Bettkasten, 4x Stuhl) und nur wenige Produkte haben keinen Lieferumfang.
-              </li>
-              <li>
-                <strong>10 Punkte:</strong> Die Spalte ist teilweise gefuellt oder das Format wird nicht immer konsistent eingehalten,
-                ist aber oft noch verstaendlich.
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Lieferumfang fehlt haeufig oder ist kaum im gewuenschten Format gepflegt.
-              </li>
-            </ul>
-          </details>
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13 }}>Punkte</div>
-            <select
-              value={scores.lieferumfang}
-              onChange={(e) => setScores((s) => ({ ...s, lieferumfang: Number(e.target.value) }))}
-              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-            >
-              <option value={0}>0</option>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-            </select>
-          </div>
-          {scoreReasons.lieferumfang ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.lieferumfang}</div>
-          ) : null}
-        </StepCard>
-
-        <StepCard
-          title="Material"
-          status={scores.material === 0 ? "bad" : scores.material < 10 ? "warn" : "ok"}
-          subtitle="0 / 5 / 10 Punkte"
-        >
-          {materialExamples.length ? (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {materialExamples.slice(0, materialExampleLimit).map((t, idx) => (
-                  <div
-                    key={`${t}-${idx}`}
-                    style={{
-                      fontSize: 12,
-                      color: "#111827",
-                      padding: "4px 6px",
-                      borderRadius: 8,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {t}
-                  </div>
-                ))}
-              </div>
-              {materialExampleLimit < materialExamples.length ? (
-                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMaterialExampleLimit((n) => Math.min(materialExamples.length, n + 5))
-                    }
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Mehr Beispiele
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>10 Punkte:</strong> Bei den meisten Produkten steht ein klares, sinnvolles Material (z B Massivholz, Metall,
-                100% Baumwolle) in Attributen oder Texten.
-              </li>
-              <li>
-                <strong>5 Punkte:</strong> Material ist nur bei einem Teil der Produkte gepflegt oder haeufig sehr vage (z B
-                &quot;Mischgewebe&quot;, &quot;Material: Holz/Metall&quot; ohne Details).
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Material ist fast nie erkennbar oder komplett unklar.
-              </li>
-            </ul>
-          </details>
-          {materialExamples.length ? (
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
-              <div style={{ marginTop: 4, maxHeight: 120, overflow: "auto", borderRadius: 8, border: "1px solid #E5E7EB", padding: 6 }}>
-                {materialExamples.map((t) => (
-                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
-                    {t}
-                  </div>
-                ))}
-              </div>
-            </details>
-          ) : null}
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13 }}>Punkte</div>
-            <select
-              value={scores.material}
-              onChange={(e) => setScores((s) => ({ ...s, material: Number(e.target.value) }))}
-              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-            >
-              <option value={0}>0</option>
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-            </select>
-          </div>
-          {scoreReasons.material ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.material}</div>
-          ) : null}
-        </StepCard>
-
-        <StepCard
-          title="Farbe"
-          status={scores.farbe === 0 ? "bad" : scores.farbe < 10 ? "warn" : "ok"}
-          subtitle="0 / 5 / 10 Punkte"
-        >
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>10 Punkte:</strong> Farbe ist bei den meisten Produkten sauber und einheitlich gepflegt (z B weiss, schwarz,
-                anthrazit, natur).
-              </li>
-              <li>
-                <strong>5 Punkte:</strong> Farben sind nur teilweise vorhanden oder uneinheitlich benannt (z B Mix aus Deutsch/Englisch
-                oder Fantasienamen).
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Die meisten Produkte haben keine erkennbare oder sinnvolle Farbinformation.
-              </li>
-            </ul>
-          </details>
-          {colorExamples.length ? (
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Beispiele anzeigen</summary>
-              <div style={{ marginTop: 4, maxHeight: 120, overflow: "auto", borderRadius: 8, border: "1px solid #E5E7EB", padding: 6 }}>
-                {colorExamples.map((t) => (
-                  <div key={t} style={{ fontSize: 12, color: "#111827", padding: "2px 0" }}>
-                    {t}
-                  </div>
-                ))}
-              </div>
-            </details>
-          ) : null}
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13 }}>Punkte</div>
-            <select
-              value={scores.farbe}
-              onChange={(e) => setScores((s) => ({ ...s, farbe: Number(e.target.value) }))}
-              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-            >
-              <option value={0}>0</option>
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-            </select>
-          </div>
-          {scoreReasons.farbe ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.farbe}</div>
-          ) : null}
-        </StepCard>
-
-        <StepCard
-          title="Shopbezogene Texte"
-          status={scores.shoptexte === 0 ? "bad" : scores.shoptexte < 10 ? "warn" : "ok"}
-          subtitle="0 / 5 / 10 Punkte"
-        >
-          {shopExamples.length ? (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Beispiele aus dem Feed</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {shopExamples.slice(0, shopExampleLimit).map((t, idx) => (
-                  <div
-                    key={`${t}-${idx}`}
-                    style={{
-                      fontSize: 12,
-                      color: "#111827",
-                      padding: "4px 6px",
-                      borderRadius: 8,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {t}
-                  </div>
-                ))}
-              </div>
-              {shopExampleLimit < shopExamples.length ? (
-                <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShopExampleLimit((n) => Math.min(shopExamples.length, n + 3))
-                    }
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Mehr Beispiele
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-            <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-              <li>
-                <strong>10 Punkte:</strong> Texte sind groesstenteils neutral beschrieben (Produktvorteile, Funktionen) und enthalten
-                kaum offensichtliche Werbesprache.
-              </li>
-              <li>
-                <strong>5 Punkte:</strong> Es tauchen vereinzelt Marketingbegriffe (Sale, Rabatt, gratis Versand usw.) auf, der
-                Grossteil der Texte bleibt aber neutral.
-              </li>
-              <li>
-                <strong>0 Punkte:</strong> Viele Produkte enthalten starke Werbung direkt im Produkttext (z B &quot;Mega Sale&quot;,
-                &quot;jetzt 50% Rabatt&quot;, &quot;gratis Versand&quot;).
-              </li>
-            </ul>
-          </details>
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13 }}>Punkte</div>
-            <select
-              value={scores.shoptexte}
-              onChange={(e) => setScores((s) => ({ ...s, shoptexte: Number(e.target.value) }))}
-              style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-            >
-              <option value={0}>0</option>
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-            </select>
-          </div>
-          {scoreReasons.shoptexte ? (
-            <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.shoptexte}</div>
-          ) : null}
-        </StepCard>
+            );
+          })}
         </div>
       </div>
 
-      {/* Bilder Bereich */}
       <div style={{ marginTop: 24, padding: 10, borderRadius: 16, border: "1px solid #BFDBFE", background: "#EFF6FF" }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#1D4ED8" }}>Bild Qualitaet</div>
-        <SmallText>Bewertung von erstem Bild, Freistellern, Millieu und Anzahl Bilder. Darunter siehst du Beispielprodukte.</SmallText>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#1D4ED8" }}>Bildqualität</div>
+        <SmallText>Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. Darunter siehst du Beispielprodukte.</SmallText>
 
-        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
-          <StepCard
-            title="1. Bild & keine Dopplungen"
-            status={scores.bildmatch === 0 ? "bad" : scores.bildmatch < 20 ? "warn" : "ok"}
-            subtitle="0 / 20 Punkte"
-          >
-            <SmallText>Manuelle Pruefung ob erstes Bild passt und keine systematischen Dubletten.</SmallText>
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                <li>
-                  <strong>20 Punkte:</strong> Das erste Bild passt klar zum Produkt (richtiger Artikel, richtige Variante) und es gibt
-                  keine systematischen Bilddopplungen ueber viele Angebote.
-                </li>
-                <li>
-                  <strong>0 Punkte:</strong> Haeufig werden falsche oder generische Bilder gezeigt oder viele Produkte nutzen dasselbe
-                  unpassende Bild.
-                </li>
-              </ul>
-            </details>
-            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 13 }}>Punkte</div>
-              <select
-                value={scores.bildmatch}
-                onChange={(e) => setScores((s) => ({ ...s, bildmatch: Number(e.target.value) }))}
-                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-              >
-                <option value={0}>0</option>
-                <option value={20}>20</option>
-              </select>
-            </div>
-            {scoreReasons.bildmatch ? (
-              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.bildmatch}</div>
-            ) : null}
-          </StepCard>
-
-          <StepCard
-            title="Freisteller"
-            status={scores.freisteller === 0 ? "bad" : scores.freisteller < 10 ? "warn" : "ok"}
-            subtitle="0 / 5 / 10 Punkte"
-          >
-            <SmallText>Manuelle Bewertung, ob gute Freisteller Bilder vorhanden sind.</SmallText>
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                <li>
-                  <strong>10 Punkte:</strong> Die meisten Produkte haben mindestens ein sauberes Freistellerbild mit ruhigem oder
-                  weissem Hintergrund.
-                </li>
-                <li>
-                  <strong>5 Punkte:</strong> Nur ein Teil der Produkte hat Freisteller, andere zeigen nur Millieu- oder unscharfe
-                  Bilder.
-                </li>
-                <li>
-                  <strong>0 Punkte:</strong> Praktisch keine Produkte besitzen Freistellerbilder.
-                </li>
-              </ul>
-            </details>
-            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 13 }}>Punkte</div>
-              <select
-                value={scores.freisteller}
-                onChange={(e) => setScores((s) => ({ ...s, freisteller: Number(e.target.value) }))}
-                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-              >
-                <option value={0}>0</option>
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-              </select>
-            </div>
-            {scoreReasons.freisteller ? (
-              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.freisteller}</div>
-            ) : null}
-          </StepCard>
-
-          <StepCard
-            title="Millieu"
-            status={scores.millieu === 0 ? "bad" : scores.millieu < 10 ? "warn" : "ok"}
-            subtitle="0 / 5 / 10 Punkte"
-          >
-            <SmallText>Manuelle Bewertung, ob Produkte in realistischer Umgebung gezeigt werden.</SmallText>
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                <li>
-                  <strong>10 Punkte:</strong> Viele Produkte zeigen mindestens ein Milieubild (z B Sofa im Wohnzimmer, Bett im
-                  Schlafzimmer) in realistischer Umgebung.
-                </li>
-                <li>
-                  <strong>5 Punkte:</strong> Nur ein Teil der Produkte hat Milieubilder, der Rest zeigt vor allem Freisteller.
-                </li>
-                <li>
-                  <strong>0 Punkte:</strong> Es werden fast ausschliesslich Freisteller ohne Umgebung gezeigt.
-                </li>
-              </ul>
-            </details>
-            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 13 }}>Punkte</div>
-              <select
-                value={scores.millieu}
-                onChange={(e) => setScores((s) => ({ ...s, millieu: Number(e.target.value) }))}
-                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-              >
-                <option value={0}>0</option>
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-              </select>
-            </div>
-            {scoreReasons.millieu ? (
-              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.millieu}</div>
-            ) : null}
-          </StepCard>
-
-          <StepCard
-            title="Anzahl Bilder"
-            status={scores.anzahlbilder === 0 ? "bad" : scores.anzahlbilder < 10 ? "warn" : "ok"}
-            subtitle="0 / 5 / 10 Punkte"
-          >
-            <SmallText>Bewertung basierend auf der durchschnittlichen Bildanzahl pro Produkt.</SmallText>
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 12, color: "#4B5563" }}>Kriterien anzeigen</summary>
-              <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                <li>
-                  <strong>10 Punkte:</strong> Die meisten Produkte haben viele Bilder (z B ≥5), inkl. Detail- und ggf. Milieubildern.
-                </li>
-                <li>
-                  <strong>5 Punkte:</strong> Im Schnitt sind 2–4 Bilder pro Produkt vorhanden.
-                </li>
-                <li>
-                  <strong>0 Punkte:</strong> Die meisten Produkte besitzen nur ein einzelnes Bild.
-                </li>
-              </ul>
-            </details>
-            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 13 }}>Punkte</div>
-              <select
-                value={scores.anzahlbilder}
-                onChange={(e) => setScores((s) => ({ ...s, anzahlbilder: Number(e.target.value) }))}
-                style={{ padding: 6, borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13 }}
-              >
-                <option value={0}>0</option>
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-              </select>
-            </div>
-            {scoreReasons.anzahlbilder ? (
-              <div style={{ marginTop: 4, fontSize: 11, color: "#6B7280" }}>{scoreReasons.anzahlbilder}</div>
-            ) : null}
-          </StepCard>
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 8 }}>
+          {imageItems.map((item) => {
+            const toneColor = item.status === "ok" ? "#16A34A" : item.status === "bad" ? "#DC2626" : "#F59E0B";
+            const icon = "●";
+            return (
+              <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: 7, borderRadius: 12, border: "1px solid #E5E7EB", borderLeft: `4px solid ${toneColor}`, background: "#FFFFFF", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: 10, color: toneColor }}>{icon}</span>
+                    <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{item.label}</div>
+                    </div>
+                  </div>
+                  <div>
+                    {item.editable ? (
+                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", fontSize: 12, background: "#FFFFFF", cursor: "pointer" }}>
+                        {item.options.map((opt) => (<option key={opt} value={opt}>{opt} P</option>))}
+                      </select>
+                    ) : (
+                      <span style={{ padding: "3px 8px", borderRadius: 999, background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
+                    )}
+                  </div>
+                </div>
+                {item.description ? <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>{item.description}</div> : null}
+                {item.criteria && item.criteria.length ? (
+                  <details style={{ marginTop: 4 }}>
+                    <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>Kriterien fuer Punkte anzeigen</summary>
+                    <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
+                      {item.criteria.map((line, idx) => (<li key={idx}>{line}</li>))}
+                    </ul>
+                  </details>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
 
         {qsImageSamples.length ? (
           <div style={{ marginTop: 12, padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Bild Vorschau (Liste)</div>
-            <SmallText>
-              Jede Zeile ist ein Produkt. Links siehst du ID und Anzahl Bilder, rechts einige Vorschaubilder zum manuellen Check.
-            </SmallText>
+            <SmallText>Jede Zeile ist ein Produkt. Links siehst du ID und Anzahl Bilder, rechts einige Vorschaubilder zum manuellen Check.</SmallText>
             <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
               {qsImageSamples.slice(0, imageSampleLimit).map((sample) => (
-                <div
-                  key={sample.id}
-                  style={{
-                    padding: 6,
-                    borderRadius: 10,
-                    border: "1px solid #E5E7EB",
-                    background: "#FFFFFF",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 8,
-                    minWidth: 0,
-                  }}
-                >
+                <div key={sample.id} style={{ padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF", display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>
-                      {sample.id}
-                    </div>
-                    <div style={{ marginTop: 2, fontSize: 11, color: "#6B7280" }}>
-                      {sample.count} Bilder
-                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>{sample.id}</div>
+                    <div style={{ marginTop: 2, fontSize: 11, color: "#6B7280" }}>{sample.count} Bilder</div>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {sample.urls.slice(0, 5).map((u) => (
                       <a key={u} href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 54, height: 54, flexShrink: 0 }}>
-                        <img
-                          src={u}
-                          alt="Bild"
-                          loading="lazy"
-                          style={{
-                            width: 54,
-                            height: 54,
-                            objectFit: "cover",
-                            borderRadius: 8,
-                            border: "1px solid #E5E7EB",
-                            background: "#FFFFFF",
-                          }}
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
+                        <img src={u} alt="Bild" loading="lazy" style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
                       </a>
                     ))}
                   </div>
@@ -2895,19 +2302,8 @@ function QsPage({ headers, rows }) {
               ))}
             </div>
             {imageSampleLimit < qsImageSamples.length ? (
-              <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  onClick={() => setImageSampleLimit((n) => Math.min(qsImageSamples.length, n + 5))}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    border: "1px solid #E5E7EB",
-                    background: "#FFFFFF",
-                    cursor: "pointer",
-                    fontSize: 11,
-                    fontWeight: 600,
-                  }}
-                >
+              <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-start" }}>
+                <button onClick={() => setImageSampleLimit((n) => Math.min(qsImageSamples.length, n + 5))} style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                   Mehr Produkte anzeigen
                 </button>
               </div>
@@ -2937,7 +2333,6 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
     if (hash === "#/qs") return "qs";
-    if (hash === "#/lieferzeiten") return "lieferzeiten";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
     return "checker";
@@ -2956,7 +2351,6 @@ export default function App() {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/qs") setRoute("qs");
-      else if (hash === "#/lieferzeiten") setRoute("lieferzeiten");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
       else setRoute("checker");
@@ -3037,7 +2431,6 @@ export default function App() {
         const exists = prevArr.some((x) => String(x).trim() === raw);
         if (!exists) next.delivery_includes_allowlist = [...prevArr, raw];
       }
-      // Persist updated rules (best-effort)
       saveRules(next);
       return next;
     });
@@ -3052,10 +2445,23 @@ export default function App() {
   const [shopName, setShopName] = useState("");
   const [previewCount, setPreviewCount] = useState(40);
   const [eanSearch, setEanSearch] = useState("");
+  const [visibleColumns, setVisibleColumns] = useState(null);
+  const [columnFilterOpen, setColumnFilterOpen] = useState(false);
+  const [showIssueRowsOnly, setShowIssueRowsOnly] = useState(false);
+  const [activeStep, setActiveStep] = useState(1);
+  const [showAllChecks, setShowAllChecks] = useState(false);
 
   const [imageMin, setImageMin] = useState(DEFAULT_RULES.image_min_per_product);
   const [imageSampleLimitStep5, setImageSampleLimitStep5] = useState(5);
   const [brokenImageIds, setBrokenImageIds] = useState([]);
+
+  const previewColumns = useMemo(() => {
+    if (!headers.length) return [];
+    const all = headers.map((h) => ({ key: h, label: String(h) }));
+    if (!Array.isArray(visibleColumns)) return all;
+    const allowed = new Set(visibleColumns);
+    return all.filter((c) => allowed.has(c.key));
+  }, [headers, visibleColumns]);
 
   useEffect(() => {
     setImageMin(Number(rules?.image_min_per_product ?? DEFAULT_RULES.image_min_per_product));
@@ -3114,7 +2520,16 @@ export default function App() {
     if (!headers.length) return [];
     const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
     return norms
-      .filter((h) => h.norm.startsWith("image_url") || h.norm.startsWith("image") || h.norm.startsWith("img_url"))
+      .filter((h) => {
+        const n = h.norm;
+        return (
+          n.startsWith("image_url") ||
+          n.startsWith("image") ||
+          n.startsWith("img_url") ||
+          n.includes("bild") ||
+          n.includes("image")
+        );
+      })
       .map((h) => h.raw);
   }, [headers]);
 
@@ -3167,6 +2582,56 @@ export default function App() {
       sellerDup: sellerColumn ? findDuplicateIndexes(rows.map((r) => r[sellerColumn])) : new Set(),
     };
   }, [rows, eanColumn, titleColumn, sellerColumn]);
+
+  const highlightedCells = useMemo(() => {
+    const set = new Set();
+    if (!rows.length) return set;
+
+    // Duplikate EANs → EAN-Spalte hervorheben (kritisch)
+    if (eanColumn) {
+      duplicates.eanDup.forEach((idx) => {
+        set.add(`${idx}:${eanColumn}`);
+      });
+    }
+
+    // Duplikate Titel → ebenfalls die EAN-Zelle hervorheben (Warnung),
+    // damit man direkt die betroffenen Produkte identifizieren kann.
+    if (duplicates.titleDup.size > 0) {
+      if (eanColumn) {
+        duplicates.titleDup.forEach((idx) => {
+          set.add(`${idx}:${eanColumn}`);
+        });
+      } else if (titleColumn) {
+        // Fallback: wenn keine EAN-Spalte gemappt ist, Titel-Spalte markieren
+        duplicates.titleDup.forEach((idx) => {
+          set.add(`${idx}:${titleColumn}`);
+        });
+      }
+    }
+
+    requiredFields.forEach((fieldKey) => {
+      const col = mapping[fieldKey];
+      if (!col) return;
+      rows.forEach((r, idx) => {
+        if (isBlank(r[col])) {
+          set.add(`${idx}:${col}`);
+        }
+      });
+    });
+
+    return set;
+  }, [rows, eanColumn, titleColumn, duplicates, requiredFields, mapping]);
+
+  const rowsWithIssues = useMemo(() => {
+    const set = new Set();
+    highlightedCells.forEach((id) => {
+      const rowIndex = Number(String(id).split(":")[0]);
+      if (!Number.isNaN(rowIndex) && rows[rowIndex]) {
+        set.add(rows[rowIndex]);
+      }
+    });
+    return set;
+  }, [highlightedCells, rows]);
 
   const duplicateEans = useMemo(() => {
     if (!rows.length || !eanColumn) return [];
@@ -3229,7 +2694,7 @@ export default function App() {
   const optionalFindings = useMemo(() => {
     if (!rows.length) {
       return {
-        missingEansByField: { material: [], color: [], delivery_includes: [] },
+        missingEansByField: { material: [], color: [], delivery_includes: [], delivery_time: [] },
         samplesByField: { material: [], color: [], delivery_includes: [] },
         missingEANs: [],
         imageZeroEans: [],
@@ -3271,7 +2736,12 @@ export default function App() {
       });
     }
 
-    const missingEansByField = {};
+    const missingEansByField = {
+      material: [],
+      color: [],
+      delivery_includes: [],
+      delivery_time: [],
+    };
     const fieldsForMissing = [...optionalFields, "material", "color", "delivery_includes"];
     for (const f of fieldsForMissing) {
       const col = mapping[f];
@@ -3338,14 +2808,15 @@ export default function App() {
     const invalidDeliveryTime = [];
     if (mapping.delivery_time) {
       const col = mapping.delivery_time;
-      const re = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage|arbeitstage|wochen)\s*$/i;
+      const reWithUnit = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage|arbeitstage|wochen)\s*$/i;
+      const reSimpleNumber = /^\s*\d+(?:\s*-\s*\d+)?\s*$/;
       rows.forEach((r, idx) => {
         const raw = String(r[col] ?? "").trim();
         if (!raw) {
           invalidDeliveryTime.push({ ean: eans[idx], value: raw });
           return;
         }
-        if (!re.test(raw)) {
+        if (!reWithUnit.test(raw) && !reSimpleNumber.test(raw)) {
           invalidDeliveryTime.push({ ean: eans[idx], value: raw });
         }
       });
@@ -3396,15 +2867,12 @@ export default function App() {
       const allowedBase = (rules?.allowed_material || DEFAULT_RULES.allowed_material).map((x) =>
         String(x).toLowerCase().trim()
       );
-      // Blacklist: diese Werte sind immer ungueltig, auch wenn sie evtl. in der Allowlist stehen wuerden.
       const materialBlacklist = ["keine angabe"];
       const allowed = allowedBase.filter((token) => token && !materialBlacklist.includes(token));
       rows.forEach((r, idx) => {
         const raw = String(r[col] ?? "").trim();
         if (!raw) return;
         const v = raw.toLowerCase();
-        // Nur dann als ungueltig markieren, wenn KEIN erlaubter Materialwert als Teilstring enthalten ist.
-        // Beispiel: Erlaubt "holz" -> "massivholz" wird akzeptiert.
         const containsAllowedToken = allowed.some((token) => token && v.includes(token));
         if (!containsAllowedToken || materialBlacklist.some((bad) => v.includes(bad))) {
           invalidMaterial.push({ ean: eans[idx], value: raw });
@@ -3421,8 +2889,6 @@ export default function App() {
         const raw = String(r[col] ?? "").trim();
         if (!raw) return;
         const v = raw.toLowerCase();
-        // Nur dann als ungueltig markieren, wenn KEIN erlaubter Farbwert als Teilstring enthalten ist.
-        // Beispiel: Erlaubt "blau" -> "dunkelblau" wird akzeptiert.
         const containsAllowedToken = allowed.some((token) => token && v.includes(token));
         if (!containsAllowedToken) {
           invalidColor.push({ ean: eans[idx], value: raw });
@@ -3471,14 +2937,9 @@ export default function App() {
         const descLower = desc.toLowerCase();
         const titleLower = titleVal.toLowerCase();
 
-        // B-Ware / gebraucht / refurbished Hinweise – nicht erlaubt
         if (
-          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(
-            descLower
-          ) ||
-          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(
-            titleLower
-          )
+          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(descLower) ||
+          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(titleLower)
         ) {
           descriptionIssues.usedOrBware.push(eanId);
           return;
@@ -3543,11 +3004,12 @@ export default function App() {
 
   const stage3Status = useMemo(() => {
     if (!headers.length) return "idle";
+    const byField = optionalFindings.missingEansByField || {};
     const anyMissing =
-      optionalFindings.missingEansByField.material.length +
-        optionalFindings.missingEansByField.color.length +
-        optionalFindings.missingEansByField.delivery_includes.length +
-        (optionalFindings.missingEansByField.delivery_time || []).length +
+      (byField.material || []).length +
+        (byField.color || []).length +
+        (byField.delivery_includes || []).length +
+        (byField.delivery_time || []).length +
         optionalFindings.missingEANs.length >
       0;
     const imagesBad = optionalFindings.imageZeroEans.length > 0 || optionalFindings.imageOneEans.length > 0;
@@ -3613,30 +3075,28 @@ export default function App() {
 
     if (requiredPresence.missing.length) {
       issues.push(`Pflichtfelder fehlen oder wurden nicht erkannt: ${requiredPresence.missing.join(", ")}`);
-      tips.push("Bitte pruefen Sie die Spaltennamen oder liefern Sie die fehlenden Pflichtfelder nach.");
+      tips.push("Bitte prüfen Sie die Spaltennamen oder liefern Sie die fehlenden Pflichtfelder nach.");
     }
 
     if (eanColumn) {
       const missingEAN = rows.filter((r) => isBlank(r[eanColumn])).length;
       if (missingEAN > 0) issues.push(`EAN fehlt in ${missingEAN} Artikeln.`);
     } else {
-      issues.push("EAN Spalte fehlt. Ohne EAN ist eine Verarbeitung nicht moeglich.");
-      tips.push("Bitte liefern Sie eine EAN oder GTIN Spalte. Falls die Werte in Excel im E Format stehen, bitte als Text formatieren.");
+      issues.push("EAN-Spalte fehlt. Ohne EAN ist eine Verarbeitung nicht möglich.");
+      tips.push("Bitte liefern Sie eine EAN- oder GTIN-Spalte. Falls die Werte in Excel im E-Format stehen, bitte als Text formatieren.");
     }
 
     if (eanColumn) {
       if (duplicates.eanDup.size > 0) issues.push(`Doppelte EAN erkannt in ${duplicates.eanDup.size} Zeilen.`);
 
       if (optionalFindings.scientificEans.length > 0) {
-        issues.push(
-          `EAN Darstellungsproblem erkannt in ${optionalFindings.scientificEans.length} Artikeln. Werte wirken wie wissenschaftliche Schreibweise.`
-        );
+        issues.push(`EAN Darstellungsproblem erkannt in ${optionalFindings.scientificEans.length} Artikeln. Werte wirken wie wissenschaftliche Schreibweise.`);
         tips.push("Bitte EAN Spalte als Text formatieren, damit die komplette GTIN erhalten bleibt.");
       }
     }
 
     if (titleColumn && duplicates.titleDup.size > 0) {
-      issues.push(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`);
+      tips.push(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`);
     }
 
     const optionalMissingCount =
@@ -3645,7 +3105,7 @@ export default function App() {
       optionalFindings.missingEansByField.delivery_includes.length;
 
     if (optionalMissingCount > 0) {
-      tips.push("Optionalfelder wie Material, Farbe und Lieferumfang wenn moeglich vollstaendig pflegen.");
+      tips.push("Optionalfelder wie Material, Farbe und Lieferumfang wenn möglich vollständig pflegen.");
     }
 
     if (imageColumns.length === 0) {
@@ -3661,9 +3121,7 @@ export default function App() {
         tips.push(`Bitte pro Produkt mindestens ${imageMin} Bildlinks liefern.`);
       }
       if (brokenImageIds.length > 0) {
-        issues.push(
-          `Bei ${brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden. Bitte Bild-Links pruefen.`
-        );
+        issues.push(`Bei ${brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden. Bitte Bild-Links prüfen.`);
       }
     }
 
@@ -3680,38 +3138,30 @@ export default function App() {
     score -= Math.min(20, brokenImageIds.length > 0 ? 20 : 0);
 
     if (mapping.delivery_includes && optionalFindings.invalidDeliveryIncludes.length > 0) {
-      issues.push(`Lieferumfang Format ungueltig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`);
-      tips.push("Lieferumfang bitte im Format Anzahl x Produkt angeben, z B 1x Tisch, 4x Stuhl.");
+      issues.push(`Lieferumfang-Format ungültig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`);
+      tips.push("Lieferumfang bitte im Format Anzahl x Produkt angeben, z. B. 1x Tisch, 4x Stuhl.");
       score -= 5;
     }
 
     if (mapping.delivery_time && optionalFindings.invalidDeliveryTime.length > 0) {
-      issues.push(
-        `Lieferzeit ungueltig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`
-      );
-      tips.push('Lieferzeit bitte im Format z B "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" angeben.');
+      issues.push(`Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`);
+      tips.push('Lieferzeit bitte im Format z. B. "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" angeben.');
       score -= 5;
     }
 
     if (mapping.description) {
       if (optionalFindings.descriptionIssues.tooShort.length > 0) {
-        issues.push(
-          `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlaenge laut Regeln-Tab).`
-        );
+        issues.push(`Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`);
         tips.push("Produktbeschreibungen etwas ausfuehrlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).");
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.templateLike.length > 0) {
-        tips.push(
-          "Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden."
-        );
+        tips.push("Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden.");
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.usedOrBware.length > 0) {
-        issues.push(
-          `Hinweise auf B-Ware / gebrauchte Ware in ${optionalFindings.descriptionIssues.usedOrBware.length} Artikeln.`
-        );
-        tips.push("Wir koennen keine gebrauchten oder als B-Ware gekennzeichneten Produkte akzeptieren.");
+        issues.push(`Hinweise auf B-Ware / gebrauchte Ware in ${optionalFindings.descriptionIssues.usedOrBware.length} Artikeln.`);
+        tips.push("Wir können keine gebrauchten oder als B-Ware gekennzeichneten Produkte akzeptieren.");
         score -= 15;
       }
     }
@@ -3721,22 +3171,17 @@ export default function App() {
         issues.push(`shipping_mode fehlt in ${optionalFindings.missingShipping.length} Artikeln.`);
       }
       if (optionalFindings.invalidShipping.length > 0) {
-        issues.push(
-          `shipping_mode ungueltig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`
-        );
+        issues.push(`shipping_mode ungueltig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`);
       }
     }
     if (mapping.description && optionalFindings.descriptionIssues.externalLinks.length > 0) {
-      issues.push(
-        `Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`
-      );
+      issues.push(`Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`);
       tips.push("Bitte in der Beschreibung keine externen Links oder Werbung auf andere Seiten einfuegen.");
       score -= 3;
     }
 
     score = Math.max(0, score);
 
-    // Kritische Vollausfaelle fuer shipping_mode / Lieferumfang
     let shippingAllMissing = false;
     if (mapping.shipping_mode) {
       const col = mapping.shipping_mode;
@@ -3787,21 +3232,11 @@ export default function App() {
     return buildEmail({ shopName, issues: summary.issues, tips: summary.tips, canStart: summary.canStart });
   }, [headers, shopName, summary]);
 
-  const [showEmailTemplate, setShowEmailTemplate] = useState(false);
   const [step2Expanded, setStep2Expanded] = useState(false);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const step6Ref = useRef(null);
 
   useEffect(() => {
-    // Wenn der Feed nicht startklar ist, Mailvorlage automatisch anzeigen.
-    // Wenn alles OK ist, standardmaessig ausgeblendet lassen.
-    setShowEmailTemplate(!summary.canStart);
-  }, [summary.canStart]);
-
-  useEffect(() => {
-    // Wenn Pflichtfelder nicht vollstaendig zugeordnet sind, immer alle Details in Schritt 2 anzeigen.
-    // Erst ausführen, wenn eine Datei eingelesen wurde (headers.length > 0),
-    // damit Schritt 2 bei einem komplett leeren Zustand nicht "offen" haengen bleibt.
     if (!headers.length) return;
     if (!allRequiredOk) setStep2Expanded(true);
   }, [allRequiredOk, headers.length]);
@@ -3833,6 +3268,166 @@ export default function App() {
     });
   }
 
+  // ── Step 7 preview JSX (shared between inline and fullscreen) ──────────────
+  const step7Inner = (
+    <>
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Suche</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <input
+          value={eanSearch}
+          onChange={(e) => setEanSearch(e.target.value)}
+          placeholder="EAN eingeben um passende Zeilen zu filtern"
+          style={{
+            flex: "1 1 0",
+            minWidth: 0,
+            padding: "8px 10px",
+            borderRadius: 999,
+            border: "1px solid #E5E7EB",
+            fontSize: 12,
+            boxSizing: "border-box",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => setColumnFilterOpen((v) => !v)}
+          aria-label="Spalten wählen"
+          title="Spalten wählen"
+          style={{
+            padding: "6px 8px",
+            borderRadius: 999,
+            border: "1px solid #E5E7EB",
+            background: "#FFFFFF",
+            fontSize: 14,
+            cursor: "pointer",
+            color: "#111827",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: 32,
+          }}
+        >
+          ⚙
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowIssueRowsOnly((v) => !v)}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: "1px solid #E5E7EB",
+            background: showIssueRowsOnly ? "#FEF3C7" : "#FFFFFF",
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: "pointer",
+            color: "#92400E",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {showIssueRowsOnly ? "Alle Zeilen zeigen" : "Nur Zeilen mit Auffälligkeiten"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPreviewFullscreen(true)}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: `1px solid ${BRAND_COLOR}`,
+            background: "#FFFFFF",
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: "pointer",
+            color: BRAND_COLOR,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          Vorschau maximieren
+        </button>
+      </div>
+      {columnFilterOpen && headers.length > 0 ? (
+        <div style={{ marginTop: 8, padding: 8, borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF", maxHeight: 180, overflow: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <SmallText>Spalten anzeigen/verstecken</SmallText>
+            <button
+              type="button"
+              onClick={() => {
+                setVisibleColumns((prev) => {
+                  const allKeys = headers;
+                  const allSelected = !Array.isArray(prev) || prev.length === allKeys.length;
+                  return allSelected ? [] : null;
+                });
+              }}
+              style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#111827" }}
+            >
+              {(!Array.isArray(visibleColumns) || visibleColumns.length === headers.length) ? "Alle abwählen" : "Alle auswählen"}
+            </button>
+          </div>
+          <div style={{ marginTop: 2, display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {headers.map((h) => {
+              const isActive = !Array.isArray(visibleColumns) || visibleColumns.includes(h);
+              return (
+                <label key={h} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#111827" }}>
+                  <input
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={(e) => {
+                      setVisibleColumns((prev) => {
+                        const current = Array.isArray(prev) ? new Set(prev) : new Set(headers);
+                        if (e.target.checked) { current.add(h); } else { current.delete(h); }
+                        const next = Array.from(current);
+                        return next.length === headers.length ? null : next;
+                      });
+                    }}
+                  />
+                  <span>{String(h)}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+    <div style={{ marginTop: 10 }}>
+      <ResizableTable
+        columns={previewColumns}
+        rows={rows
+          .filter((r) => {
+            if (!eanSearch) return true;
+            if (eanColumn) {
+              const val = String(r[eanColumn] ?? "").trim();
+              return val.includes(eanSearch);
+            }
+            const q = eanSearch.toLowerCase();
+            return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
+          })
+          .filter((r) => (showIssueRowsOnly ? rowsWithIssues.has(r) : true))
+          .slice(0, previewCount)}
+        highlightedCells={highlightedCells}
+      />
+      <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <SmallText>Zeige {Math.min(previewCount, rows.length)} von {rows.length} Zeilen.</SmallText>
+        <button
+          onClick={() => setPreviewCount((c) => Math.min(rows.length, c + 20))}
+          disabled={previewCount >= rows.length}
+          style={{
+            padding: "10px 18px",
+            borderRadius: 999,
+            border: `1px solid ${BRAND_COLOR}`,
+            background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR,
+            cursor: previewCount >= rows.length ? "not-allowed" : "pointer",
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#FFFFFF",
+          }}
+        >
+          20 weitere laden
+        </button>
+      </div>
+    </div>
+    </>
+  );
+
   const topNav = (
     <div style={{ background: "white", borderBottom: "1px solid #E5E7EB" }}>
       <div
@@ -3851,102 +3446,27 @@ export default function App() {
         }}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            onClick={() => { window.location.hash = "#/checker"; }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: `1px solid ${BRAND_COLOR}`,
-              background: route === "checker" ? BRAND_COLOR : "#FFFFFF",
-              color: route === "checker" ? "#FFFFFF" : BRAND_COLOR,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 800,
-            }}
-          >
-            Checker
-          </button>
-          <button
-            onClick={() => { window.location.hash = "#/qs"; }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: `1px solid ${BRAND_COLOR}`,
-              background: route === "qs" ? BRAND_COLOR : "#FFFFFF",
-              color: route === "qs" ? "#FFFFFF" : BRAND_COLOR,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 800,
-            }}
-          >
-            QS/APA
-          </button>
-          <button
-            onClick={() => {
-              window.location.hash = "#/lieferzeiten";
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: `1px solid ${BRAND_COLOR}`,
-              background: route === "lieferzeiten" ? BRAND_COLOR : "#FFFFFF",
-              color: route === "lieferzeiten" ? "#FFFFFF" : BRAND_COLOR,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 800,
-            }}
-          >
-            Lieferzeiten
-          </button>
-          <button
-            onClick={() => { window.location.hash = "#/rules"; }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: `1px solid ${BRAND_COLOR}`,
-              background: route === "rules" ? BRAND_COLOR : "#FFFFFF",
-              color: route === "rules" ? "#FFFFFF" : BRAND_COLOR,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 800,
-            }}
-          >
-            Regeln
-          </button>
-          <button
-            onClick={() => {
-              window.location.hash = "#/onboarding";
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: `1px solid ${BRAND_COLOR}`,
-              background: route === "onboarding" ? BRAND_COLOR : "#FFFFFF",
-              color: route === "onboarding" ? "#FFFFFF" : BRAND_COLOR,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 800,
-            }}
-          >
-            Onboarding
-          </button>
-          <button
-            onClick={() => {
-              window.location.hash = "#/shop-performance";
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: `1px solid ${BRAND_COLOR}`,
-              background: route === "shop-performance" ? BRAND_COLOR : "#FFFFFF",
-              color: route === "shop-performance" ? "#FFFFFF" : BRAND_COLOR,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 800,
-            }}
-          >
-            Shop Performance
-          </button>
+          {["checker", "qs", "rules", "onboarding", "shop-performance"].map((r) => {
+            const labels = { checker: "Checker", qs: "QS/APA", rules: "Regeln", onboarding: "Onboarding", "shop-performance": "Shop Performance" };
+            return (
+              <button
+                key={r}
+                onClick={() => { window.location.hash = r === "checker" ? "#/checker" : `#/${r}`; }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 999,
+                  border: `1px solid ${BRAND_COLOR}`,
+                  background: route === r ? BRAND_COLOR : "#FFFFFF",
+                  color: route === r ? "#FFFFFF" : BRAND_COLOR,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {labels[r]}
+              </button>
+            );
+          })}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {rulesLoading ? <Pill tone="info">Regeln laden</Pill> : null}
@@ -3959,1357 +3479,744 @@ export default function App() {
   const page = (
     <div
       style={{
-        width: "100%",
-        maxWidth: 1000,
-        margin: "0 auto",
-        padding: 24,
+        height: "100vh",
+        overflow: "hidden",
         fontFamily: "ui-sans-serif, system-ui",
         boxSizing: "border-box",
-        overflowX: "hidden",
+        background: "#F3F4F6",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>Feed Pruefung</div>
-          <div style={{ marginTop: 6, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
-            Schritt fuer Schritt Pruefung fuer CSV Produktdatenfeeds
-          </div>
-        </div>
-        {/* Header summary removed, summary is now shown under Step 1 */}
-      </div>
-
-      <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
-
-        {/* STEP 1 */}
-        <StepCard
-          title="1 Datei hochladen"
-          status={headers.length ? "ok" : "idle"}
-          subtitle="CSV Datei hochladen um die Pruefung zu starten"
+      {/* topNav already rendered above, this is the content area */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: headers.length ? "none" : 1000,
+            padding: 24,
+            boxSizing: "border-box",
+            overflow: "hidden",
+          }}
         >
+          {/* ── Two-column layout once a file is loaded ── */}
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-start",
-              gap: 10,
-              marginTop: 2,
-              flexWrap: "wrap",
+              marginTop: 18,
+              display: headers.length ? "flex" : "block",
+              gap: headers.length ? 16 : 14,
+              alignItems: "flex-start",
+              height: headers.length ? "calc(100vh - 24px - 48px)" : "auto", // approx: full height minus padding+header
             }}
           >
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 999,
-                border: `1px solid ${BRAND_COLOR}`,
-                background: "#FFFFFF",
-                fontSize: 12,
-                fontWeight: 700,
-                color: BRAND_COLOR,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              Datei auswaehlen
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                window.open(
-                  "http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx",
-                  "_blank",
-                  "noopener,noreferrer"
-                )
-              }
-              style={{
-                padding: "8px 12px",
-                borderRadius: 999,
-                border: "1px solid #CBD5E1",
-                background: "#F9FAFB",
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#111827",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              Feedvorlage (Excel) herunterladen
-            </button>
+            {/* ── LEFT: Summary + Steps 1–5 ── */}
             <div
               style={{
-                fontSize: 12,
-                color: "#6B7280",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                flex: 1,
-                minWidth: 0,
+                flex: headers.length ? "1 1 0" : "auto",
+                maxWidth: "none",
+                maxHeight: headers.length ? "100%" : "none",
+                overflowY: headers.length ? "auto" : "visible",
+                paddingRight: headers.length ? 4 : 0,
               }}
             >
-              {fileName ? `Aktuelle Datei: ${fileName}` : "Unterstuetzt CSV Dateien mit Kopfzeile"}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(e) => onPickFile(e.target.files?.[0] || null)}
-              style={{ display: "none" }}
-            />
-          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
 
-          {parseError ? (
-            <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>
-              Fehler beim Einlesen {parseError}
-            </div>
-          ) : null}
-
-          {headers.length ? (
-            <div
-              style={{
-                marginTop: 8,
-                padding: 10,
-                borderRadius: 14,
-                border: `1px solid ${summary.canStart ? "#A7F3D0" : "#FCD34D"}`,
-                background: summary.canStart ? "#ECFDF3" : "#FFFBEB",
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <Pill tone={summary.canStart ? "ok" : "warn"}>
-                  {summary.canStart ? "✅ Feed ist startklar" : "🚧 Noch nicht startklar"}
-                </Pill>
-                <Pill tone="info">Score {summary.score} / 100</Pill>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Kritisch</div>
-                <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                  {(summary.issues.length ? summary.issues : ["Keine kritischen Fehler erkannt"]).slice(0, 3).map((x, idx) => (
-                    <li key={idx}>{x}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>Optionale Checks</div>
-                <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                  {(summary.tips.length ? summary.tips : ["Keine weiteren Empfehlungen"]).slice(0, 3).map((x, idx) => (
-                    <li key={idx}>{x}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ) : null}
-        </StepCard>
-
-        {/* STEP 2 */}
-        <StepCard
-          title="2 Spalten und Pflichtfelder"
-          status={stage1Status}
-          subtitle="Wir pruefen ob Pflichtinformationen vorhanden sind oder zugeordnet werden koennen"
-        >
-          {!headers.length ? (
-            <SmallText>Bitte CSV hochladen um die erkannten Spalten zu sehen.</SmallText>
-          ) : (
-            <>
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: 8,
-                  borderRadius: 10,
-                  border: `1px solid ${allRequiredOk ? "#A7F3D0" : "#FCD34D"}`,
-                  background: allRequiredOk ? "#ECFDF3" : "#FFFBEB",
-                  fontSize: 12,
-                  color: allRequiredOk ? "#166534" : "#92400E",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <span>
-                  {allRequiredOk
-                    ? "Alle Pflichtfelder wurden korrekt zugeordnet."
-                    : `Es fehlen noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern.`}
-                </span>
-                <span>
-                  {optionalFields.length
-                    ? `${optionalPresence.found.length}/${optionalFields.length} optionale Felder erkannt`
-                    : "Keine optionalen Felder konfiguriert"}
-                </span>
-                {allRequiredOk ? (
-                  <button
-                    type="button"
-                    onClick={() => setStep2Expanded((v) => !v)}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(22,101,52,0.25)",
-                      background: "#FFFFFF",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {step2Expanded ? "Details ausblenden" : "Details anzeigen"}
-                  </button>
-                ) : null}
-              </div>
-
-              {(!allRequiredOk || step2Expanded) && (
-                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-                  <div>
-                    <SmallText>
-                      Gefundene Spalten {headers.length}. Pflicht sind nur <code>ean (GTIN14)</code>,{" "}
-                      <code>seller_offer_id</code> und <code>name</code>. Alle anderen Felder sind optional.
-                    </SmallText>
-                    <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6, maxWidth: "100%" }}>
-                      {headers.slice(0, 20).map((h) => (
-                        <span
-                          key={String(h)}
-                          style={{
-                            fontSize: 11,
-                            padding: "4px 8px",
-                            borderRadius: 999,
-                            border: "1px solid #E5E7EB",
-                            background: "#F9FAFB",
-                            color: "#111827",
-                            wordBreak: "break-all",
-                            maxWidth: "100%",
-                          }}
-                        >
-                          {String(h)}
-                        </span>
-                      ))}
-                    </div>
-                    {headers.length > 20 ? (
-                      <details style={{ marginTop: 6 }}>
-                        <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>
-                          Weitere Spalten anzeigen ({headers.length - 20} weitere)
-                        </summary>
-                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6, maxWidth: "100%" }}>
-                          {headers.slice(20).map((h) => (
-                            <span
-                              key={String(h)}
-                              style={{
-                                fontSize: 11,
-                                padding: "4px 8px",
-                                borderRadius: 999,
-                                border: "1px solid #E5E7EB",
-                                background: "#F9FAFB",
-                                color: "#111827",
-                                wordBreak: "break-all",
-                                maxWidth: "100%",
-                              }}
-                            >
-                              {String(h)}
-                            </span>
-                          ))}
-                        </div>
-                      </details>
-                    ) : null}
-                  </div>
-
-                  <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
-                    <SmallText>Diese Felder muessen fuer jeden Artikel erkannt werden.</SmallText>
-                    <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                      {requiredFields.map((f) => {
-                        const col = mapping[f];
-                        const missing = !col;
-                        return (
-                          <div
-                            key={f}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              gap: 6,
-                              padding: 6,
-                              borderRadius: 10,
-                              border: "1px solid #E5E7EB",
-                              background: missing ? "#FEF3C7" : "#ECFDF3",
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <div style={{ fontSize: 12, color: missing ? "#92400E" : "#166534" }}>
-                                {col ? `Spalte ${col}` : "Nicht gefunden"}
-                              </div>
-                              <Pill tone={missing ? "warn" : "ok"}>{missing ? "Fehlt" : "OK"}</Pill>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ marginTop: 8, fontSize: 12, color: requiredPresence.missing.length ? "#92400E" : "#166534" }}>
-                      {requiredPresence.missing.length
-                        ? `Noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern ohne Zuordnung.`
-                        : `Alle ${requiredFields.length} Pflichtfelder wurden automatisch zugeordnet.`}
-                    </div>
-                  </div>
-
-                  <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Optionale Felder</div>
-                    <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualitaet und Score.</SmallText>
-                    <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                      {optionalFields.map((f) => {
-                        const col = mapping[f];
-                        const missing = !col;
-                        return (
-                          <div
-                            key={f}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              gap: 6,
-                              padding: 6,
-                              borderRadius: 10,
-                              border: "1px solid #E5E7EB",
-                              background: missing ? "#F9FAFB" : "#EEF2FF",
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <div style={{ fontSize: 12, color: missing ? "#6B7280" : BRAND_COLOR }}>
-                                {col ? `Spalte ${col}` : "Nicht gefunden"}
-                              </div>
-                              <Pill tone={missing ? "info" : "ok"}>{missing ? "Optional" : "OK"}</Pill>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ marginTop: 8, fontSize: 12, color: "#4B5563" }}>
-                      {optionalFields.length
-                        ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern wurden automatisch zugeordnet.`
-                        : "Keine optionalen Felder konfiguriert."}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </StepCard>
-
-        {/* STEP 3 */}
-        <StepCard title="3 Duplikate" status={stage2Status} subtitle="Wir pruefen doppelte EAN und doppelte Produkttitel">
-          {!headers.length ? (
-            <SmallText>Bitte CSV hochladen um Duplikate zu pruefen.</SmallText>
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Pill tone={eanColumn ? "ok" : "warn"}>{eanColumn ? `EAN Spalte ${eanColumn}` : "EAN Spalte nicht gefunden"}</Pill>
-                <Pill tone={titleColumn ? "ok" : "warn"}>{titleColumn ? `Titel Spalte ${titleColumn}` : "Titel Spalte nicht gefunden"}</Pill>
-              </div>
-
-              {duplicateEans.length > 0 || duplicateTitleRows.length > 0 || duplicateSellerOfferIds.length > 0 ? (
-                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                  {duplicateEans.length > 0 ? (
-                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte EAN Werte</div>
-                      <SmallText>Liste der EAN Werte die mehr als einmal vorkommen</SmallText>
-                      <div style={{ marginTop: 10 }}>
-                        <CollapsibleList title="Doppelte EAN" items={duplicateEans} tone="warn" />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {duplicateTitleRows.length > 0 ? (
-                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Titel</div>
-                      
-                      <div style={{ marginTop: 10 }}>
-                        <CollapsibleList
-                          title="Doppelte Titel"
-                          items={groupByValueWithEans(
-                            duplicateTitleRows.map((x) => ({ value: x.title, ean: x.ean }))
-                          )
-                            .filter((g) =>
-                              !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                            )
-                            .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                          tone="warn"
-                          hint="Jede Zeile zeigt einen Titel und alle EANs, die diesen Titel mehrfach verwenden"
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {duplicateSellerOfferIds.length > 0 ? (
-                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Seller_Offer_ID Werte</div>
-                      <SmallText>Liste der Seller_Offer_ID Werte die mehr als einmal vorkommen</SmallText>
-                      <div style={{ marginTop: 10 }}>
-                        <CollapsibleList
-                          title="Doppelte Seller_Offer_ID"
-                          items={duplicateSellerOfferIds}
-                          tone="warn"
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </>
-          )}
-        </StepCard>
-
-        {/* STEP 4 */}
-        <StepCard
-          title="4 Optionale Felder und Versand"
-          status={stage3Status}
-        
-        >
-          {!headers.length ? (
-            <SmallText>Bitte CSV hochladen um Schritt 4 zu pruefen.</SmallText>
-          ) : (
-            <>
-              {/* Titel Checks */}
-              {optionalFindings.titleIssues.tooShort.length > 0 ||
-              optionalFindings.titleIssues.seeAbove.length > 0 ||
-              optionalFindings.titleIssues.missingAttributes.length > 0 ||
-              optionalFindings.descriptionIssues.templateLike.length > 0 ||
-              optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Titel Qualitaet</div>
-                  <SmallText>
-                    </SmallText>
-                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                    {optionalFindings.titleIssues.tooShort.length > 0 ? (
-                      <CollapsibleList
-                        title="Titel zu kurz"
-                        items={optionalFindings.titleIssues.tooShort
-                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                          .map((x) => `${x}`)}
-                        tone="warn"
-                        hint="EANs/Zeilen deren Titel kuerzer als die im Regeln-Tab definierte Mindestlaenge sind"
-                      />
-                    ) : null}
-                    {optionalFindings.titleIssues.seeAbove.length > 0 ? (
-                      <CollapsibleList
-                        title='Titel enthaelt "siehe oben"'
-                        items={optionalFindings.titleIssues.seeAbove
-                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                          .map((x) => `${x}`)}
-                        tone="warn"
-                        hint='Titel, die einen Hinweis wie "siehe oben" enthalten und dadurch unklar sind'
-                      />
-                    ) : null}
-                    {optionalFindings.descriptionIssues.templateLike.length > 0 ? (
-                      <CollapsibleList
-                        title="Beschreibung wirkt wie Platzhalter"
-                        items={optionalFindings.descriptionIssues.templateLike
-                          .filter((ean) => !eanSearch || String(ean).includes(eanSearch))
-                          .map((ean) => {
-                            let titleVal = "";
-                            let descVal = "";
-                            if (eanColumn && titleColumn && mapping.description) {
-                              const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
-                              if (row) {
-                                titleVal = String(row[titleColumn] ?? "").trim();
-                                descVal = String(row[mapping.description] ?? "").trim();
-                              }
-                            }
-                            const preview =
-                              descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
-                            if (titleVal) {
-                              return `${ean}: ${titleVal} – ${preview}`;
-                            }
-                            return `${ean}: ${preview}`;
-                          })}
-                        tone="warn"
-                        hint="Beschreibung entspricht z.B. exakt dem Titel, ist extrem kurz oder enthaelt typische Beispieltexte"
-                      />
-                    ) : null}
-                    {optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
-                      <CollapsibleList
-                        title="Hinweise auf B-Ware / gebraucht"
-                        items={optionalFindings.descriptionIssues.usedOrBware
-                          .filter((ean) => !eanSearch || String(ean).includes(eanSearch))
-                          .map((ean) => {
-                            let titleVal = "";
-                            let descVal = "";
-                            if (eanColumn && titleColumn && mapping.description) {
-                              const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
-                              if (row) {
-                                titleVal = String(row[titleColumn] ?? "").trim();
-                                descVal = String(row[mapping.description] ?? "").trim();
-                              }
-                            }
-                            const preview =
-                              descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
-                            if (titleVal) {
-                              return `${ean}: ${titleVal} – ${preview}`;
-                            }
-                            return `${ean}: ${preview}`;
-                          })}
-                        tone="bad"
-                        hint="Produkte, deren Beschreibung auf B-Ware, gebrauchte oder generalueberholte Ware hindeutet"
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* EAN fehlt */}
-              {optionalFindings.missingEANs.length > 0 ? (
-                <div style={{ marginTop: 14 }}>
-                  <CollapsibleList
-                    title="Zeilen ohne EAN"
-                    items={optionalFindings.missingEANs
-                      .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                      .map((x) => `${x}: None`)}
-                    tone="bad"
-                    hint="➜ bitte EAN nachliefern"
-                  />
-                </div>
-              ) : null}
-
-              {/* Material */}
-              {(optionalFindings.missingEansByField.material.length > 0 ||
-                (optionalFindings.invalidMaterial?.length || 0) > 0) && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Material</div>
-                  <SmallText>
-                    {optionalFindings.samplesByField.material.length
-                      ? optionalFindings.samplesByField.material.join(" | ")
-                      : "keine Beispielwerte gefunden"}
-                  </SmallText>
-                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                    {optionalFindings.missingEansByField.material.length > 0 ? (
-                      <CollapsibleList
-                        title="Material fehlt"
-                        items={optionalFindings.missingEansByField.material
-                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                          .map((x) => `${x}: None`)}
-                        tone="warn"
-                      />
-                    ) : null}
-                    {optionalFindings.invalidMaterial?.length ? (
-                      <CollapsibleList
-                        title="Material ausserhalb erlaubter Werte"
-                        items={groupByValueWithEans(optionalFindings.invalidMaterial)
-                          .filter((g) =>
-                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                          )
-                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                        tone="warn"
-                        hint="Werte, die nicht in der Material-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-                      />
-                    ) : null}
-                    {optionalFindings.invalidMaterial?.length ? (
-                      <div>
-                        <SmallText>Einzelne Material-Werte als erlaubt markieren:</SmallText>
-                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {uniqueNonEmpty(optionalFindings.invalidMaterial.map((x) => x.value)).map((val) => (
-                            <button
-                              key={val}
-                              onClick={() => addAllowedRuleValue("material", val)}
-                              style={{
-                                padding: "4px 8px",
-                                borderRadius: 999,
-                                border: "1px solid #E5E7EB",
-                                background: "#FFFFFF",
-                                fontSize: 11,
-                                cursor: "pointer",
-                                color: "#111827",
-                              }}
-                            >
-                              {val} als erlaubt speichern
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-
-              {/* Farbe */}
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Farbe</div>
-                <SmallText>
-                  {optionalFindings.samplesByField.color.length
-                    ? optionalFindings.samplesByField.color.join(" | ")
-                    : "keine Beispielwerte gefunden"}
-                </SmallText>
-                <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                  {optionalFindings.missingEansByField.color.length > 0 ? (
-                    <CollapsibleList
-                      title="Farbe fehlt"
-                      items={optionalFindings.missingEansByField.color
-                        .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                        .map((x) => `${x}: None`)}
-                      tone="warn"
-                    />
-                  ) : null}
-                  {optionalFindings.invalidColor?.length ? (
-                    <>
-                      <CollapsibleList
-                        title="Farbe ausserhalb erlaubter Werte"
-                        items={groupByValueWithEans(optionalFindings.invalidColor)
-                          .filter((g) =>
-                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                          )
-                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                        tone="warn"
-                        hint="Werte, die nicht in der Farb-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-                      />
-                      <div>
-                        <SmallText>Einzelne Farb-Werte als erlaubt markieren:</SmallText>
-                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {uniqueNonEmpty(optionalFindings.invalidColor.map((x) => x.value)).map((val) => (
-                            <button
-                              key={val}
-                              onClick={() => addAllowedRuleValue("color", val)}
-                              style={{
-                                padding: "4px 8px",
-                                borderRadius: 999,
-                                border: "1px solid #E5E7EB",
-                                background: "#FFFFFF",
-                                fontSize: 11,
-                                cursor: "pointer",
-                                color: "#111827",
-                              }}
-                            >
-                              {val} als erlaubt speichern
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  ) : null}
-                  {optionalFindings.missingEansByField.color.length === 0 &&
-                  !(optionalFindings.invalidColor?.length > 0) ? (
-                    <SmallText>Alle Farbwerte sind gueltig.</SmallText>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Lieferumfang */}
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang</div>
-                <SmallText>
-                  {optionalFindings.samplesByField.delivery_includes.length
-                    ? optionalFindings.samplesByField.delivery_includes.join(" | ")
-                    : "keine Beispielwerte gefunden"}
-                </SmallText>
-                <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                  {optionalFindings.missingEansByField.delivery_includes.length > 0 ? (
-                    <CollapsibleList
-                      title="Lieferumfang fehlt"
-                      items={optionalFindings.missingEansByField.delivery_includes
-                        .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                        .map((x) => `${x}: None`)}
-                      tone="warn"
-                    />
-                  ) : null}
-                  {optionalFindings.invalidDeliveryIncludes?.length ? (
-                    <div>
-                      <CollapsibleList
-                        title="Lieferumfang ausserhalb Pattern"
-                        items={groupByValueWithEans(optionalFindings.invalidDeliveryIncludes)
-                          .filter((g) =>
-                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                          )
-                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                        tone="warn"
-                        hint="Werte, die nicht zum aktuellen Lieferumfang-Pattern passen, gruppiert nach Wert"
-                      />
-                      <div style={{ marginTop: 8 }}>
-                        <SmallText>Einzelne Lieferumfang-Werte als erlaubt markieren:</SmallText>
-                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {uniqueNonEmpty(optionalFindings.invalidDeliveryIncludes.map((x) => x.value)).map((val) => (
-                            <button
-                              key={val}
-                              onClick={() => addAllowedRuleValue("delivery_includes", val)}
-                              style={{
-                                padding: "4px 8px",
-                                borderRadius: 999,
-                                border: "1px solid #E5E7EB",
-                                background: "#FFFFFF",
-                                fontSize: 11,
-                                cursor: "pointer",
-                                color: "#111827",
-                              }}
-                            >
-                              {val} als erlaubt speichern
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                  {optionalFindings.missingEansByField.delivery_includes.length === 0 &&
-                  !(optionalFindings.invalidDeliveryIncludes?.length > 0) ? (
-                    <SmallText>Alle Lieferumfang-Werte sind gueltig.</SmallText>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Lieferzeit / delivery_time – nur anzeigen, wenn es Probleme gibt */}
-              {mapping.delivery_time &&
-              ((optionalFindings.missingEansByField.delivery_time &&
-                optionalFindings.missingEansByField.delivery_time.length > 0) ||
-                (optionalFindings.invalidDeliveryTime?.length > 0)) ? (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferzeit (delivery_time)</div>
-                  <SmallText>Erwartetes Format z B &quot;3-5 Werktage&quot; oder &quot;2 Wochen&quot; ohne zusaetzlichen Fliesstext.</SmallText>
-                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                    {optionalFindings.missingEansByField.delivery_time &&
-                    optionalFindings.missingEansByField.delivery_time.length > 0 ? (
-                      <CollapsibleList
-                        title="Lieferzeit fehlt"
-                        items={optionalFindings.missingEansByField.delivery_time
-                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                          .map((x) => `${x}: None`)}
-                        tone="warn"
-                      />
-                    ) : null}
-                    {optionalFindings.invalidDeliveryTime?.length ? (
-                      <CollapsibleList
-                        title="Lieferzeit ausserhalb erlaubter Formate"
-                        items={groupByValueWithEans(optionalFindings.invalidDeliveryTime)
-                          .filter((g) =>
-                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                          )
-                          .map((g) => `${g.value || "(leer)"} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                        tone="warn"
-                        hint='Erwartet werden Angaben wie "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" ohne Mischformen.'
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Beispielwerte aus Muster-Feed */}
-              {optionalFindings.templateValueHits && optionalFindings.templateValueHits.length > 0 ? (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Beispielwerte aus Muster-Feed</div>
-                  <SmallText>
-                    In diesen Feldern scheinen noch Beispiel-/Demo-Werte aus dem Muster-Feed zu stehen. Bitte fuer echte Produkte
-                    entfernen oder korrekt ausfuellen.
-                  </SmallText>
-                  <div style={{ marginTop: 8 }}>
-                    <CollapsibleList
-                      title="Felder mit Beispielwerten"
-                      items={groupByValueWithEans(optionalFindings.templateValueHits)
-                        .filter((g) =>
-                          !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                        )
-                        .map(
-                          (g) =>
-                            `${g.value} (${g.eans.length} EANs, Spalte ${g.column || "unbekannt"}): ${g.eans.join(", ")}`
-                        )}
-                      tone="warn"
-                      hint="Werte, die wie Beispielangaben aus einem Muster-Feed aussehen (z.B. Demo-URLs, Platzhalter)."
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Waschbarer Bezug */}
-              {mapping.washable_cover && optionalFindings.invalidWashableCover.length > 0 ? (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Waschbarer Bezug (washable_cover)</div>
-                  <SmallText>Erlaubt sind nur die Werte &quot;ja&quot; oder &quot;nein&quot;.</SmallText>
-                  <div style={{ marginTop: 8 }}>
-                    <CollapsibleList
-                      title="Ungültige washable_cover Werte"
-                      items={groupByValueWithEans(optionalFindings.invalidWashableCover)
-                        .filter((g) =>
-                          !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                        )
-                        .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                      tone="warn"
-                      hint='Waschbarer Bezug sollte nur "ja" oder "nein" enthalten'
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Montageseite / mounting_side */}
-              {mapping.mounting_side && optionalFindings.invalidMountingSide.length > 0 ? (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Montageseite (mounting_side)</div>
-                  <SmallText>
-                    Erlaubt sind nur die Werte &quot;links&quot;, &quot;rechts&quot; oder &quot;beidseitig&quot; – Kombinationen wie
-                    &quot;links, rechts, beidseitig&quot; sind nicht erlaubt.
-                  </SmallText>
-                  <div style={{ marginTop: 8 }}>
-                    <CollapsibleList
-                      title="Ungültige mounting_side Werte"
-                      items={groupByValueWithEans(optionalFindings.invalidMountingSide)
-                        .filter((g) =>
-                          !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                        )
-                        .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                      tone="warn"
-                      hint='Montageseite sollte nur "links", "rechts" oder "beidseitig" enthalten'
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              {/* shipping_mode – nur anzeigen, wenn es Probleme gibt */}
-              {mapping.shipping_mode &&
-              (optionalFindings.missingShipping.length > 0 || optionalFindings.invalidShipping.length > 0) ? (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>shipping_mode</div>
-                  <SmallText>
-                    Erlaubt sind Paket oder Spedition. Weitere erlaubte Werte koennen im Regeln Tab gepflegt werden.
-                  </SmallText>
-
-                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                    {optionalFindings.missingShipping.length > 0 ? (
-                      <CollapsibleList
-                        title="shipping_mode fehlt"
-                        items={optionalFindings.missingShipping
-                          .filter((x) => !eanSearch || String(x).includes(eanSearch))
-                          .map((x) => `${x}: None`)}
-                        tone="warn"
-                        hint="Felder ohne Versandart"
-                      />
-                    ) : null}
-                    {optionalFindings.invalidShipping.length > 0 ? (
-                      <CollapsibleList
-                        title="shipping_mode ausserhalb erlaubter Werte"
-                        items={groupByValueWithEans(optionalFindings.invalidShipping)
-                          .filter((g) =>
-                            !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))
-                          )
-                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                        tone="warn"
-                        hint="Werte, die nicht in der shipping_mode-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-                      />
-                    ) : null}
-                    {optionalFindings.invalidShipping.length ? (
-                      <div>
-                        <SmallText>Einzelne Versandarten als erlaubt markieren:</SmallText>
-                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {uniqueNonEmpty(optionalFindings.invalidShipping.map((x) => x.value)).map((val) => (
-                            <button
-                              key={val}
-                              onClick={() => addAllowedRuleValue("shipping_mode", val)}
-                              style={{
-                                padding: "4px 8px",
-                                borderRadius: 999,
-                                border: "1px solid #E5E7EB",
-                                background: "#FFFFFF",
-                                fontSize: 11,
-                                cursor: "pointer",
-                                color: "#111827",
-                              }}
-                            >
-                              {val} als erlaubt speichern
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {optionalFindings.scientificEans.length > 0 ? (
-                <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #FDE68A", background: "#FFFBEB" }}>
-                  <div style={{ fontWeight: 700, color: "#92400E", fontSize: 13 }}>Hinweis EAN Format</div>
-                  <div style={{ marginTop: 6, color: "#92400E", fontSize: 13 }}>
-                    Einige EAN Werte sehen nach wissenschaftlicher Schreibweise aus.
-                  </div>
-                  <div style={{ marginTop: 10 }}>
-                    <CollapsibleList title="Betroffene EAN" items={optionalFindings.scientificEans.filter((x) => !eanSearch || String(x).includes(eanSearch))} tone="warn" />
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
-        </StepCard>
-
-        {/* STEP 5 */}
-        <StepCard
-          title="5 Bilder"
-          status={
-            !headers.length
-              ? "idle"
-              : !imageColumns.length
-              ? "warn"
-              : brokenImageIds.length > 0
-              ? "bad"
-              : "ok"
-          }
-          subtitle="Wir pruefen Bilder je Produkt und zeigen Beispielprodukte"
-        >
-          {!headers.length ? (
-            <SmallText>Bitte CSV hochladen um die Bildpruefung zu sehen.</SmallText>
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                <Pill tone={imageColumns.length ? "ok" : "warn"}>{imageColumns.length ? `Bildspalten ${imageColumns.length}` : "Keine Bildspalten erkannt"}</Pill>
-              </div>
-
-              <SmallText>
-                Unten siehst du eine Uebersicht, wie viele Produkte keine, nur ein oder mehrere Bilder haben, sowie bis zu 5 Beispielprodukte mit allen Bildlinks.
-              </SmallText>
-
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Anzahl Bilder pro Produkt</div>
-                  <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                    {(() => {
-                      const items = [];
-                      const keys = Object.keys(imageBuckets || {})
-                        .map((k) => Number(k))
-                        .filter((k) => Number.isFinite(k) && k >= 0);
-
-                      if (!keys.length) {
-                        items.push(
-                          <SmallText key="no-images">
-                            Es konnten keine Bildinformationen ermittelt werden.
-                          </SmallText>
-                        );
-                        return items;
-                      }
-
-                      const maxN = Math.max(...keys);
-                      for (let n = 0; n <= maxN; n += 1) {
-                        const list = imageBuckets[n] || [];
-                        if (!list.length) continue;
-                        const tone = n === 0 ? "bad" : n === 1 ? "warn" : "ok";
-                        const title =
-                          n === 0
-                            ? `0 Bilder (${list.length})`
-                            : n === 1
-                            ? `1 Bild (${list.length})`
-                            : `${n} Bilder (${list.length})`;
-                        const hint =
-                          n === 0
-                            ? "EANs ohne jegliche Bilder"
-                            : n === 1
-                            ? "EANs mit genau einem Bild"
-                            : `EANs mit genau ${n} Bildern`;
-                        items.push(
-                          <CollapsibleList
-                            key={`img-${n}`}
-                            title={title}
-                            items={list}
-                            tone={tone}
-                            hint={hint}
-                          />
-                        );
-                      }
-                      return items;
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              {imageSamples.length ? (
-                <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {imageSamples
-                    .filter((s) => !eanSearch || String(s.id).includes(eanSearch))
-                    .slice(0, imageSampleLimitStep5)
-                    .map((sample) => (
-                      <div
-                        key={sample.id}
-                        style={{
-                          padding: 10,
-                          borderRadius: 14,
-                          border: "1px solid #E5E7EB",
-                          background: "#FFFFFF",
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 10,
-                          minWidth: 0,
-                        }}
-                      >
-                        <div style={{ minWidth: 0, maxWidth: 220 }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {sample.id}
-                          </div>
-                  
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {sample.urls.slice(0, 6).map((u) => (
-                            <div key={u} style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                              <a href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}>
-                                <img
-                                  src={u}
-                                  alt="Bild"
-                                  loading="lazy"
-                                  style={{
-                                    width: 64,
-                                    height: 64,
-                                    objectFit: "cover",
-                                    borderRadius: 12,
-                                    border: "1px solid #E5E7EB",
-                                    background: "#F9FAFB",
-                                  }}
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = "none";
-                                    const textEl = e.currentTarget.parentElement?.nextElementSibling;
-                                    if (textEl && textEl instanceof HTMLElement) {
-                                      textEl.style.display = "block";
-                                    }
-                                  setBrokenImageIds((prev) => {
-                                    const set = new Set(prev);
-                                    set.add(sample.id);
-                                    return Array.from(set);
-                                  });
-                                  }}
-                                />
-                              </a>
-                              <div
-                                style={{
-                                  display: "none",
-                                  fontSize: 10,
-                                  color: "#4B5563",
-                                  wordBreak: "break-all",
-                                  maxWidth: 180,
-                                }}
-                              >
-                                {u}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  {imageSampleLimitStep5 <
-                  imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length ? (
-                    <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
-                      <button
-                        onClick={() =>
-                          setImageSampleLimitStep5((n) =>
-                            Math.min(
-                              imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length,
-                              n + 5
-                            )
-                          )
-                        }
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          border: "1px solid #E5E7EB",
-                          background: "#FFFFFF",
-                          cursor: "pointer",
-                          fontSize: 11,
-                          fontWeight: 600,
-                        }}
-                      >
-                        Mehr Produkte anzeigen
-                      </button>
-                    </div>
-                  ) : null}
-
-                  {brokenImageIds.length ? (
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>
-                      Warnung: Bei {brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden.
-                      Bitte pruefen, ob die Bild-Links fuer diese EANs funktionieren: {brokenImageIds.slice(0, 10).join(", ")}
-                      {brokenImageIds.length > 10 ? " …" : ""}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div style={{ marginTop: 12 }}>
-                  <SmallText>
-                    Es konnten keine Beispielprodukte mit Bildlinks ermittelt werden. Besonders kritisch sind EANs ohne Bilder oder nur einem Bild.
-                  </SmallText>
-                </div>
-              )}
-            </>
-          )}
-        </StepCard>
-
-        {/* STEP 6 */}
-          <div ref={step6Ref}>
-            <StepCard
-              title="6 Zusammenfassung und Entscheidung"
-              status={headers.length ? (summary.canStart ? "ok" : "warn") : "idle"}
-              subtitle="Kurzes Ergebnis und eine Mailvorlage falls Anpassungen noetig sind"
-            >
-              {headers.length ? (
-                <>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    <Pill tone={summary.canStart ? "ok" : "warn"}>
-                      {summary.canStart ? "✅ Wir koennen starten" : "🚧 Noch nicht startklar"}
-                    </Pill>
-                    <Pill tone="info">⭐ Score {summary.score} von 100</Pill>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFileName("");
-                      setRawRows([]);
-                      setHeaders([]);
-                      setParseError("");
-                      setPreviewCount(40);
-                      setEanSearch("");
-                      setShopName("");
-                      setShowEmailTemplate(false);
-                      fileInputRef.current?.click();
-                    }}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 999,
-                      border: `1px solid ${BRAND_COLOR}`,
-                      background: "#FFFFFF",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: BRAND_COLOR,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Neue Datei pruefen
-                  </button>
-                </div>
-
-                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, color: "#FFFFFF", minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13 }}>⚠️ Kritische Punkte</div>
-                  <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                    {(summary.issues.length ? summary.issues : ["Keine kritischen Fehler erkannt"]).map((x, i) => (
-                      <div key={i} style={{ fontSize: 13 }}>• {x}</div>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ padding: 12, borderRadius: 14, border: `1px solid ${BRAND_COLOR}`, background: "#FFFFFF", color: BRAND_COLOR, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13 }}>💡 Verbesserungen</div>
-                  <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                    {(summary.tips.length ? summary.tips : ["Keine Vorschlaege"]).map((x, i) => (
-                      <div key={i} style={{ fontSize: 13 }}>• {x}</div>
-                    ))}
-                  </div>
-                </div>
-                </div>
-
-                <div style={{ marginTop: 14 }}>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Mailvorlage</div>
-                  {summary.canStart ? (
-                    <button
-                      onClick={() => setShowEmailTemplate((v) => !v)}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 999,
-                        border: "1px solid #E5E7EB",
-                        background: "#FFFFFF",
-                        cursor: "pointer",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "#111827",
-                      }}
-                    >
-                      {showEmailTemplate ? "Mailvorlage ausblenden" : "Mailvorlage erstellen"}
-                    </button>
-                  ) : (
-                    <SmallText>Feed ist noch nicht startklar – Mailvorlage wird automatisch angezeigt.</SmallText>
-                  )}
-                </div>
-
-                {showEmailTemplate ? (
-                  <>
-                    <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                      <input
-                        value={shopName}
-                        onChange={(e) => setShopName(e.target.value)}
-                        placeholder="Shopname optional"
-                        style={{
-                          flex: "1 1 200px",
-                          minWidth: 0,
-                          padding: 10,
-                          borderRadius: 12,
-                          border: "1px solid #E5E7EB",
-                          boxSizing: "border-box",
-                        }}
-                      />
-                    </div>
-                    <SmallText>Einfach kopieren und in das Mailtool einfuegen.</SmallText>
-                    <textarea
-                      value={emailText}
-                      readOnly
-                      rows={14}
-                      style={{
-                        marginTop: 10,
-                        width: "100%",
-                        padding: 12,
-                        borderRadius: 14,
-                        border: "1px solid #E5E7EB",
-                        fontSize: 12,
-                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                        lineHeight: "18px",
-                        background: "white",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </>
-                ) : null}
-                  </div>
-                </>
-              ) : null}
-            </StepCard>
-          </div>
-
-        {/* STEP 7 */}
-        <StepCard title="7 Vorschau" status={headers.length ? "ok" : "idle"} subtitle="Vorschau der Zeilen mit allen Spalten">
-          {!headers.length ? (
-            <SmallText>Bitte CSV hochladen um eine Vorschau zu sehen.</SmallText>
-          ) : (
-            <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <SmallText>Spaltenbreite per Drag am rechten Rand des Spaltenkopfs anpassen.</SmallText>
+            {/* UPLOAD */}
+            <StepCard title="Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="CSV-Datei hochladen, um die Prüfung zu starten">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
                 <button
                   type="button"
-                  onClick={() => setPreviewFullscreen(true)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    border: `1px solid ${BRAND_COLOR}`,
-                    background: "#FFFFFF",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    color: BRAND_COLOR,
-                    whiteSpace: "nowrap",
-                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ padding: "8px 12px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: "#FFFFFF", fontSize: 12, fontWeight: 700, color: BRAND_COLOR, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
                 >
-                  Vorschau maximieren
+                  Datei auswählen
                 </button>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <TextInput
-                  label="Suche"
-                  value={eanSearch}
-                  onChange={setEanSearch}
-                  placeholder="EAN eingeben um passende Zeilen zu filtern"
-                />
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <ResizableTable
-                  columns={headers.map((h) => ({ key: h, label: String(h) }))}
-                  rows={rows
-                    .filter((r) => {
-                      if (!eanSearch) return true;
-                      if (eanColumn) {
-                        const val = String(r[eanColumn] ?? "").trim();
-                        return val.includes(eanSearch);
-                      }
-                      const q = eanSearch.toLowerCase();
-                      return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
-                    })
-                    .slice(0, previewCount)}
-                />
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <SmallText>
-                    Zeige {Math.min(previewCount, rows.length)} von {rows.length} Zeilen.
-                  </SmallText>
-                  <button
-                    onClick={() => setPreviewCount((c) => Math.min(rows.length, c + 20))}
-                    disabled={previewCount >= rows.length}
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: 999,
-                      border: `1px solid ${BRAND_COLOR}`,
-                      background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR,
-                      cursor: previewCount >= rows.length ? "not-allowed" : "pointer",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "#FFFFFF",
-                    }}
-                  >
-                    20 weitere laden
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </StepCard>
-
-        {previewFullscreen && headers.length ? (
-          <div
-            onClick={() => setPreviewFullscreen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.65)",
-              zIndex: 50,
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              padding: 16,
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "100%",
-                maxWidth: 1400,
-                maxHeight: "90vh",
-                background: "#FFFFFF",
-                borderRadius: 16,
-                padding: 16,
-                boxShadow: "0 25px 50px -12px rgba(15,23,42,0.45)",
-                boxSizing: "border-box",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>Vorschau Vollbild</div>
                 <button
                   type="button"
-                  onClick={() => setPreviewFullscreen(false)}
+                  onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
+                  style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #CBD5E1", background: "#F9FAFB", fontSize: 11, fontWeight: 600, color: "#111827", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+                >
+                  Feedvorlage (Excel) herunterladen
+                </button>
+                <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>
+                  {fileName ? `Aktuelle Datei: ${fileName}` : "Unterstuetzt CSV Dateien mit Kopfzeile"}
+                </div>
+                <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
+              </div>
+              {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
+            </StepCard>
+
+            {/* TOGGLE VISIBLE CHECKS */}
+            {headers.length ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAllChecks((v) => !v)}
                   style={{
                     padding: "4px 10px",
                     borderRadius: 999,
                     border: "1px solid #E5E7EB",
-                    background: "#F9FAFB",
+                    background: "#FFFFFF",
                     fontSize: 11,
+                    fontWeight: 600,
                     cursor: "pointer",
+                    whiteSpace: "nowrap",
                     color: "#111827",
                   }}
                 >
-                  Schliessen
+                  {showAllChecks ? "Nur Probleme zeigen" : "Alle Bereiche zeigen"}
                 </button>
+                <SmallText>
+                  {showAllChecks
+                    ? "Alle Bereiche werden angezeigt."
+                    : "Nur Bereiche mit Auffälligkeiten werden angezeigt."}
+                </SmallText>
               </div>
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <ResizableTable
-                  columns={headers.map((h) => ({ key: h, label: String(h) }))}
-                  rows={rows
-                    .filter((r) => {
-                      if (!eanSearch) return true;
-                      if (eanColumn) {
-                        const val = String(r[eanColumn] ?? "").trim();
-                        return val.includes(eanSearch);
-                      }
-                      const q = eanSearch.toLowerCase();
-                      return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
-                    })
-                    .slice(0, Math.max(previewCount, 200))}
-                />
-              </div>
-            </div>
-          </div>
-        ) : null}
+            ) : null}
 
-        <div style={{ marginTop: 2, color: "#6B7280", fontSize: 12, lineHeight: "18px" }}>
-          Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
+            {/* SUMMARY */}
+            <div ref={step6Ref}>
+              <StepCard
+                title="Zusammenfassung und Entscheidung"
+              
+                status={headers.length ? (summary.canStart ? "ok" : "warn") : "idle"}
+                
+              >
+            
+                {headers.length ? (
+                  <>
+                    <div
+                      style={{
+                        marginTop: 2,
+                        padding: 10,
+                        borderRadius: 14,
+                        border: `1px solid ${summary.canStart ? "#A7F3D0" : "#FCD34D"}`,
+                        background: summary.canStart ? "#ECFDF3" : "#FFFBEB",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <Pill tone={summary.canStart ? "ok" : "warn"}>
+                          {summary.canStart ? "✅ Feed ist startklar" : "🚧 Noch nicht startklar"}
+                        </Pill>
+                        <Pill tone="info">Score {summary.score} / 100</Pill>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Kritisch (Top 3)</div>
+                        <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                          {(summary.issues.length ? summary.issues : ["Keine kritischen Fehler erkannt"]).slice(0, 3).map((x, idx) => (<li key={idx}>{x}</li>))}
+                        </ul>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>Optionale Checks (Top 3)</div>
+                        <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
+                          {(summary.tips.length ? summary.tips : ["Keine weiteren Empfehlungen"]).slice(0, 3).map((x, idx) => (<li key={idx}>{x}</li>))}
+                        </ul>
+                      </div>
+                    </div>
+
+                  </>
+                ) : null}
+              </StepCard>
+            </div>
+
+            {/* STEP 2 */}
+            {(showAllChecks || stage1Status !== "ok") && (
+            <StepCard title="Spalten und Pflichtfelder" status={stage1Status} subtitle="Wir prüfen, ob Pflichtinformationen vorhanden sind oder zugeordnet werden können">
+              {!headers.length ? (
+                <SmallText>Bitte CSV hochladen um die erkannten Spalten zu sehen.</SmallText>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: 8,
+                      borderRadius: 10,
+                      border: `1px solid ${allRequiredOk ? "#A7F3D0" : "#FCD34D"}`,
+                      background: allRequiredOk ? "#ECFDF3" : "#FFFBEB",
+                      fontSize: 12,
+                      color: allRequiredOk ? "#166534" : "#92400E",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span>
+                      {allRequiredOk
+                        ? "Alle Pflichtfelder wurden korrekt zugeordnet."
+                        : `Es fehlen noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern.`}
+                    </span>
+                    <span>
+                      {optionalFields.length
+                        ? `${optionalPresence.found.length}/${optionalFields.length} optionale Felder erkannt`
+                        : "Keine optionalen Felder konfiguriert"}
+                    </span>
+                    {allRequiredOk ? (
+                      <button
+                        type="button"
+                        onClick={() => setStep2Expanded((v) => !v)}
+                        style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid rgba(22,101,52,0.25)", background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        {step2Expanded ? "Details ausblenden" : "Details anzeigen"}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {(!allRequiredOk || step2Expanded) && (
+                    <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                      <div>
+                        <SmallText>Gefundene Spalten {headers.length}. Pflicht sind nur <code>ean (GTIN14)</code>, <code>seller_offer_id</code> und <code>name</code>. Alle anderen Felder sind optional.</SmallText>
+                        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6, maxWidth: "100%" }}>
+                          {headers.slice(0, 20).map((h) => (
+                            <span key={String(h)} style={{ fontSize: 11, padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", color: "#111827", wordBreak: "break-all", maxWidth: "100%" }}>{String(h)}</span>
+                          ))}
+                        </div>
+                        {headers.length > 20 ? (
+                          <details style={{ marginTop: 6 }}>
+                            <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>Weitere Spalten anzeigen ({headers.length - 20} weitere)</summary>
+                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6, maxWidth: "100%" }}>
+                              {headers.slice(20).map((h) => (
+                                <span key={String(h)} style={{ fontSize: 11, padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", color: "#111827", wordBreak: "break-all", maxWidth: "100%" }}>{String(h)}</span>
+                              ))}
+                            </div>
+                          </details>
+                        ) : null}
+                      </div>
+
+                      <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
+                        <SmallText>Diese Felder muessen fuer jeden Artikel erkannt werden.</SmallText>
+                        <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                          {requiredFields.map((f) => {
+                            const col = mapping[f];
+                            const missing = !col;
+                            return (
+                              <div key={f} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: missing ? "#FEF3C7" : "#ECFDF3", flexWrap: "wrap" }}>
+                                <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                  <div style={{ fontSize: 12, color: missing ? "#92400E" : "#166534" }}>{col ? `Spalte ${col}` : "Nicht gefunden"}</div>
+                                  <Pill tone={missing ? "warn" : "ok"}>{missing ? "Fehlt" : "OK"}</Pill>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop: 8, fontSize: 12, color: requiredPresence.missing.length ? "#92400E" : "#166534" }}>
+                          {requiredPresence.missing.length
+                            ? `Noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern ohne Zuordnung.`
+                            : `Alle ${requiredFields.length} Pflichtfelder wurden automatisch zugeordnet.`}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Optionale Felder</div>
+                        <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualitaet und Score.</SmallText>
+                        <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                          {optionalFields.map((f) => {
+                            const col = mapping[f];
+                            const missing = !col;
+                            return (
+                              <div key={f} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: missing ? "#F9FAFB" : "#EEF2FF", flexWrap: "wrap" }}>
+                                <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                  <div style={{ fontSize: 12, color: missing ? "#6B7280" : BRAND_COLOR }}>{col ? `Spalte ${col}` : "Nicht gefunden"}</div>
+                                  <Pill tone={missing ? "info" : "ok"}>{missing ? "Optional" : "OK"}</Pill>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop: 8, fontSize: 12, color: "#4B5563" }}>
+                          {optionalFields.length
+                            ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern wurden automatisch zugeordnet.`
+                            : "Keine optionalen Felder konfiguriert."}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </StepCard>
+            )}
+
+            {/* STEP 3 */}
+            {(showAllChecks || stage2Status !== "ok") && (
+            <StepCard title="Duplikate" status={stage2Status} subtitle="Wir prüfen doppelte EAN und doppelte Produkttitel">
+              {!headers.length ? (
+                <SmallText>Bitte CSV hochladen, um Duplikate zu prüfen.</SmallText>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Pill tone={eanColumn ? "ok" : "warn"}>{eanColumn ? `EAN Spalte ${eanColumn}` : "EAN Spalte nicht gefunden"}</Pill>
+                    <Pill tone={titleColumn ? "ok" : "warn"}>{titleColumn ? `Titel Spalte ${titleColumn}` : "Titel Spalte nicht gefunden"}</Pill>
+                  </div>
+
+                  {duplicateEans.length > 0 || duplicateTitleRows.length > 0 || duplicateSellerOfferIds.length > 0 ? (
+                    <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                      {duplicateEans.length > 0 ? (
+                        <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte EAN Werte</div>
+                          <SmallText>Liste der EAN Werte die mehr als einmal vorkommen</SmallText>
+                          <div style={{ marginTop: 10 }}>
+                            <CollapsibleList title="Doppelte EAN" items={duplicateEans} tone="warn" />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {duplicateTitleRows.length > 0 ? (
+                        <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Titel</div>
+                          <div style={{ marginTop: 10 }}>
+                            <CollapsibleList
+                              title="Doppelte Titel"
+                              items={groupByValueWithEans(duplicateTitleRows.map((x) => ({ value: x.title, ean: x.ean })))
+                                .filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch)))
+                                .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                              tone="warn"
+                              hint="Jede Zeile zeigt einen Titel und alle EANs, die diesen Titel mehrfach verwenden"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {duplicateSellerOfferIds.length > 0 ? (
+                        <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Seller_Offer_ID Werte</div>
+                          <SmallText>Liste der Seller_Offer_ID Werte die mehr als einmal vorkommen</SmallText>
+                          <div style={{ marginTop: 10 }}>
+                            <CollapsibleList title="Doppelte Seller_Offer_ID" items={duplicateSellerOfferIds} tone="warn" />
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </StepCard>
+            )}
+
+            {/* STEP 4 */}
+            {(showAllChecks || stage3Status !== "ok") && (
+            <StepCard title="Optionale Felder und Versand" status={stage3Status}>
+              {!headers.length ? (
+                <SmallText>Bitte CSV hochladen, um optionale Felder und Versand zu prüfen.</SmallText>
+              ) : (
+                <>
+                  {optionalFindings.titleIssues.tooShort.length > 0 ||
+                  optionalFindings.titleIssues.seeAbove.length > 0 ||
+                  optionalFindings.titleIssues.missingAttributes.length > 0 ||
+                  optionalFindings.descriptionIssues.templateLike.length > 0 ||
+                  optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Titelqualität</div>
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        {optionalFindings.titleIssues.tooShort.length > 0 ? (
+                          <CollapsibleList title="Titel zu kurz" items={optionalFindings.titleIssues.tooShort.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}`)} tone="warn" hint="EANs/Zeilen, deren Titel kürzer als die im Regeln-Tab definierte Mindestlänge sind" />
+                        ) : null}
+                        {optionalFindings.titleIssues.seeAbove.length > 0 ? (
+                          <CollapsibleList title='Titel enthaelt "siehe oben"' items={optionalFindings.titleIssues.seeAbove.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}`)} tone="warn" hint='Titel, die einen Hinweis wie "siehe oben" enthalten und dadurch unklar sind' />
+                        ) : null}
+                        {optionalFindings.descriptionIssues.templateLike.length > 0 ? (
+                          <CollapsibleList
+                            title="Beschreibung wirkt wie Platzhalter"
+                            items={optionalFindings.descriptionIssues.templateLike.filter((ean) => !eanSearch || String(ean).includes(eanSearch)).map((ean) => {
+                              let titleVal = "";
+                              let descVal = "";
+                              if (eanColumn && titleColumn && mapping.description) {
+                                const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
+                                if (row) { titleVal = String(row[titleColumn] ?? "").trim(); descVal = String(row[mapping.description] ?? "").trim(); }
+                              }
+                              const preview = descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
+                              return titleVal ? `${ean}: ${titleVal} – ${preview}` : `${ean}: ${preview}`;
+                            })}
+                            tone="warn"
+                            hint="Beschreibung entspricht z.B. exakt dem Titel, ist extrem kurz oder enthaelt typische Beispieltexte"
+                          />
+                        ) : null}
+                        {optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
+                          <CollapsibleList
+                            title="Hinweise auf B-Ware / gebraucht"
+                            items={optionalFindings.descriptionIssues.usedOrBware.filter((ean) => !eanSearch || String(ean).includes(eanSearch)).map((ean) => {
+                              let titleVal = "";
+                              let descVal = "";
+                              if (eanColumn && titleColumn && mapping.description) {
+                                const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
+                                if (row) { titleVal = String(row[titleColumn] ?? "").trim(); descVal = String(row[mapping.description] ?? "").trim(); }
+                              }
+                              const preview = descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
+                              return titleVal ? `${ean}: ${titleVal} – ${preview}` : `${ean}: ${preview}`;
+                            })}
+                            tone="bad"
+                            hint="Produkte, deren Beschreibung auf B-Ware, gebrauchte oder generalueberholte Ware hindeutet"
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {optionalFindings.missingEANs.length > 0 ? (
+                    <div style={{ marginTop: 14 }}>
+                      <CollapsibleList title="Zeilen ohne EAN" items={optionalFindings.missingEANs.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="bad" hint="➜ bitte EAN nachliefern" />
+                    </div>
+                  ) : null}
+
+                  {(optionalFindings.missingEansByField.material.length > 0 || (optionalFindings.invalidMaterial?.length || 0) > 0) && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Material</div>
+                      <SmallText>{optionalFindings.samplesByField.material.length ? optionalFindings.samplesByField.material.join(" | ") : "keine Beispielwerte gefunden"}</SmallText>
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        {optionalFindings.missingEansByField.material.length > 0 ? (
+                          <CollapsibleList title="Material fehlt" items={optionalFindings.missingEansByField.material.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
+                        ) : null}
+                        {optionalFindings.invalidMaterial?.length ? (
+                          <CollapsibleList
+                            title="Material ausserhalb erlaubter Werte"
+                            items={groupByValueWithEans(optionalFindings.invalidMaterial)
+                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
+                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            tone="warn"
+                            hint="Werte, die nicht in der Material-Liste im Regeln-Tab stehen, gruppiert nach Wert"
+                            onAddValue={(value) => addAllowedRuleValue("material", value)}
+                          />
+                        ) : null}
+                        {optionalFindings.invalidMaterial?.length ? (
+                          <div>
+                            <SmallText>Einzelne Material-Werte als erlaubt markieren:</SmallText>
+                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {uniqueNonEmpty(optionalFindings.invalidMaterial.map((x) => x.value)).map((val) => (
+                                <button key={val} onClick={() => addAllowedRuleValue("material", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Farbe</div>
+                    <SmallText>{optionalFindings.samplesByField.color.length ? optionalFindings.samplesByField.color.join(" | ") : "keine Beispielwerte gefunden"}</SmallText>
+                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      {optionalFindings.missingEansByField.color.length > 0 ? (
+                        <CollapsibleList title="Farbe fehlt" items={optionalFindings.missingEansByField.color.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
+                      ) : null}
+                      {optionalFindings.invalidColor?.length ? (
+                        <>
+                          <CollapsibleList
+                            title="Farbe ausserhalb erlaubter Werte"
+                            items={groupByValueWithEans(optionalFindings.invalidColor)
+                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
+                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            tone="warn"
+                            hint="Werte, die nicht in der Farb-Liste im Regeln-Tab stehen, gruppiert nach Wert"
+                            onAddValue={(value) => addAllowedRuleValue("color", value)}
+                          />
+                          <div>
+                            <SmallText>Einzelne Farb-Werte als erlaubt markieren:</SmallText>
+                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {uniqueNonEmpty(optionalFindings.invalidColor.map((x) => x.value)).map((val) => (
+                                <button key={val} onClick={() => addAllowedRuleValue("color", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      ) : null}
+                      {false && optionalFindings.missingEansByField.color.length === 0 && !(optionalFindings.invalidColor?.length > 0) ? (<SmallText>Alle Farbwerte sind gueltig.</SmallText>) : null}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang</div>
+                    <SmallText>{optionalFindings.samplesByField.delivery_includes.length ? optionalFindings.samplesByField.delivery_includes.join(" | ") : "keine Beispielwerte gefunden"}</SmallText>
+                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      {optionalFindings.missingEansByField.delivery_includes.length > 0 ? (
+                        <CollapsibleList title="Lieferumfang fehlt" items={optionalFindings.missingEansByField.delivery_includes.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
+                      ) : null}
+                      {optionalFindings.invalidDeliveryIncludes?.length ? (
+                        <div>
+                          <CollapsibleList
+                            title="Lieferumfang ausserhalb Pattern"
+                            items={groupByValueWithEans(optionalFindings.invalidDeliveryIncludes)
+                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
+                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            tone="warn"
+                            hint="Werte, die nicht zum aktuellen Lieferumfang-Pattern passen, gruppiert nach Wert"
+                            onAddValue={(value) => addAllowedRuleValue("delivery_includes", value)}
+                          />
+                          <div style={{ marginTop: 8 }}>
+                            <SmallText>Einzelne Lieferumfang-Werte als erlaubt markieren:</SmallText>
+                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {uniqueNonEmpty(optionalFindings.invalidDeliveryIncludes.map((x) => x.value)).map((val) => (
+                                <button key={val} onClick={() => addAllowedRuleValue("delivery_includes", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                      {false && optionalFindings.missingEansByField.delivery_includes.length === 0 && !(optionalFindings.invalidDeliveryIncludes?.length > 0) ? (<SmallText>Alle Lieferumfang-Werte sind gueltig.</SmallText>) : null}
+                    </div>
+                  </div>
+
+                  {mapping.delivery_time && ((optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0) || (optionalFindings.invalidDeliveryTime?.length > 0)) ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferzeit (delivery_time)</div>
+                      <SmallText>Erwartetes Format z B &quot;3-5 Werktage&quot; oder &quot;2 Wochen&quot; ohne zusaetzlichen Fliesstext.</SmallText>
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        {optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0 ? (
+                          <CollapsibleList title="Lieferzeit fehlt" items={optionalFindings.missingEansByField.delivery_time.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
+                        ) : null}
+                        {optionalFindings.invalidDeliveryTime?.length ? (
+                          <CollapsibleList title="Lieferzeit ausserhalb erlaubter Formate" items={groupByValueWithEans(optionalFindings.invalidDeliveryTime).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value || "(leer)"} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)} tone="warn" hint='Erwartet werden Angaben wie "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" ohne Mischformen.' />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {optionalFindings.templateValueHits && optionalFindings.templateValueHits.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Beispielwerte aus Muster-Feed</div>
+                      <SmallText>In diesen Feldern scheinen noch Beispiel-/Demo-Werte aus dem Muster-Feed zu stehen. Bitte fuer echte Produkte entfernen oder korrekt ausfuellen.</SmallText>
+                      <div style={{ marginTop: 8 }}>
+                        <CollapsibleList title="Felder mit Beispielwerten" items={groupByValueWithEans(optionalFindings.templateValueHits).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value} (${g.eans.length} EANs, Spalte ${g.column || "unbekannt"}): ${g.eans.join(", ")}`)} tone="warn" hint="Werte, die wie Beispielangaben aus einem Muster-Feed aussehen (z.B. Demo-URLs, Platzhalter)." />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {mapping.washable_cover && optionalFindings.invalidWashableCover.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Waschbarer Bezug (washable_cover)</div>
+                      <SmallText>Erlaubt sind nur die Werte &quot;ja&quot; oder &quot;nein&quot;.</SmallText>
+                      <div style={{ marginTop: 8 }}>
+                        <CollapsibleList title="Ungültige washable_cover Werte" items={groupByValueWithEans(optionalFindings.invalidWashableCover).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)} tone="warn" hint='Waschbarer Bezug sollte nur "ja" oder "nein" enthalten' />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {mapping.mounting_side && optionalFindings.invalidMountingSide.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Montageseite (mounting_side)</div>
+                      <SmallText>Erlaubt sind nur die Werte &quot;links&quot;, &quot;rechts&quot; oder &quot;beidseitig&quot; – Kombinationen wie &quot;links, rechts, beidseitig&quot; sind nicht erlaubt.</SmallText>
+                      <div style={{ marginTop: 8 }}>
+                        <CollapsibleList title="Ungültige mounting_side Werte" items={groupByValueWithEans(optionalFindings.invalidMountingSide).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)} tone="warn" hint='Montageseite sollte nur "links", "rechts" oder "beidseitig" enthalten' />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {mapping.shipping_mode && (optionalFindings.missingShipping.length > 0 || optionalFindings.invalidShipping.length > 0) ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>shipping_mode</div>
+                      <SmallText>Erlaubt sind Paket oder Spedition. Weitere erlaubte Werte koennen im Regeln Tab gepflegt werden.</SmallText>
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        {optionalFindings.missingShipping.length > 0 ? (
+                          <CollapsibleList title="shipping_mode fehlt" items={optionalFindings.missingShipping.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" hint="Felder ohne Versandart" />
+                        ) : null}
+                        {optionalFindings.invalidShipping.length > 0 ? (
+                          <CollapsibleList
+                            title="shipping_mode ausserhalb erlaubter Werte"
+                            items={groupByValueWithEans(optionalFindings.invalidShipping)
+                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
+                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            tone="warn"
+                            hint="Werte, die nicht in der shipping_mode-Liste im Regeln-Tab stehen, gruppiert nach Wert"
+                            onAddValue={(value) => addAllowedRuleValue("shipping_mode", value)}
+                          />
+                        ) : null}
+                        {optionalFindings.invalidShipping.length ? (
+                          <div>
+                            <SmallText>Einzelne Versandarten als erlaubt markieren:</SmallText>
+                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {uniqueNonEmpty(optionalFindings.invalidShipping.map((x) => x.value)).map((val) => (
+                                <button key={val} onClick={() => addAllowedRuleValue("shipping_mode", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {optionalFindings.scientificEans.length > 0 ? (
+                    <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #FDE68A", background: "#FFFBEB" }}>
+                      <div style={{ fontWeight: 700, color: "#92400E", fontSize: 13 }}>Hinweis EAN Format</div>
+                      <div style={{ marginTop: 6, color: "#92400E", fontSize: 13 }}>Einige EAN Werte sehen nach wissenschaftlicher Schreibweise aus.</div>
+                      <div style={{ marginTop: 10 }}>
+                        <CollapsibleList title="Betroffene EAN" items={optionalFindings.scientificEans.filter((x) => !eanSearch || String(x).includes(eanSearch))} tone="warn" />
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </StepCard>
+            )}
+
+            {/* STEP 5 */}
+            <StepCard
+              title="Bilder"
+              status={!headers.length ? "idle" : !imageColumns.length ? "warn" : brokenImageIds.length > 0 ? "bad" : "ok"}
+              subtitle="Wir prüfen Bilder je Produkt und zeigen Beispielprodukte"
+            >
+          {!headers.length ? (
+            <SmallText>Bitte CSV hochladen, um die Bildprüfung zu sehen.</SmallText>
+          ) : (
+                <>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                    <Pill tone={imageColumns.length ? "ok" : "warn"}>{imageColumns.length ? `Bildspalten ${imageColumns.length}` : "Keine Bildspalten erkannt"}</Pill>
+                  </div>
+              
+
+                  <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Anzahl Bilder pro Produkt</div>
+                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                        {(() => {
+                          const items = [];
+                          const keys = Object.keys(imageBuckets || {}).map((k) => Number(k)).filter((k) => Number.isFinite(k) && k >= 0);
+                          if (!keys.length) {
+                            items.push(<SmallText key="no-images">Es konnten keine Bildinformationen ermittelt werden.</SmallText>);
+                            return items;
+                          }
+                          const maxN = Math.max(...keys);
+                          for (let n = 0; n <= maxN; n += 1) {
+                            const list = imageBuckets[n] || [];
+                            if (!list.length) continue;
+                            const tone = n === 0 ? "bad" : n === 1 ? "warn" : "ok";
+                            const title = n === 0 ? `0 Bilder (${list.length})` : n === 1 ? `1 Bild (${list.length})` : `${n} Bilder (${list.length})`;
+                            const hint = n === 0 ? "EANs ohne jegliche Bilder" : n === 1 ? "EANs mit genau einem Bild" : `EANs mit genau ${n} Bildern`;
+                            items.push(<CollapsibleList key={`img-${n}`} title={title} items={list} tone={tone} hint={hint} />);
+                          }
+                          return items;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {imageSamples.length ? (
+                    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).slice(0, imageSampleLimitStep5).map((sample) => (
+                        <div key={sample.id} style={{ padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#FFFFFF", display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
+                          <div style={{ minWidth: 0, maxWidth: 220 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sample.id}</div>
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {sample.urls.slice(0, 6).map((u) => (
+                              <div key={u} style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                <a href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}>
+                                  <img src={u} alt="Bild" loading="lazy" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                      const textEl = e.currentTarget.parentElement?.nextElementSibling;
+                                      if (textEl && textEl instanceof HTMLElement) { textEl.style.display = "block"; }
+                                      setBrokenImageIds((prev) => { const set = new Set(prev); set.add(sample.id); return Array.from(set); });
+                                    }}
+                                  />
+                                </a>
+                                <div style={{ display: "none", fontSize: 10, color: "#4B5563", wordBreak: "break-all", maxWidth: 180 }}>{u}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {imageSampleLimitStep5 < imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length ? (
+                        <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-start" }}>
+                          <button onClick={() => setImageSampleLimitStep5((n) => Math.min(imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length, n + 5))} style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                            Mehr Produkte anzeigen
+                          </button>
+                        </div>
+                      ) : null}
+                      {brokenImageIds.length ? (
+                        <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>
+                          Warnung: Bei {brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden.
+                          Bitte prüfen, ob die Bild-Links für diese EANs funktionieren: {brokenImageIds.slice(0, 10).join(", ")}{brokenImageIds.length > 10 ? " …" : ""}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 12 }}>
+                      <SmallText>Es konnten keine Beispielprodukte mit Bildlinks ermittelt werden. Besonders kritisch sind EANs ohne Bilder oder nur einem Bild.</SmallText>
+                    </div>
+                  )}
+                </>
+              )}
+            </StepCard>
+
+            {/* Preview hint when NO file is loaded */}
+            {!headers.length ? (
+              <div style={{ marginTop: 8, padding: 10, borderRadius: 12, border: "1px dashed #E5E7EB", background: "#F9FAFB" }}>
+                <SmallText>Bitte CSV hochladen um eine Vorschau der Zeilen mit allen Spalten zu sehen.</SmallText>
+                <div style={{ marginTop: 4, color: "#6B7280", fontSize: 12, lineHeight: "18px" }}>
+                  Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
+                </div>
+              </div>
+            ) : null}
+
+          </div>
         </div>
 
+            {/* ── RIGHT: Preview — independently scrollable ── */}
+            {headers.length ? (
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  maxHeight: "100%",
+                  overflowY: "auto",
+                  paddingLeft: 4,
+                }}
+              >
+                <div style={{ padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                  {step7Inner}
+                </div>
+                <div style={{ marginTop: 8, color: "#6B7280", fontSize: 12, lineHeight: "18px" }}>
+                  Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
+
+      {/* Fullscreen preview modal */}
+      {previewFullscreen && headers.length ? (
+        <div
+          onClick={() => setPreviewFullscreen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.65)", zIndex: 50, display: "flex", justifyContent: "center", alignItems: "center", padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 1400, maxHeight: "90vh", background: "#FFFFFF", borderRadius: 16, padding: 16, boxShadow: "0 25px 50px -12px rgba(15,23,42,0.45)", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8 }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>Vorschau Vollbild</div>
+              <button type="button" onClick={() => setPreviewFullscreen(false)} style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 11, cursor: "pointer", color: "#111827" }}>Schliessen</button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <ResizableTable
+                columns={previewColumns}
+                rows={rows
+                  .filter((r) => {
+                    if (!eanSearch) return true;
+                    if (eanColumn) { const val = String(r[eanColumn] ?? "").trim(); return val.includes(eanSearch); }
+                    const q = eanSearch.toLowerCase();
+                    return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
+                  })
+                .slice(0, Math.max(previewCount, 200))}
+              highlightedCells={highlightedCells}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 
@@ -5317,16 +4224,7 @@ export default function App() {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
-        <RulesPage
-          rules={rules}
-          setRules={setRules}
-          onSave={saveRules}
-          saving={rulesSaving}
-          saveError={rulesSaveError}
-          savedAt={rulesSavedAt}
-          adminToken={adminToken}
-          updateAdminToken={updateAdminToken}
-        />
+        <RulesPage rules={rules} setRules={setRules} onSave={saveRules} saving={rulesSaving} saveError={rulesSaveError} savedAt={rulesSavedAt} adminToken={adminToken} updateAdminToken={updateAdminToken} />
       </div>
     );
   }
@@ -5335,16 +4233,120 @@ export default function App() {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
+          <StepCard title="Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="CSV-Datei hochladen, um die Prüfung zu starten">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
+              <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: "#FFFFFF", fontSize: 12, fontWeight: 700, color: BRAND_COLOR, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Datei auswählen</button>
+              <button type="button" onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #CBD5E1", background: "#F9FAFB", fontSize: 11, fontWeight: 600, color: "#111827", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Feedvorlage (Excel) herunterladen</button>
+              <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>{fileName ? `Aktuelle Datei: ${fileName}` : "Unterstuetzt CSV Dateien mit Kopfzeile"}</div>
+              <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
+            </div>
+            {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
+          </StepCard>
+        </div>
         <QsPage headers={headers} rows={rows} />
-      </div>
-    );
-  }
-
-  if (route === "lieferzeiten") {
-    return (
-      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
-        {topNav}
-        <Lieferzeiten />
+        {headers.length > 0 && rows.length > 0 && (
+          <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
+              <div style={{ marginTop: 24, borderRadius: 16, border: "1px solid #E5E7EB", background: "#FFFFFF", padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>CSV Vorschau</div>
+                <button type="button" onClick={() => setPreviewFullscreen(true)} style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 12, cursor: "pointer", color: "#111827" }}>Vollbild</button>
+              </div>
+              {columnFilterOpen && headers.length > 0 ? (
+                <div style={{ marginTop: 6, padding: 8, borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF", maxHeight: 180, overflow: "auto" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <SmallText>Spalten anzeigen/verstecken</SmallText>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVisibleColumns((prev) => {
+                          const allKeys = headers;
+                          const allSelected = !Array.isArray(prev) || prev.length === allKeys.length;
+                          return allSelected ? [] : null;
+                        });
+                      }}
+                      style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#111827" }}
+                    >
+                      {(!Array.isArray(visibleColumns) || visibleColumns.length === headers.length) ? "Alle abwählen" : "Alle auswählen"}
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 2, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {headers.map((h) => {
+                      const isActive = !Array.isArray(visibleColumns) || visibleColumns.includes(h);
+                      return (
+                        <label key={h} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#111827" }}>
+                          <input
+                            type="checkbox"
+                            checked={isActive}
+                            onChange={(e) => {
+                              setVisibleColumns((prev) => {
+                                const current = Array.isArray(prev) ? new Set(prev) : new Set(headers);
+                                if (e.target.checked) { current.add(h); } else { current.delete(h); }
+                                const next = Array.from(current);
+                                return next.length === headers.length ? null : next;
+                              });
+                            }}
+                          />
+                          <span>{String(h)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Suche</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    value={eanSearch}
+                    onChange={(e) => setEanSearch(e.target.value)}
+                    placeholder="EAN eingeben um passende Zeilen zu filtern"
+                    style={{
+                      flex: "1 1 0",
+                      minWidth: 0,
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      fontSize: 12,
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setColumnFilterOpen((v) => !v)}
+                    aria-label="Spalten wählen"
+                    title="Spalten wählen"
+                    style={{
+                      padding: "6px 8px",
+                      borderRadius: 999,
+                      border: "1px solid #E5E7EB",
+                      background: "#FFFFFF",
+                      fontSize: 14,
+                      cursor: "pointer",
+                      color: "#111827",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: 32,
+                    }}
+                  >
+                    ⚙
+                  </button>
+                </div>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <ResizableTable
+                  columns={previewColumns}
+                  rows={rows.filter((r) => { if (!eanSearch) return true; if (eanColumn) { const val = String(r[eanColumn] ?? "").trim(); return val.includes(eanSearch); } const q = eanSearch.toLowerCase(); return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q)); }).slice(0, previewCount)}
+                />
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <SmallText>Zeige {Math.min(previewCount, rows.length)} von {rows.length} Zeilen.</SmallText>
+                  <button onClick={() => setPreviewCount((c) => Math.min(rows.length, c + 20))} disabled={previewCount >= rows.length} style={{ padding: "10px 18px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR, cursor: previewCount >= rows.length ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, color: "#FFFFFF" }}>20 weitere laden</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -359,6 +359,33 @@ function getQualityRows(monthlyQualityText) {
   return [];
 }
 
+// ─── CSV export helpers ────────────────────────────────────────────────────
+function rowsToCsv(headers, rows) {
+  const esc = (v) => {
+    const s = String(v ?? "");
+    if (/[",;\t\n]/.test(s)) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+  const headerLine = headers.map(esc).join(";");
+  const bodyLines = rows.map((r) => headers.map((h) => esc(r[h])).join(";"));
+  return [headerLine, ...bodyLines].join("\n");
+}
+
+function downloadCsv(filename, csvText) {
+  if (!csvText) return;
+  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Template-based Excel generation ─────────────────────────────────────────
 
 /**
@@ -1687,8 +1714,32 @@ function QueryCard({q,sellerKey,value,onChange}){
           {/* Mini preview: Monatsumsatz */}
           {salesRows && salesRows.length>0 && (
             <div style={{marginTop:4,border:"1px solid #e2e6f0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563"}}>
-                Vorschau Monatsumsatz (erste {Math.min(salesRows.length,12)} Zeilen)
+              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563",display:"flex",alignItems:"center",gap:8}}>
+                <span>Vorschau Monatsumsatz (erste {Math.min(salesRows.length,12)} Zeilen)</span>
+                <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["monat","anzahl_bestellungen","umsatz_eur","avg_order_value_eur"];
+                      const csv = rowsToCsv(headers, salesRows);
+                      copyText(csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
+                  >
+                    CSV kopieren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["monat","anzahl_bestellungen","umsatz_eur","avg_order_value_eur"];
+                      const csv = rowsToCsv(headers, salesRows);
+                      downloadCsv(`${sellerKey || "shop"}_monatsumsatz.csv`, csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#1a2240"}}
+                  >
+                    CSV herunterladen
+                  </button>
+                </div>
               </div>
               <div style={{maxHeight:180,overflowY:"auto"}}>
                 <table style={{borderCollapse:"collapse",width:"100%",fontSize:10.5}}>
@@ -1717,8 +1768,32 @@ function QueryCard({q,sellerKey,value,onChange}){
           {/* Mini preview: Preisparität (täglich) */}
           {parityRows && parityRows.length>0 && (
             <div style={{marginTop:4,border:"1px solid #e2e6f0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563"}}>
-                Vorschau Parität (erste {Math.min(parityRows.length,12)} Zeilen)
+              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563",display:"flex",alignItems:"center",gap:8}}>
+                <span>Vorschau Parität (erste {Math.min(parityRows.length,12)} Zeilen)</span>
+                <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["day","number_offers","pct_meta","pct_amazon","pct_otto"];
+                      const csv = rowsToCsv(headers, parityRows);
+                      copyText(csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
+                  >
+                    CSV kopieren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["day","number_offers","pct_meta","pct_amazon","pct_otto"];
+                      const csv = rowsToCsv(headers, parityRows);
+                      downloadCsv(`${sellerKey || "shop"}_preisparitaet_daily.csv`, csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#1a2240"}}
+                  >
+                    CSV herunterladen
+                  </button>
+                </div>
               </div>
               <div style={{maxHeight:180,overflowY:"auto"}}>
                 <table style={{borderCollapse:"collapse",width:"100%",fontSize:10.5}}>
@@ -1756,8 +1831,32 @@ function QueryCard({q,sellerKey,value,onChange}){
           {/* Mini preview: Top Produkte */}
           {productRows && productRows.length>0 && (
             <div style={{marginTop:4,border:"1px solid #e2e6f0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563"}}>
-                Vorschau Top Produkte (erste {Math.min(productRows.length,12)} Zeilen)
+              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563",display:"flex",alignItems:"center",gap:8}}>
+                <span>Vorschau Top Produkte (erste {Math.min(productRows.length,12)} Zeilen)</span>
+                <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["csin","titel","positionen","stueck","umsatz"];
+                      const csv = rowsToCsv(headers, productRows);
+                      copyText(csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
+                  >
+                    CSV kopieren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["csin","titel","positionen","stueck","umsatz"];
+                      const csv = rowsToCsv(headers, productRows);
+                      downloadCsv(`${sellerKey || "shop"}_top_produkte.csv`, csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#1a2240"}}
+                  >
+                    CSV herunterladen
+                  </button>
+                </div>
               </div>
               <div style={{maxHeight:180,overflowY:"auto"}}>
                 <table style={{borderCollapse:"collapse",width:"100%",fontSize:10.5}}>
@@ -1786,8 +1885,32 @@ function QueryCard({q,sellerKey,value,onChange}){
           {/* Mini preview: Top Kategorien */}
           {categoryRows && categoryRows.length>0 && (
             <div style={{marginTop:4,border:"1px solid #e2e6f0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563"}}>
-                Vorschau Top Kategorien (erste {Math.min(categoryRows.length,12)} Zeilen)
+              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563",display:"flex",alignItems:"center",gap:8}}>
+                <span>Vorschau Top Kategorien (erste {Math.min(categoryRows.length,12)} Zeilen)</span>
+                <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["kategorie","umsatz","teilbestellungen"];
+                      const csv = rowsToCsv(headers, categoryRows);
+                      copyText(csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
+                  >
+                    CSV kopieren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["kategorie","umsatz","teilbestellungen"];
+                      const csv = rowsToCsv(headers, categoryRows);
+                      downloadCsv(`${sellerKey || "shop"}_top_kategorien.csv`, csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#1a2240"}}
+                  >
+                    CSV herunterladen
+                  </button>
+                </div>
               </div>
               <div style={{maxHeight:180,overflowY:"auto"}}>
                 <table style={{borderCollapse:"collapse",width:"100%",fontSize:10.5}}>
@@ -1819,8 +1942,36 @@ function QueryCard({q,sellerKey,value,onChange}){
           {/* Mini preview: Bestelldetails */}
           {dailyOrderRows && dailyOrderRows.length>0 && (
             <div style={{marginTop:4,border:"1px solid #e2e6f0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563"}}>
-                Vorschau Bestelldetails (erste {Math.min(dailyOrderRows.length,12)} Zeilen)
+              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563",display:"flex",alignItems:"center",gap:8}}>
+                <span>Vorschau Bestelldetails (erste {Math.min(dailyOrderRows.length,12)} Zeilen)</span>
+                <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = parsed?.headers && parsed.headers.length
+                        ? parsed.headers
+                        : Object.keys(dailyOrderRows[0] || {});
+                      const csv = rowsToCsv(headers, dailyOrderRows);
+                      copyText(csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
+                  >
+                    CSV kopieren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = parsed?.headers && parsed.headers.length
+                        ? parsed.headers
+                        : Object.keys(dailyOrderRows[0] || {});
+                      const csv = rowsToCsv(headers, dailyOrderRows);
+                      downloadCsv(`${sellerKey || "shop"}_bestelldetails.csv`, csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#1a2240"}}
+                  >
+                    CSV herunterladen
+                  </button>
+                </div>
               </div>
               <div style={{maxHeight:180,overflowY:"auto"}}>
                 <table style={{borderCollapse:"collapse",width:"100%",fontSize:10.5}}>
@@ -1862,8 +2013,32 @@ function QueryCard({q,sellerKey,value,onChange}){
           {/* Mini preview: Monatliche Storno/Retouren/Verzug */}
           {qualityRows && qualityRows.length>0 && (
             <div style={{marginTop:4,border:"1px solid #e2e6f0",borderRadius:6,overflow:"hidden"}}>
-              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563"}}>
-                Vorschau Qualitätskennzahlen (erste {Math.min(qualityRows.length,12)} Zeilen)
+              <div style={{background:"#f1f3f8",padding:"4px 8px",fontSize:10,fontWeight:600,color:"#4b5563",display:"flex",alignItems:"center",gap:8}}>
+                <span>Vorschau Qualitätskennzahlen (erste {Math.min(qualityRows.length,12)} Zeilen)</span>
+                <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["jahr_monat","bestellpositionen","umsatz","shopstornoquote","retourenquote","shopverzugsquote"];
+                      const csv = rowsToCsv(headers, qualityRows);
+                      copyText(csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
+                  >
+                    CSV kopieren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ["jahr_monat","bestellpositionen","umsatz","shopstornoquote","retourenquote","shopverzugsquote"];
+                      const csv = rowsToCsv(headers, qualityRows);
+                      downloadCsv(`${sellerKey || "shop"}_qualitaetskennzahlen.csv`, csv);
+                    }}
+                    style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#1a2240"}}
+                  >
+                    CSV herunterladen
+                  </button>
+                </div>
               </div>
               <div style={{maxHeight:180,overflowY:"auto"}}>
                 <table style={{borderCollapse:"collapse",width:"100%",fontSize:10.5}}>
