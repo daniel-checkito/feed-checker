@@ -359,7 +359,7 @@ function getQualityRows(monthlyQualityText) {
   return [];
 }
 
-// ─── CSV export helpers ────────────────────────────────────────────────────
+// ─── CSV / TSV export helpers ───────────────────────────────────────────────
 function rowsToCsv(headers, rows) {
   const esc = (v) => {
     const s = String(v ?? "");
@@ -370,6 +370,18 @@ function rowsToCsv(headers, rows) {
   };
   const headerLine = headers.map(esc).join(";");
   const bodyLines = rows.map((r) => headers.map((h) => esc(r[h])).join(";"));
+  return [headerLine, ...bodyLines].join("\n");
+}
+
+// For copy & paste directly into Excel: tab-separated values
+function rowsToTsvForExcel(headers, rows) {
+  const esc = (v) => {
+    // Replace hard line breaks so we don't accidentally create new rows in Excel
+    const s = String(v ?? "").replace(/\r?\n/g, " ");
+    return s;
+  };
+  const headerLine = headers.map(esc).join("\t");
+  const bodyLines = rows.map((r) => headers.map((h) => esc(r[h])).join("\t"));
   return [headerLine, ...bodyLines].join("\n");
 }
 
@@ -992,6 +1004,199 @@ async function buildExcel(XLSX, shopName, sellerKey, pasted) {
   return wb;
 }
 
+// Build a simple, single-sheet workbook ("Data") with all query outputs side by side.
+async function buildDataWorkbook(XLSX, shopName, sellerKey, pasted) {
+  const wb = XLSX.utils.book_new();
+  const ws = {};
+  const sheetName = "Data";
+
+  const setByRC = (row, col, value) => {
+    const addr = XLSX.utils.encode_cell({ r: row - 1, c: col - 1 });
+    ws[addr] = { v: value, t: typeof value === "number" ? "n" : "s" };
+  };
+
+  let currentCol = 1;
+  let maxRow = 1;
+  let maxCol = 1;
+
+  const addTable = (title, headers, rows) => {
+    if (!rows || !rows.length || !headers || !headers.length) return;
+
+    const startCol = currentCol;
+    let r = 1;
+
+    setByRC(r, startCol, title);
+    r += 2;
+
+    headers.forEach((h, idx) => {
+      setByRC(r, startCol + idx, h);
+    });
+    r += 1;
+
+    rows.forEach((rowObj) => {
+      headers.forEach((h, idx) => {
+        const v = rowObj[h] ?? "";
+        const isNumber = typeof v === "number";
+        const addr = XLSX.utils.encode_cell({ r: r - 1, c: startCol + idx - 1 });
+        ws[addr] = {
+          v: isNumber ? v : String(v),
+          t: isNumber ? "n" : "s",
+        };
+      });
+      r += 1;
+    });
+
+    const tableLastRow = r - 1;
+    const tableLastCol = startCol + headers.length - 1;
+    if (tableLastRow > maxRow) maxRow = tableLastRow;
+    if (tableLastCol > maxCol) maxCol = tableLastCol;
+
+    currentCol = tableLastCol + 3;
+  };
+
+  const salesRows = getSalesRows(pasted.sales);
+  addTable("Monatsumsatz", ["monat","anzahl_bestellungen","umsatz_eur","avg_order_value_eur"], salesRows);
+
+  const parityRows = getParityRows(pasted.parity_daily);
+  addTable("Preisparität (täglich)", ["day","number_offers","pct_meta","pct_amazon","pct_otto"], parityRows);
+
+  const productRows = getProductRows(pasted.products);
+  addTable("Top Produkte", ["csin","titel","positionen","stueck","umsatz"], productRows);
+
+  const categoryRows = getCategoryRows(pasted.categories);
+  addTable("Top Kategorien", ["kategorie","umsatz","teilbestellungen"], categoryRows);
+
+  const dailyParsed = parsePasted(pasted.daily_orders);
+  const dailyRows = dailyParsed && dailyParsed.rows ? dailyParsed.rows : [];
+  if (dailyRows.length) {
+    const headers = (dailyParsed.headers && dailyParsed.headers.length
+      ? dailyParsed.headers
+      : Object.keys(dailyRows[0] || []));
+    addTable("Bestelldetails", headers, dailyRows);
+  }
+
+  const qualityRows = getQualityRows(pasted.monthly_quality);
+  addTable(
+    "Monatliche Storno/Retouren/Verzug",
+    ["jahr_monat","bestellpositionen","umsatz","shopstornoquote","retourenquote","shopverzugsquote"],
+    qualityRows
+  );
+
+  if (maxRow < 1) maxRow = 1;
+  if (maxCol < 1) maxCol = 1;
+  ws["!ref"] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: maxRow - 1, c: maxCol - 1 },
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  return wb;
+}
+
+// Build a single preview "sheet" that mirrors the Data workbook layout
+// so the UI shows one combined page instead of multiple tabs.
+function buildPreviewSheetsDataOnly(shopName, sellerKey, pasted) {
+  const grid = [];
+  let currentCol = 0;
+  let maxRow = -1;
+  let maxCol = -1;
+
+  const ensureCell = (r, c) => {
+    while (grid.length <= r) grid.push([]);
+    while (grid[r].length <= c) grid[r].push("");
+  };
+
+  const setCell = (r, c, value) => {
+    ensureCell(r, c);
+    grid[r][c] = value;
+    if (r > maxRow) maxRow = r;
+    if (c > maxCol) maxCol = c;
+  };
+
+  const addTable = (title, headers, rows) => {
+    if (!rows || !rows.length || !headers || !headers.length) return;
+
+    const startCol = currentCol;
+    let r = 0;
+
+    // Title row
+    setCell(r, startCol, title);
+    r += 2; // blank row between title and header
+
+    // Header row
+    headers.forEach((h, idx) => {
+      setCell(r, startCol + idx, h);
+    });
+    r += 1;
+
+    // Data rows
+    rows.forEach((rowObj) => {
+      headers.forEach((h, idx) => {
+        const v = rowObj[h] ?? "";
+        setCell(r, startCol + idx, v);
+      });
+      r += 1;
+    });
+
+    currentCol = startCol + headers.length + 3; // leave two empty columns before next table
+  };
+
+  const salesRows = getSalesRows(pasted.sales);
+  addTable("Monatsumsatz", ["monat","anzahl_bestellungen","umsatz_eur","avg_order_value_eur"], salesRows);
+
+  const parityRows = getParityRows(pasted.parity_daily);
+  addTable("Preisparität (täglich)", ["day","number_offers","pct_meta","pct_amazon","pct_otto"], parityRows);
+
+  const productRows = getProductRows(pasted.products);
+  addTable("Top Produkte", ["csin","titel","positionen","stueck","umsatz"], productRows);
+
+  const categoryRows = getCategoryRows(pasted.categories);
+  addTable("Top Kategorien", ["kategorie","umsatz","teilbestellungen"], categoryRows);
+
+  const dailyParsed = parsePasted(pasted.daily_orders);
+  const dailyRows = dailyParsed && dailyParsed.rows ? dailyParsed.rows : [];
+  if (dailyRows.length) {
+    const headers = (dailyParsed.headers && dailyParsed.headers.length
+      ? dailyParsed.headers
+      : Object.keys(dailyRows[0] || []));
+    addTable("Bestelldetails", headers, dailyRows);
+  }
+
+  const qualityRows = getQualityRows(pasted.monthly_quality);
+  addTable(
+    "Monatliche Storno/Retouren/Verzug",
+    ["jahr_monat","bestellpositionen","umsatz","shopstornoquote","retourenquote","shopverzugsquote"],
+    qualityRows
+  );
+
+  // Always show at least a 100x100 Grid in the Data preview
+  const baseSize = 100;
+  const rowCount = Math.max(baseSize, maxRow >= 0 ? maxRow + 1 : 1);
+  const colCount = Math.max(baseSize, maxCol >= 0 ? maxCol + 1 : 1);
+
+  const rowsOut = [];
+  for (let r = 0; r < rowCount; r += 1) {
+    const src = grid[r] || [];
+    const out = [];
+    for (let c = 0; c < colCount; c += 1) {
+      out[c] = src[c] != null ? src[c] : "";
+    }
+    rowsOut.push(out);
+  }
+
+  const headers = Array.from({ length: colCount }, () => "");
+
+  return [
+    {
+      name: "Data",
+      kpis: [],
+      headers,
+      rows: rowsOut,
+      totals: null,
+    },
+  ];
+}
+
 // ─── Fallback: build from scratch (if template fetch fails) ──────────────────
 function buildExcelFromScratch(XLSX, shopName, pasted) {
   const wb = XLSX.utils.book_new();
@@ -1496,6 +1701,57 @@ function ExcelPreview({ sheets, activeSheet, onSheetChange, onEditCell }) {
   if (!sheet) return null;
   const GRID="#D0D7E8", ALT="#F2F5FC", NB="rgb(4,16,103)";
   const [copyState,setCopyState]=useState("idle");
+  const [colWidths, setColWidths] = useState([]);
+  const [rowHeights, setRowHeights] = useState([]);
+  const resizeStateRef = useRef(null);
+
+  // Initialize widths/heights when sheet or dimensions change
+  useEffect(() => {
+    const cols = sheet.headers ? sheet.headers.length : (sheet.rows?.[0]?.length || 0);
+    const rows = sheet.rows ? sheet.rows.length : 0;
+    setColWidths(prev => {
+      const next = prev.slice(0, cols);
+      while (next.length < cols) next.push(80);
+      return next;
+    });
+    setRowHeights(prev => {
+      const next = prev.slice(0, rows);
+      while (next.length < rows) next.push(26);
+      return next;
+    });
+  }, [sheet]);
+
+  // Global mouse handlers for drag-resize
+  useEffect(() => {
+    function handleMouseMove(e) {
+      const st = resizeStateRef.current;
+      if (!st) return;
+      const delta = st.axis === "col" ? e.clientX - st.startPos : e.clientY - st.startPos;
+      const next = Math.max(30, st.startSize + delta);
+      if (st.axis === "col") {
+        setColWidths(prev => {
+          const arr = prev.slice();
+          arr[st.index] = next;
+          return arr;
+        });
+      } else {
+        setRowHeights(prev => {
+          const arr = prev.slice();
+          arr[st.index] = next;
+          return arr;
+        });
+      }
+    }
+    function handleMouseUp() {
+      resizeStateRef.current = null;
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
 
   const handleCopySheet=()=>{
     if(!sheet.rows || sheet.rows.length===0) return;
@@ -1548,15 +1804,67 @@ function ExcelPreview({ sheets, activeSheet, onSheetChange, onEditCell }) {
             <tr style={{background:"#EEF1F9"}}>
               <th style={{padding:"2px 6px",borderRight:"1px solid "+GRID,borderBottom:"1px solid "+GRID,fontSize:10,color:"#9ca8c4",fontWeight:500,textAlign:"center",minWidth:34,userSelect:"none"}}>#</th>
               {sheet.headers.map((_,i)=>(
-                <th key={i} style={{padding:"2px 8px",borderRight:"1px solid "+GRID,borderBottom:"1px solid "+GRID,fontSize:10,color:"#9ca8c4",fontWeight:500,textAlign:"center",userSelect:"none"}}>
+                <th
+                  key={i}
+                  style={{
+                    position:"relative",
+                    padding:"2px 8px",
+                    borderRight:"1px solid "+GRID,
+                    borderBottom:"1px solid "+GRID,
+                    fontSize:10,
+                    color:"#9ca8c4",
+                    fontWeight:500,
+                    textAlign:"center",
+                    userSelect:"none",
+                    width:colWidths[i] || 80,
+                    minWidth:colWidths[i] || 80,
+                  }}
+                >
                   {String.fromCharCode(65+i)}
+                  <div
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      resizeStateRef.current = {
+                        axis:"col",
+                        index:i,
+                        startPos:e.clientX,
+                        startSize:colWidths[i] || 80,
+                      };
+                    }}
+                    style={{
+                      position:"absolute",
+                      top:0,
+                      right:0,
+                      width:6,
+                      height:"100%",
+                      cursor:"col-resize",
+                      zIndex:1,
+                    }}
+                  />
                 </th>
               ))}
             </tr>
             <tr>
               <th style={{padding:"5px 6px",background:NB,borderRight:"1px solid rgba(255,255,255,0.12)",borderBottom:"2px solid "+GRID,fontSize:10,color:"transparent",minWidth:34}}>0</th>
               {sheet.headers.map((h,i)=>(
-                <th key={i} style={{padding:"6px 8px",background:NB,color:"#fff",fontWeight:700,fontSize:11,textAlign:i===0?"left":"right",borderRight:"1px solid rgba(255,255,255,0.12)",borderBottom:"2px solid "+GRID,whiteSpace:"nowrap"}}>{h}</th>
+                <th
+                  key={i}
+                  style={{
+                    padding:"6px 8px",
+                    background:NB,
+                    color:"#fff",
+                    fontWeight:700,
+                    fontSize:11,
+                    textAlign:i===0?"left":"right",
+                    borderRight:"1px solid rgba(255,255,255,0.12)",
+                    borderBottom:"2px solid "+GRID,
+                    whiteSpace:"nowrap",
+                    width:colWidths[i] || 80,
+                    minWidth:colWidths[i] || 80,
+                  }}
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
@@ -1566,13 +1874,65 @@ function ExcelPreview({ sheets, activeSheet, onSheetChange, onEditCell }) {
               :sheet.rows.map((row,ri)=>{
                 const stripe=ri%2!==0;
                 return(
-                  <tr key={ri} style={{background:stripe?ALT:"#fff"}}>
-                    <td style={{padding:"3px 6px",textAlign:"center",fontSize:10,color:"#b0b8cc",borderRight:"1px solid "+GRID,borderBottom:"1px solid "+GRID,background:"#F5F7FC",userSelect:"none",fontFamily:"ui-monospace,monospace"}}>{ri+1}</td>
+                  <tr key={ri} style={{background:stripe?ALT:"#fff",height:rowHeights[ri] || 26}}>
+                    <td
+                      style={{
+                        position:"relative",
+                        padding:"3px 6px",
+                        textAlign:"center",
+                        fontSize:10,
+                        color:"#b0b8cc",
+                        borderRight:"1px solid "+GRID,
+                        borderBottom:"1px solid "+GRID,
+                        background:"#F5F7FC",
+                        userSelect:"none",
+                        fontFamily:"ui-monospace,monospace",
+                        minWidth:34,
+                      }}
+                    >
+                      {ri+1}
+                      <div
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          resizeStateRef.current = {
+                            axis:"row",
+                            index:ri,
+                            startPos:e.clientY,
+                            startSize:rowHeights[ri] || 26,
+                          };
+                        }}
+                        style={{
+                          position:"absolute",
+                          left:0,
+                          bottom:0,
+                          width:"100%",
+                          height:5,
+                          cursor:"row-resize",
+                          zIndex:1,
+                        }}
+                      />
+                    </td>
                     {row.map((cell,ci)=>{
                       const tone=sheet.colorCol?.[ci]?.(cell);
                       const isN=/^-?[\d\s.,]+[€%]?$/.test(String(cell).trim())&&ci>0;
                       return(
-                        <td key={ci} style={{padding:0,textAlign:ci===0?"left":isN?"right":"left",fontFamily:isN?"ui-monospace,monospace":"inherit",fontSize:12,borderRight:"1px solid "+GRID,borderBottom:"1px solid "+GRID,whiteSpace:"nowrap",color:tone==="bad"?"#c62828":tone==="good"?"#1e8c45":"#1a2240",fontWeight:tone?700:ci===0?500:400,background:tone==="bad"?"#fff0f0":tone==="good"?"#f0fdf4":"transparent",minWidth:ci===0?90:80}}>
+                        <td
+                          key={ci}
+                          style={{
+                            padding:0,
+                            textAlign:ci===0?"left":isN?"right":"left",
+                            fontFamily:isN?"ui-monospace,monospace":"inherit",
+                            fontSize:12,
+                            borderRight:"1px solid "+GRID,
+                            borderBottom:"1px solid "+GRID,
+                            whiteSpace:"nowrap",
+                            color:tone==="bad"?"#c62828":tone==="good"?"#1e8c45":"#1a2240",
+                            fontWeight:tone?700:ci===0?500:400,
+                            background:tone==="bad"?"#fff0f0":tone==="good"?"#f0fdf4":"transparent",
+                            width:colWidths[ci] || (ci===0?90:80),
+                            minWidth:colWidths[ci] || (ci===0?90:80),
+                          }}
+                        >
                           <input
                             value={cell ?? ""}
                             onChange={e=>{
@@ -1721,8 +2081,8 @@ function QueryCard({q,sellerKey,value,onChange}){
                     type="button"
                     onClick={() => {
                       const headers = ["monat","anzahl_bestellungen","umsatz_eur","avg_order_value_eur"];
-                      const csv = rowsToCsv(headers, salesRows);
-                      copyText(csv);
+                      const tsv = rowsToTsvForExcel(headers, salesRows);
+                      copyText(tsv);
                     }}
                     style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
                   >
@@ -1775,8 +2135,8 @@ function QueryCard({q,sellerKey,value,onChange}){
                     type="button"
                     onClick={() => {
                       const headers = ["day","number_offers","pct_meta","pct_amazon","pct_otto"];
-                      const csv = rowsToCsv(headers, parityRows);
-                      copyText(csv);
+                      const tsv = rowsToTsvForExcel(headers, parityRows);
+                      copyText(tsv);
                     }}
                     style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
                   >
@@ -1838,8 +2198,8 @@ function QueryCard({q,sellerKey,value,onChange}){
                     type="button"
                     onClick={() => {
                       const headers = ["csin","titel","positionen","stueck","umsatz"];
-                      const csv = rowsToCsv(headers, productRows);
-                      copyText(csv);
+                      const tsv = rowsToTsvForExcel(headers, productRows);
+                      copyText(tsv);
                     }}
                     style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
                   >
@@ -1892,8 +2252,8 @@ function QueryCard({q,sellerKey,value,onChange}){
                     type="button"
                     onClick={() => {
                       const headers = ["kategorie","umsatz","teilbestellungen"];
-                      const csv = rowsToCsv(headers, categoryRows);
-                      copyText(csv);
+                      const tsv = rowsToTsvForExcel(headers, categoryRows);
+                      copyText(tsv);
                     }}
                     style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
                   >
@@ -1951,8 +2311,8 @@ function QueryCard({q,sellerKey,value,onChange}){
                       const headers = parsed?.headers && parsed.headers.length
                         ? parsed.headers
                         : Object.keys(dailyOrderRows[0] || {});
-                      const csv = rowsToCsv(headers, dailyOrderRows);
-                      copyText(csv);
+                      const tsv = rowsToTsvForExcel(headers, dailyOrderRows);
+                      copyText(tsv);
                     }}
                     style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
                   >
@@ -2020,8 +2380,8 @@ function QueryCard({q,sellerKey,value,onChange}){
                     type="button"
                     onClick={() => {
                       const headers = ["jahr_monat","bestellpositionen","umsatz","shopstornoquote","retourenquote","shopverzugsquote"];
-                      const csv = rowsToCsv(headers, qualityRows);
-                      copyText(csv);
+                      const tsv = rowsToTsvForExcel(headers, qualityRows);
+                      copyText(tsv);
                     }}
                     style={{padding:"3px 8px",borderRadius:999,border:"1px solid #e2e6f0",background:"#ffffff",fontSize:9,fontWeight:600,cursor:"pointer",color:"#0369a1"}}
                   >
@@ -2087,7 +2447,7 @@ export default function ShopPerformanceTool(){
   // Update preview whenever pasted data or shopName changes
   useEffect(()=>{
     try {
-      const sheets = buildPreviewSheets(
+      const sheets = buildPreviewSheetsDataOnly(
         shopName || sellerKey || "Shop",
         (sellerKey || "").trim(),
         pasted
@@ -2106,7 +2466,7 @@ export default function ShopPerformanceTool(){
     try {
       const XLSXmod = await import("xlsx");
       const XLSX = XLSXmod.default || XLSXmod;
-      const wb = await buildExcel(
+      const wb = await buildDataWorkbook(
         XLSX,
         shopName || sellerKey || "Shop",
         effectiveSellerKey,
@@ -2171,10 +2531,6 @@ export default function ShopPerformanceTool(){
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}/>
       </div>
 
-      <div style={{padding:"10px 14px",borderRadius:10,background:"#fffbeb",border:"1px solid #fcd34d",marginBottom:14,fontSize:12,color:"#78350f"}}>
-        
-      </div>
-
       {/* Config */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:13,padding:"13px 16px",borderRadius:12,background:"#fff",boxShadow:"0 2px 16px rgba(4,16,103,0.08)",marginBottom:14,alignItems:"end"}}>
         <div><label style={{display:"block",fontSize:10,fontWeight:700,color:"#6b7694",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>Seller Key</label>
@@ -2183,7 +2539,7 @@ export default function ShopPerformanceTool(){
           <input value={shopName} onChange={e=>setShopName(e.target.value)} placeholder="z.B. Mygardenhome" style={inp}/></div>
         <div style={{display:"flex",flexDirection:"column",gap:5,paddingBottom:2}}>
           <StatusBadge tone={perfReady===0?"idle":perfReady===QUERIES.length?"ok":"warn"}>{perfReady}/{QUERIES.length} Queries</StatusBadge>
-          <p style={{margin:0,fontSize:9.5,color:"#b0b8cc"}}>5 Sheets: Übersicht · Umsatz · Parität · Retouren & Verzüge · Sortiment</p>
+          
         </div>
       </div>
 

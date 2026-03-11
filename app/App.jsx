@@ -2507,6 +2507,9 @@ export default function App() {
       size: ["size", "abmessungen", "dimension", "dimensions"],
       washable_cover: ["washable_cover", "waschbarer bezug", "waschbarer_bezug"],
       mounting_side: ["mounting_side", "montageseite", "einbau", "links_rechts"],
+      hs_code: ["hs_code", "hs-code", "hs code", "zolltarifnummer", "warennummer"],
+      manufacturer_name: ["manufacturer_name", "hersteller", "herstellername", "manufacturer"],
+      manufacturer_country: ["manufacturer_country", "hersteller_land", "herstellerland", "country_of_origin", "ursprungsland"],
     };
 
     const m = {};
@@ -2694,7 +2697,16 @@ export default function App() {
   const optionalFindings = useMemo(() => {
     if (!rows.length) {
       return {
-        missingEansByField: { material: [], color: [], delivery_includes: [], delivery_time: [] },
+        missingEansByField: {
+          material: [],
+          color: [],
+          delivery_includes: [],
+          delivery_time: [],
+          price: [],
+          hs_code: [],
+          manufacturer_name: [],
+          manufacturer_country: [],
+        },
         samplesByField: { material: [], color: [], delivery_includes: [] },
         missingEANs: [],
         imageZeroEans: [],
@@ -2741,8 +2753,21 @@ export default function App() {
       color: [],
       delivery_includes: [],
       delivery_time: [],
+      price: [],
+      hs_code: [],
+      manufacturer_name: [],
+      manufacturer_country: [],
     };
-    const fieldsForMissing = [...optionalFields, "material", "color", "delivery_includes"];
+    const fieldsForMissing = [
+      ...optionalFields,
+      "material",
+      "color",
+      "delivery_includes",
+      "price",
+      "hs_code",
+      "manufacturer_name",
+      "manufacturer_country",
+    ];
     for (const f of fieldsForMissing) {
       const col = mapping[f];
       if (!col) continue;
@@ -3096,7 +3121,7 @@ export default function App() {
     }
 
     if (titleColumn && duplicates.titleDup.size > 0) {
-      tips.push(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`);
+      issues.push(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`);
     }
 
     const optionalMissingCount =
@@ -3104,8 +3129,31 @@ export default function App() {
       optionalFindings.missingEansByField.color.length +
       optionalFindings.missingEansByField.delivery_includes.length;
 
+    const missingPriceCount = mapping.price ? optionalFindings.missingEansByField.price.length : 0;
+    const missingHsCodeCount = mapping.hs_code ? optionalFindings.missingEansByField.hs_code.length : 0;
+    const missingManufacturerNameCount = mapping.manufacturer_name
+      ? optionalFindings.missingEansByField.manufacturer_name.length
+      : 0;
+    const missingManufacturerCountryCount = mapping.manufacturer_country
+      ? optionalFindings.missingEansByField.manufacturer_country.length
+      : 0;
+
     if (optionalMissingCount > 0) {
       tips.push("Optionalfelder wie Material, Farbe und Lieferumfang wenn möglich vollständig pflegen.");
+    }
+
+    if (missingPriceCount > 0) {
+      issues.push(`Preis fehlt bei ${missingPriceCount} Artikeln.`);
+    }
+    if (missingHsCodeCount > 0) {
+      tips.push(`HS‑Code fehlt bei ${missingHsCodeCount} Artikeln.`);
+    }
+    if (missingManufacturerNameCount > 0 || missingManufacturerCountryCount > 0) {
+      tips.push(
+        `Herstellerangaben fehlen bei ${
+          missingManufacturerNameCount + missingManufacturerCountryCount
+        } Artikeln (Name/Land).`
+      );
     }
 
     if (imageColumns.length === 0) {
@@ -3132,6 +3180,12 @@ export default function App() {
     score -= Math.min(12, optionalFindings.imageZeroEans.length > 0 ? 12 : 0);
     score -= Math.min(6, optionalFindings.imageOneEans.length > 0 ? 6 : 0);
     score -= Math.min(10, optionalMissingCount > 0 ? 10 : 0);
+    score -= Math.min(15, missingPriceCount > 0 ? 15 : 0);
+    score -= Math.min(5, missingHsCodeCount > 0 ? 5 : 0);
+    score -= Math.min(
+      5,
+      missingManufacturerNameCount + missingManufacturerCountryCount > 0 ? 5 : 0
+    );
     score -= Math.min(15, optionalFindings.invalidShipping.length > 0 ? 15 : 0);
     score -= Math.min(10, optionalFindings.missingShipping.length > 0 ? 10 : 0);
     score -= Math.min(15, eanColumn && rows.some((r) => isBlank(r[eanColumn])) ? 15 : 0);
@@ -3180,6 +3234,12 @@ export default function App() {
       score -= 3;
     }
 
+    if (!mapping.size) {
+      tips.push(
+        "Bitte Maße (z. B. Höhe/Breite/Tiefe) je Produkt klar angeben – idealerweise in separaten Spalten oder im Titel/Beschreibung."
+      );
+    }
+
     score = Math.max(0, score);
 
     let shippingAllMissing = false;
@@ -3207,6 +3267,7 @@ export default function App() {
       requiredPresence.missing.length === 0 &&
       !!eanColumn &&
       rows.every((r) => !isBlank(r[eanColumn])) &&
+      duplicates.titleDup.size === 0 &&
       (mapping.shipping_mode ? rows.every((r) => !isBlank(r[mapping.shipping_mode])) : true) &&
       !shippingAllMissing &&
       !deliveryAllMissing &&
