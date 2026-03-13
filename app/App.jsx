@@ -297,7 +297,7 @@ function ResizableTable({ columns, rows, highlightedCells }) {
     Object.fromEntries(columns.map((c) => [c.key, computeInitialWidth(c)]))
   );
   const MIN_ROW_HEIGHT = 28;
-  const MAX_ROW_HEIGHT = 60; // hard cap ~4–5 lines incl. padding
+  const MAX_ROW_HEIGHT = 60; // hard cap ~4–5 lines inkl. Padding
   const [rowHeight, setRowHeight] = useState(40);
   const [expandedCells, setExpandedCells] = useState(() => new Set());
   const [descriptionModal, setDescriptionModal] = useState(null);
@@ -511,23 +511,40 @@ function ResizableTable({ columns, rows, highlightedCells }) {
                   >
                     {longText ? (
                       rawValue ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDescriptionModal({ title: c.label || c.key, text: displayValue });
-                          }}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 999,
-                            border: "1px solid #E5E7EB",
-                            background: "#FFFFFF",
-                            fontSize: 10,
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Beschreibung öffnen
-                        </button>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: "#111827",
+                              maxHeight: rowHeight - 18,
+                              overflow: "hidden",
+                              lineHeight: "14px",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {displayValue.length > 220
+                              ? `${displayValue.slice(0, 220)}…`
+                              : displayValue}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDescriptionModal({ title: c.label || c.key, text: displayValue });
+                            }}
+                            style={{
+                              alignSelf: "flex-start",
+                              padding: "3px 8px",
+                              borderRadius: 999,
+                              border: "1px solid #E5E7EB",
+                              background: "#FFFFFF",
+                              fontSize: 10,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Vollständige Beschreibung anzeigen
+                          </button>
+                        </div>
                       ) : (
                         <span style={{ fontSize: 10, color: "#9CA3AF" }}>Keine Beschreibung</span>
                       )
@@ -1522,6 +1539,40 @@ function QsPage({ headers, rows }) {
       }
     }
 
+    let farbe = 0;
+    if (colorCol) {
+      let nonEmpty = 0;
+      let valid = 0;
+      for (const r of rows) {
+        const raw = safeStr(r[colorCol]).trim();
+        if (!raw) continue;
+        nonEmpty += 1;
+        const val = raw.toLowerCase();
+        const isBlacklist =
+          val === "-" ||
+          val === "na" ||
+          val === "n/a" ||
+          val === "none" ||
+          val === "kein" ||
+          val === "keine" ||
+          val === "k.a." ||
+          val === "ka";
+        const isTooLong = raw.length > 50;
+        if (!isBlacklist && !isTooLong) {
+          valid += 1;
+        }
+      }
+      const filledRateColor = rows.length ? nonEmpty / rows.length : 0;
+      const validRate = nonEmpty ? valid / nonEmpty : 0;
+      if (filledRateColor >= 0.9 && validRate >= 0.9) {
+        farbe = 10;
+      } else if (filledRateColor >= 0.6 && validRate >= 0.6) {
+        farbe = 5;
+      } else {
+        farbe = 0;
+      }
+    }
+
     let anzahlbilder = 0;
     if (headers.length && rows.length) {
       const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
@@ -1582,7 +1633,7 @@ function QsPage({ headers, rows }) {
       abmessungen,
       lieferumfang,
       material,
-      farbe: 0,
+      farbe,
       shoptexte,
       bildmatch: 0,
       freisteller,
@@ -1666,16 +1717,7 @@ function QsPage({ headers, rows }) {
   const scoreReasons = useMemo(() => {
     const reasons = {};
 
-    if (!brandCol) {
-      reasons.herstellerfeed = "Keine Marken-Spalte erkannt – 0 Punkte.";
-    } else {
-      const rate = filledRate(brandCol);
-      if (scores.herstellerfeed >= 20) {
-        reasons.herstellerfeed = `Marke in ca. ${fmtPct(rate)} der Produkte gepflegt – 20 Punkte.`;
-      } else {
-        reasons.herstellerfeed = `Marke nur in ca. ${fmtPct(rate)} der Produkte gepflegt – 0 Punkte.`;
-      }
-    }
+    reasons.herstellerfeed = `Herstellerfeed manuell bewertet: ${scores.herstellerfeed} Punkte (Ja = 20, Nein = 0).`;
 
     if (!titleCol) {
       reasons.titel = "Keine Titel-Spalte erkannt – 0 Punkte.";
@@ -1761,7 +1803,7 @@ function QsPage({ headers, rows }) {
     } else {
       const rate = filledRate(materialCol);
       if (scores.material === 10) {
-        reasons.material = `Material fuer ca. ${fmtPct(rate)} der Produkte sinnvoll gepflegt – 10 Punkte.`;
+        reasons.material = `Material für ca. ${fmtPct(rate)} der Produkte sinnvoll gepflegt – 10 Punkte.`;
       } else if (scores.material === 5) {
         reasons.material = `Material nur teilweise gepflegt (ca. ${fmtPct(rate)}) oder uneinheitlich – 5 Punkte.`;
       } else {
@@ -1870,7 +1912,7 @@ function QsPage({ headers, rows }) {
         id: "herstellerfeed",
         label: "Herstellerfeed",
         status: scores.herstellerfeed === 0 ? "bad" : scores.herstellerfeed < 20 ? "warn" : "ok",
-        columnLabel: brandCol || "",
+        columnLabel: "",
         editable: true,
         options: [0, 20],
         value: scores.herstellerfeed,
@@ -1957,12 +1999,12 @@ function QsPage({ headers, rows }) {
     ];
 
     const criteria = {
-      herstellerfeed: ["20 P: Marke in fast allen Zeilen vorhanden und sinnvoll befüllt.", "0 P: Marke fehlt häufig oder ist nicht nutzbar."],
+      herstellerfeed: [],
       titel: ["20 P: Titel fast immer vorhanden, lang genug und ohne viele Dubletten.", "10 P: Titel oft vorhanden, aber teils kurz oder doppelt.", "0 P: Titel fehlen häufig oder sind sehr kurz."],
       beschreibung: ["10 P: Beschreibungen in den meisten Zeilen, mit vernünftiger Länge.", "5 P: Beschreibungen teils vorhanden, eher kurz.", "0 P: Beschreibungen fehlen oft oder sind extrem kurz."],
       abmessungen: ["10 P: Verständliche Maße in vielen Produkten (z. B. 90x200 cm).", "5 P: Maße nur teilweise oder unklar vorhanden.", "0 P: Kaum verwertbare Maße."],
       lieferumfang: ["20 P: Lieferumfang fast immer im Format '1x Produkt' gepflegt.", "10 P: Lieferumfang teils gepflegt und oft im korrekten Format.", "0 P: Lieferumfang selten gepflegt oder unklar."],
-      material: ["10 P: Material fuer die meisten Produkte sinnvoll gepflegt.", "5 P: Material nur teilweise gepflegt oder uneinheitlich.", "0 P: Material kaum oder gar nicht gepflegt."],
+      material: ["10 P: Material für die meisten Produkte sinnvoll gepflegt.", "5 P: Material nur teilweise gepflegt oder uneinheitlich.", "0 P: Material kaum oder gar nicht gepflegt."],
       farbe: ["10 P: Farben meist vorhanden und sauber benannt.", "5 P: Farben nur teilweise vorhanden oder uneinheitlich.", "0 P: Farbinfos fehlen weitgehend."],
       shoptexte: ["10 P: Keine bzw. kaum separate shopbezogene Texte im Feed.", "5 P: Nur vereinzelt shopbezogene Texte vorhanden.", "0 P: Viele shopbezogene/marketinglastige Texte im Feed."],
     };
@@ -2195,7 +2237,10 @@ function QsPage({ headers, rows }) {
 
       <div style={{ marginTop: 18, padding: 10, borderRadius: 16, border: "1px solid #A7F3D0", background: "#F0FDF4" }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: "#166534" }}>Attribute Qualität</div>
-        <SmallText>Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen.</SmallText>
+        <SmallText>
+          Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen. Herstellerfeed wird
+          ausschliesslich manuell per Ja/Nein bewertet.
+        </SmallText>
 
         <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 8 }}>
           {attributeItems.map((item) => {
@@ -2211,13 +2256,56 @@ function QsPage({ headers, rows }) {
                     <span style={{ fontSize: 10, color: toneColor }}>{icon}</span>
                     <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{columnText}</div>
+                      {item.id !== "herstellerfeed" ? (
+                        <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{columnText}</div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          Manuelle Bewertung: Ja = 20 P, Nein = 0 P
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
-                    {item.editable ? (
+                    {item.id === "herstellerfeed" ? (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => item.onChange(20)}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            border: item.value === 20 ? "1px solid #16A34A" : "1px solid #D1D5DB",
+                            background: item.value === 20 ? "#DCFCE7" : "#FFFFFF",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Ja
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => item.onChange(0)}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            border: item.value === 0 ? "1px solid #DC2626" : "1px solid #D1D5DB",
+                            background: item.value === 0 ? "#FEE2E2" : "#FFFFFF",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Nein
+                        </button>
+                      </div>
+                    ) : item.editable ? (
                       <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", fontSize: 12, background: "#FFFFFF", cursor: "pointer" }}>
-                        {item.options.map((opt) => (<option key={opt} value={opt}>{opt} P</option>))}
+                        {item.options.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt} P
+                          </option>
+                        ))}
                       </select>
                     ) : (
                       <span style={{ padding: "3px 8px", borderRadius: 999, background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
@@ -2225,7 +2313,7 @@ function QsPage({ headers, rows }) {
                   </div>
                 </div>
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>{item.description}</div> : null}
-                {item.criteria && item.criteria.length ? (
+                {item.id !== "herstellerfeed" && item.criteria && item.criteria.length ? (
                   <details style={{ marginTop: 4 }}>
                     <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>Kriterien fuer Punkte anzeigen</summary>
                     <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
@@ -2241,7 +2329,10 @@ function QsPage({ headers, rows }) {
 
       <div style={{ marginTop: 24, padding: 10, borderRadius: 16, border: "1px solid #BFDBFE", background: "#EFF6FF" }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: "#1D4ED8" }}>Bildqualität</div>
-        <SmallText>Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. Darunter siehst du Beispielprodukte.</SmallText>
+        <SmallText>
+          Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. „1. Bild &amp; keine Dopplungen“, „Freisteller“ und
+          „Millieu“ muessen manuell ueber das Dropdown bewertet werden. Darunter siehst du Beispielprodukte.
+        </SmallText>
 
         <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 8 }}>
           {imageItems.map((item) => {
@@ -2510,6 +2601,19 @@ export default function App() {
       hs_code: ["hs_code", "hs-code", "hs code", "zolltarifnummer", "warennummer"],
       manufacturer_name: ["manufacturer_name", "hersteller", "herstellername", "manufacturer"],
       manufacturer_country: ["manufacturer_country", "hersteller_land", "herstellerland", "country_of_origin", "ursprungsland"],
+      energy_efficiency_label: [
+        "energy_efficiency_label",
+        "energieeffizienzlabel",
+        "energieeffizienz_label",
+        "energie label",
+      ],
+      lighting_included: ["lighting_included", "beleuchtung_enthalten", "inkl_beleuchtung", "beleuchtung"],
+      eprel_registration_number: [
+        "EPREL_registration_number",
+        "eprel_registration_number",
+        "eprel",
+        "eprel_nr",
+      ],
     };
 
     const m = {};
@@ -2733,6 +2837,7 @@ export default function App() {
         invalidMountingSide: [],
         invalidDeliveryTime: [],
         templateValueHits: [],
+        lightingEnergyMissing: [],
       };
     }
 
@@ -3004,6 +3109,35 @@ export default function App() {
       });
     });
 
+    // Additional lighting / energy-efficiency requirements for products that look like lamps
+    const lightingEnergyMissing = [];
+    if (mapping.name) {
+      const titleCol = mapping.name;
+      const energyCol = mapping.energy_efficiency_label;
+      const lightingInclCol = mapping.lighting_included;
+      const eprelCol = mapping.eprel_registration_number;
+      const hasAnyEnergyCols = energyCol || lightingInclCol || eprelCol;
+
+      if (hasAnyEnergyCols) {
+        const lampTokens = ["lampe", "leuchte", "leuchten", "licht", "beleuchtung", "led"];
+        rows.forEach((r, idx) => {
+          const titleRaw = String(r[titleCol] ?? "").toLowerCase();
+          if (!titleRaw) return;
+          const looksLikeLamp = lampTokens.some((tok) => titleRaw.includes(tok));
+          if (!looksLikeLamp) return;
+
+          let missingAny = false;
+          if (energyCol && isBlank(r[energyCol])) missingAny = true;
+          if (lightingInclCol && isBlank(r[lightingInclCol])) missingAny = true;
+          if (eprelCol && isBlank(r[eprelCol])) missingAny = true;
+
+          if (missingAny) {
+            lightingEnergyMissing.push(eans[idx]);
+          }
+        });
+      }
+    }
+
     return {
       missingEansByField,
       samplesByField,
@@ -3024,6 +3158,7 @@ export default function App() {
       invalidMountingSide,
       invalidDeliveryTime,
       templateValueHits,
+      lightingEnergyMissing: uniqueNonEmpty(lightingEnergyMissing).sort(),
     };
   }, [rows, optionalFields, mapping, imageColumns, imageMin, eanColumn, rules]);
 
@@ -3138,6 +3273,10 @@ export default function App() {
       ? optionalFindings.missingEansByField.manufacturer_country.length
       : 0;
 
+    const lightingEnergyMissingCount = optionalFindings.lightingEnergyMissing
+      ? optionalFindings.lightingEnergyMissing.length
+      : 0;
+
     if (optionalMissingCount > 0) {
       tips.push("Optionalfelder wie Material, Farbe und Lieferumfang wenn möglich vollständig pflegen.");
     }
@@ -3153,6 +3292,12 @@ export default function App() {
         `Herstellerangaben fehlen bei ${
           missingManufacturerNameCount + missingManufacturerCountryCount
         } Artikeln (Name/Land).`
+      );
+    }
+
+    if (lightingEnergyMissingCount > 0) {
+      issues.push(
+        `Energieeffizienz-Angaben fehlen bei ${lightingEnergyMissingCount} Artikeln, die als Leuchte/Lampe erkannt wurden (Titel enthält z. B. LED/Lampe/Leuchte).`
       );
     }
 
@@ -3186,6 +3331,7 @@ export default function App() {
       5,
       missingManufacturerNameCount + missingManufacturerCountryCount > 0 ? 5 : 0
     );
+    score -= Math.min(10, lightingEnergyMissingCount > 0 ? 10 : 0);
     score -= Math.min(15, optionalFindings.invalidShipping.length > 0 ? 15 : 0);
     score -= Math.min(10, optionalFindings.missingShipping.length > 0 ? 10 : 0);
     score -= Math.min(15, eanColumn && rows.some((r) => isBlank(r[eanColumn])) ? 15 : 0);
@@ -3271,6 +3417,7 @@ export default function App() {
       (mapping.shipping_mode ? rows.every((r) => !isBlank(r[mapping.shipping_mode])) : true) &&
       !shippingAllMissing &&
       !deliveryAllMissing &&
+      (optionalFindings.lightingEnergyMissing?.length || 0) === 0 &&
       brokenImageIds.length === 0;
 
     return { score, canStart, issues, tips };
@@ -3488,6 +3635,42 @@ export default function App() {
     </div>
     </>
   );
+
+  function FeedPreviewPanel({ headers, children }) {
+    if (!headers.length) return null;
+    return (
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          maxHeight: "100%",
+          overflowY: "auto",
+          paddingLeft: 4,
+        }}
+      >
+        <div
+          style={{
+            padding: 10,
+            borderRadius: 14,
+            border: "1px solid #E5E7EB",
+            background: "#FFFFFF",
+          }}
+        >
+          {children}
+        </div>
+        <div
+          style={{
+            marginTop: 8,
+            color: "#6B7280",
+            fontSize: 12,
+            lineHeight: "18px",
+          }}
+        >
+          Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
+        </div>
+      </div>
+    );
+  }
 
   const topNav = (
     <div style={{ background: "white", borderBottom: "1px solid #E5E7EB" }}>
@@ -4224,25 +4407,8 @@ export default function App() {
           </div>
         </div>
 
-            {/* ── RIGHT: Preview — independently scrollable ── */}
-            {headers.length ? (
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  maxHeight: "100%",
-                  overflowY: "auto",
-                  paddingLeft: 4,
-                }}
-              >
-                <div style={{ padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
-                  {step7Inner}
-                </div>
-                <div style={{ marginTop: 8, color: "#6B7280", fontSize: 12, lineHeight: "18px" }}>
-                  Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
-                </div>
-              </div>
-            ) : null}
+            {/* ── RIGHT: Shared file preview ── */}
+            <FeedPreviewPanel headers={headers}>{step7Inner}</FeedPreviewPanel>
           </div>
         </div>
       </div>
@@ -4294,120 +4460,151 @@ export default function App() {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
-          <StepCard title="Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="CSV-Datei hochladen, um die Prüfung zu starten">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: "#FFFFFF", fontSize: 12, fontWeight: 700, color: BRAND_COLOR, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Datei auswählen</button>
-              <button type="button" onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #CBD5E1", background: "#F9FAFB", fontSize: 11, fontWeight: 600, color: "#111827", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Feedvorlage (Excel) herunterladen</button>
-              <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>{fileName ? `Aktuelle Datei: ${fileName}` : "Unterstuetzt CSV Dateien mit Kopfzeile"}</div>
-              <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
-            </div>
-            {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
-          </StepCard>
-        </div>
-        <QsPage headers={headers} rows={rows} />
-        {headers.length > 0 && rows.length > 0 && (
-          <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
-              <div style={{ marginTop: 24, borderRadius: 16, border: "1px solid #E5E7EB", background: "#FFFFFF", padding: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>CSV Vorschau</div>
-                <button type="button" onClick={() => setPreviewFullscreen(true)} style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 12, cursor: "pointer", color: "#111827" }}>Vollbild</button>
-              </div>
-              {columnFilterOpen && headers.length > 0 ? (
-                <div style={{ marginTop: 6, padding: 8, borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF", maxHeight: 180, overflow: "auto" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <SmallText>Spalten anzeigen/verstecken</SmallText>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVisibleColumns((prev) => {
-                          const allKeys = headers;
-                          const allSelected = !Array.isArray(prev) || prev.length === allKeys.length;
-                          return allSelected ? [] : null;
-                        });
-                      }}
-                      style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#111827" }}
+        <div
+          style={{
+            height: "100vh",
+            overflow: "hidden",
+            fontFamily: "ui-sans-serif, system-ui",
+            boxSizing: "border-box",
+            background: "#F3F4F6",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: headers.length ? "none" : 1000,
+                padding: 24,
+                boxSizing: "border-box",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  marginTop: 18,
+                  display: headers.length ? "flex" : "block",
+                  gap: headers.length ? 16 : 14,
+                  alignItems: "flex-start",
+                  height: headers.length ? "calc(100vh - 24px - 48px)" : "auto",
+                }}
+              >
+                {/* LEFT: QS/APA dashboard + upload */}
+                <div
+                  style={{
+                    flex: headers.length ? "1 1 0" : "auto",
+                    maxWidth: "none",
+                    maxHeight: headers.length ? "100%" : "none",
+                    overflowY: headers.length ? "auto" : "visible",
+                    paddingRight: headers.length ? 4 : 0,
+                  }}
+                >
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
+                    <StepCard
+                      title="Datei hochladen"
+                      status={headers.length ? "ok" : "idle"}
+                      subtitle="CSV-Datei hochladen, um die Prüfung zu starten"
                     >
-                      {(!Array.isArray(visibleColumns) || visibleColumns.length === headers.length) ? "Alle abwählen" : "Alle auswählen"}
-                    </button>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-start",
+                          gap: 10,
+                          marginTop: 2,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 999,
+                            border: `1px solid ${BRAND_COLOR}`,
+                            background: "#FFFFFF",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: BRAND_COLOR,
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          Datei auswählen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            window.open(
+                              "http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx",
+                              "_blank",
+                              "noopener,noreferrer"
+                            )
+                          }
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 999,
+                            border: "1px solid #CBD5E1",
+                            background: "#F9FAFB",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "#111827",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          Feedvorlage (Excel) herunterladen
+                        </button>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#6B7280",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            flex: 1,
+                            minWidth: 0,
+                          }}
+                        >
+                          {fileName
+                            ? `Aktuelle Datei: ${fileName}`
+                            : "Unterstuetzt CSV Dateien mit Kopfzeile"}
+                        </div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".csv,text/csv"
+                          onChange={(e) => onPickFile(e.target.files?.[0] || null)}
+                          style={{ display: "none" }}
+                        />
+                      </div>
+                      {parseError ? (
+                        <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>
+                          Fehler beim Einlesen {parseError}
+                        </div>
+                      ) : null}
+                    </StepCard>
+
+                    {headers.length ? <QsPage headers={headers} rows={rows} /> : null}
                   </div>
-                  <div style={{ marginTop: 2, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {headers.map((h) => {
-                      const isActive = !Array.isArray(visibleColumns) || visibleColumns.includes(h);
-                      return (
-                        <label key={h} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#111827" }}>
-                          <input
-                            type="checkbox"
-                            checked={isActive}
-                            onChange={(e) => {
-                              setVisibleColumns((prev) => {
-                                const current = Array.isArray(prev) ? new Set(prev) : new Set(headers);
-                                if (e.target.checked) { current.add(h); } else { current.delete(h); }
-                                const next = Array.from(current);
-                                return next.length === headers.length ? null : next;
-                              });
-                            }}
-                          />
-                          <span>{String(h)}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
                 </div>
-              ) : null}
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Suche</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <input
-                    value={eanSearch}
-                    onChange={(e) => setEanSearch(e.target.value)}
-                    placeholder="EAN eingeben um passende Zeilen zu filtern"
-                    style={{
-                      flex: "1 1 0",
-                      minWidth: 0,
-                      padding: "8px 10px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      fontSize: 12,
-                      boxSizing: "border-box",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setColumnFilterOpen((v) => !v)}
-                    aria-label="Spalten wählen"
-                    title="Spalten wählen"
-                    style={{
-                      padding: "6px 8px",
-                      borderRadius: 999,
-                      border: "1px solid #E5E7EB",
-                      background: "#FFFFFF",
-                      fontSize: 14,
-                      cursor: "pointer",
-                      color: "#111827",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      minWidth: 32,
-                    }}
-                  >
-                    ⚙
-                  </button>
-                </div>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <ResizableTable
-                  columns={previewColumns}
-                  rows={rows.filter((r) => { if (!eanSearch) return true; if (eanColumn) { const val = String(r[eanColumn] ?? "").trim(); return val.includes(eanSearch); } const q = eanSearch.toLowerCase(); return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q)); }).slice(0, previewCount)}
-                />
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <SmallText>Zeige {Math.min(previewCount, rows.length)} von {rows.length} Zeilen.</SmallText>
-                  <button onClick={() => setPreviewCount((c) => Math.min(rows.length, c + 20))} disabled={previewCount >= rows.length} style={{ padding: "10px 18px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR, cursor: previewCount >= rows.length ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, color: "#FFFFFF" }}>20 weitere laden</button>
-                </div>
+
+                {/* RIGHT: shared file preview */}
+                <FeedPreviewPanel headers={headers}>{step7Inner}</FeedPreviewPanel>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     );
   }
