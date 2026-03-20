@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
 import ShopPerformance from "./shop-performance";
 import Onboarding from "./onboarding";
+import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabaseClient";
    
 
 const BRAND_COLOR = "rgb(4,16,103)";
@@ -282,7 +283,15 @@ function Table({ columns, rows, highlight }) {
   );
 }
 
-function ResizableTable({ columns, rows, highlightedCells }) {
+function ResizableTable({
+  columns,
+  rows,
+  highlightedCells,
+  getRowTargetKey,
+  targetRowKey,
+  highlightedRowKey,
+  onTargetHandled,
+}) {
   const computeInitialWidth = (col) => {
     const label = String(col.label || col.key || "");
     if (String(col.key).toLowerCase() === "name") {
@@ -297,25 +306,15 @@ function ResizableTable({ columns, rows, highlightedCells }) {
     Object.fromEntries(columns.map((c) => [c.key, computeInitialWidth(c)]))
   );
   const MIN_ROW_HEIGHT = 28;
-  const MAX_ROW_HEIGHT = 60; // hard cap ~4–5 lines inkl. Padding
-  const [rowHeight, setRowHeight] = useState(40);
-  const [expandedCells, setExpandedCells] = useState(() => new Set());
+  const MAX_ROW_HEIGHT = 48; // enforce compact preview height cap
+  const [rowHeight, setRowHeight] = useState(32);
   const [descriptionModal, setDescriptionModal] = useState(null);
   const dragRef = useRef(null);
+  const rowRefs = useRef(new Map());
 
   const isLongTextColumn = (key) => {
     const norm = normalizeKey(key);
     return norm.startsWith("description") || norm.includes("beschreibung");
-  };
-
-  const toggleCellExpanded = (rowIndex, colKey) => {
-    setExpandedCells((prev) => {
-      const next = new Set(prev);
-      const id = `${rowIndex}:${colKey}`;
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   };
 
   useEffect(() => {
@@ -349,6 +348,14 @@ function ResizableTable({ columns, rows, highlightedCells }) {
       window.removeEventListener("mouseup", onUp);
     };
   }, []);
+
+  useEffect(() => {
+    if (!targetRowKey || !getRowTargetKey) return;
+    const node = rowRefs.current.get(String(targetRowKey));
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (typeof onTargetHandled === "function") onTargetHandled();
+  }, [targetRowKey, rows, getRowTargetKey, onTargetHandled]);
 
   const startResize = (key, event) => {
     const th = event.currentTarget.parentElement;
@@ -456,11 +463,25 @@ function ResizableTable({ columns, rows, highlightedCells }) {
         <tbody>
           {rows.map((r, i) => {
             const zebra = i % 2 === 0 ? "#FFFFFF" : "#F9FAFB";
+            const rowTargetKey = getRowTargetKey ? getRowTargetKey(r, i) : null;
+            const isJumpHighlighted =
+              highlightedRowKey != null &&
+              rowTargetKey != null &&
+              String(rowTargetKey) === String(highlightedRowKey);
             return (
-              <tr key={i} style={{ background: zebra }}>
+              <tr
+                key={i}
+                ref={(el) => {
+                  if (!rowTargetKey) return;
+                  const key = String(rowTargetKey);
+                  if (el) rowRefs.current.set(key, el);
+                  else rowRefs.current.delete(key);
+                }}
+                style={{ background: isJumpHighlighted ? "#FEF3C7" : zebra }}
+              >
               <td
                 style={{
-                  padding: "4px 8px",
+                  padding: "0 8px",
                   border: "1px solid #E5E7EB",
                   color: "#6B7280",
                   whiteSpace: "nowrap",
@@ -472,16 +493,17 @@ function ResizableTable({ columns, rows, highlightedCells }) {
                   maxHeight: rowHeight,
                   overflow: "hidden",
                   lineHeight: "14px",
-                  background: zebra,
+                  background: isJumpHighlighted ? "#FEF3C7" : zebra,
                 }}
               >
-                {i + 1}
+                <div style={{ height: rowHeight, maxHeight: rowHeight, display: "flex", alignItems: "center", overflow: "hidden" }}>
+                  {i + 1}
+                </div>
               </td>
               {columns.map((c) => {
                 const w = widths[c.key] ?? 90;
                 const longText = isLongTextColumn(c.key);
                 const cellId = `${i}:${c.key}`;
-                const expanded = longText && expandedCells.has(cellId);
                 const rawValue = String(r?.[c.key] ?? "");
                 const displayValue = normalizePreviewText(rawValue);
                 const isHighlighted =
@@ -494,29 +516,35 @@ function ResizableTable({ columns, rows, highlightedCells }) {
                     key={c.key}
                     title={tooltip}
                     style={{
-                      padding: "4px 8px",
+                      padding: "0 8px",
                       border: "1px solid #E5E7EB",
                       color: "#111827",
                       whiteSpace: "normal",
                       width: w,
                       maxWidth: w,
                       minWidth: w,
-                      height: expanded ? "auto" : rowHeight,
-                      maxHeight: expanded ? "none" : rowHeight,
-                      overflow: expanded ? "visible" : "hidden",
+                      height: rowHeight,
+                      maxHeight: rowHeight,
+                      overflow: "hidden",
                       lineHeight: "14px",
                       wordBreak: "break-word",
-                      background: isHighlighted ? "#FEE2E2" : zebra,
+                      background: isHighlighted ? "#FEE2E2" : (isJumpHighlighted ? "#FEF3C7" : zebra),
+                      cursor: longText && rawValue ? "pointer" : "default",
+                    }}
+                    onClick={() => {
+                      if (longText && rawValue) {
+                        setDescriptionModal({ title: c.label || c.key, text: displayValue });
+                      }
                     }}
                   >
                     {longText ? (
                       rawValue ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ height: rowHeight, maxHeight: rowHeight, display: "flex", alignItems: "center", overflow: "hidden" }}>
                           <div
                             style={{
                               fontSize: 10,
                               color: "#111827",
-                              maxHeight: rowHeight - 18,
+                              maxHeight: rowHeight - 2,
                               overflow: "hidden",
                               lineHeight: "14px",
                               wordBreak: "break-word",
@@ -526,30 +554,16 @@ function ResizableTable({ columns, rows, highlightedCells }) {
                               ? `${displayValue.slice(0, 220)}…`
                               : displayValue}
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDescriptionModal({ title: c.label || c.key, text: displayValue });
-                            }}
-                            style={{
-                              alignSelf: "flex-start",
-                              padding: "3px 8px",
-                              borderRadius: 999,
-                              border: "1px solid #E5E7EB",
-                              background: "#FFFFFF",
-                              fontSize: 10,
-                              cursor: "pointer",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Vollständige Beschreibung anzeigen
-                          </button>
                         </div>
                       ) : (
-                        <span style={{ fontSize: 10, color: "#9CA3AF" }}>Keine Beschreibung</span>
+                        <div style={{ height: rowHeight, maxHeight: rowHeight, display: "flex", alignItems: "center", overflow: "hidden" }}>
+                          <span style={{ fontSize: 10, color: "#9CA3AF" }}>Keine Beschreibung</span>
+                        </div>
                       )
                     ) : (
-                      displayValue
+                      <div style={{ height: rowHeight, maxHeight: rowHeight, display: "flex", alignItems: "center", overflow: "hidden" }}>
+                        {displayValue}
+                      </div>
                     )}
                   </td>
                 );
@@ -712,23 +726,46 @@ function firstImageUrls(rows, imageCols, limit) {
   return uniqueNonEmpty(urls).slice(0, limit);
 }
 
-function CollapsibleList({ title, items, tone, hint, onAddValue }) {
+function CollapsibleList({ title, items, tone, hint, onAddValue, onItemClick }) {
   const count = items.length;
   const shownItems = items.slice(0, 500);
   const parsed = shownItems.map((raw) => {
+    // Support both plain strings and grouped objects { value, eans: [] }.
+    if (raw && typeof raw === "object" && Array.isArray(raw.eans)) {
+      const value = String(raw.value ?? "");
+      const eans = raw.eans.map((e) => String(e ?? "").trim()).filter(Boolean);
+      const restPart = eans.join(", ");
+      return {
+        text: `${value} – ${eans.length} EANs`,
+        isLong: false,
+        isValueWithEans: true,
+        valuePart: value,
+        restPart,
+        firstEan: eans[0] || "",
+      };
+    }
+
     const text = String(raw ?? "");
     const isLong = text.length > 60;
     const isValueWithEans = text.includes(" EANs:");
     let valuePart = "";
     let restPart = "";
+    let firstEan = "";
     if (isValueWithEans) {
       const idx = text.indexOf(" – ");
       if (idx !== -1) {
         valuePart = text.slice(0, idx);
         restPart = text.slice(idx + 3);
       }
+      if (restPart) {
+        // Try to extract first EAN from "... EANs: 123, 456"
+        const afterColon = restPart.split("EANs:")[1] || restPart;
+        const first = (afterColon || "").split(",")[0].trim();
+        firstEan = first;
+      }
     }
-    return { text, isLong, isValueWithEans, valuePart, restPart };
+    if (!firstEan) firstEan = text.trim();
+    return { text, isLong, isValueWithEans, valuePart, restPart, firstEan };
   });
   const hasLong = parsed.some((p) => p.isLong || p.isValueWithEans);
 
@@ -740,7 +777,7 @@ function CollapsibleList({ title, items, tone, hint, onAddValue }) {
         {hint ? (
           <span style={{ fontSize: 12, color: "#6B7280" }}>{hint}</span>
         ) : (
-          <span style={{ fontSize: 12, color: "#6B7280" }}>zum Oeffnen klicken</span>
+          <span style={{ fontSize: 12, color: "#6B7280" }}></span>
         )}
       </summary>
       <div
@@ -755,6 +792,10 @@ function CollapsibleList({ title, items, tone, hint, onAddValue }) {
         {parsed.map((item, idx) => {
           if (item.isLong || item.isValueWithEans) {
             const canAdd = !!onAddValue && item.isValueWithEans && item.valuePart;
+            const canJump = !!onItemClick && !!item.firstEan;
+            const handleRowClick = () => {
+              if (canJump) onItemClick(item.firstEan);
+            };
             return (
               <div
                 key={`${item.text}-${idx}`}
@@ -769,7 +810,9 @@ function CollapsibleList({ title, items, tone, hint, onAddValue }) {
                   lineHeight: "18px",
                   color: "#111827",
                   wordBreak: "break-word",
+                  cursor: canJump ? "pointer" : "default",
                 }}
+                onClick={handleRowClick}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {item.isValueWithEans && item.valuePart && item.restPart ? (
@@ -784,7 +827,10 @@ function CollapsibleList({ title, items, tone, hint, onAddValue }) {
                 {canAdd ? (
                   <button
                     type="button"
-                    onClick={() => onAddValue(item.valuePart)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddValue(item.valuePart);
+                    }}
                     style={{
                       marginLeft: 8,
                       padding: "4px 6px",
@@ -806,9 +852,13 @@ function CollapsibleList({ title, items, tone, hint, onAddValue }) {
             );
           }
 
+          const canJumpPill = !!onItemClick && !!item.firstEan;
           return (
             <span
               key={`${item.text}-${idx}`}
+              onClick={() => {
+                if (canJumpPill) onItemClick(item.firstEan);
+              }}
               style={{
                 fontSize: 12,
                 padding: "6px 10px",
@@ -817,7 +867,9 @@ function CollapsibleList({ title, items, tone, hint, onAddValue }) {
                 background: "#F9FAFB",
                 color: "#111827",
                 wordBreak: "break-all",
+                cursor: canJumpPill ? "pointer" : "default",
               }}
+              title={canJumpPill ? "Zum Datensatz springen" : ""}
             >
               {item.text}
             </span>
@@ -2164,8 +2216,7 @@ function QsPage({ headers, rows }) {
           </div>
           {total > 0 ? (
             <div style={{ marginTop: 4, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
-              Wir berechnen einen Vorschlag fuer Attribut- und Bildqualitt. Diese Bewertung hilft zu entscheiden, ob ein Feed
-              fuer die automatische Produktanlage (APA) geeignet ist.
+              
             </div>
           ) : null}
         </div>
@@ -2384,8 +2435,49 @@ function QsPage({ headers, rows }) {
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {sample.urls.slice(0, 5).map((u) => (
-                      <a key={u} href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 54, height: 54, flexShrink: 0 }}>
-                        <img src={u} alt="Bild" loading="lazy" style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                      <a key={u} href={u} target="_blank" rel="noreferrer" title={u} style={{ display: "block", width: 54, height: 54, flexShrink: 0 }}>
+                        <div style={{ width: 54, height: 54, position: "relative" }}>
+                          <img
+                            src={u}
+                            alt="Bild"
+                            loading="lazy"
+                            style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF", display: "block" }}
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              const fallback = e.currentTarget.nextElementSibling;
+                              if (fallback && fallback instanceof HTMLElement) fallback.style.display = "flex";
+                            }}
+                          />
+                          <div
+                            style={{
+                              display: "none",
+                              width: 54,
+                              height: 54,
+                              borderRadius: 8,
+                              border: "1px solid #E5E7EB",
+                              background: "#F3F4F6",
+                              color: "#6B7280",
+                              fontSize: 10,
+                              fontWeight: 600,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textAlign: "center",
+                              padding: "0 4px",
+                              boxSizing: "border-box",
+                              cursor: "copy",
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (navigator?.clipboard?.writeText) {
+                                navigator.clipboard.writeText(u).catch(() => {});
+                              }
+                            }}
+                            title="Fehler - klicken um Link zu kopieren"
+                          >
+                            Fehler - Link kopieren
+                          </div>
+                        </div>
                       </a>
                     ))}
                   </div>
@@ -2424,10 +2516,26 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
     if (hash === "#/qs") return "qs";
+    if (hash === "#/feedback") return "feedback";
+    if (hash === "#/login") return "login";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
     return "checker";
   });
+  const supabase = useMemo(() => getSupabaseClient(), []);
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authMode, setAuthMode] = useState("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackSellerKey, setFeedbackSellerKey] = useState("");
+  const [feedbackCategory, setFeedbackCategory] = useState("score");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackError, setFeedbackError] = useState("");
 
   const [rules, setRules] = useState(DEFAULT_RULES);
   const [rulesLoading, setRulesLoading] = useState(true);
@@ -2442,6 +2550,8 @@ export default function App() {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/qs") setRoute("qs");
+      else if (hash === "#/feedback") setRoute("feedback");
+      else if (hash === "#/login") setRoute("login");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
       else setRoute("checker");
@@ -2449,6 +2559,32 @@ export default function App() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!supabase) return undefined;
+
+    (async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (error) {
+        setAuthError(String(error.message || error));
+        return;
+      }
+      setAuthUser(data?.session?.user || null);
+    })();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user || null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let alive = true;
@@ -2472,6 +2608,205 @@ export default function App() {
       alive = false;
     };
   }, []);
+
+  async function runAuthAction(action) {
+    if (!supabase) {
+      setAuthError("Supabase ist nicht konfiguriert. Bitte .env.local prüfen.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError("");
+    setAuthMessage("");
+    try {
+      if (action === "login") {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: authEmail.trim(),
+          password: authPassword,
+        });
+        if (error) throw error;
+        setAuthMessage("Erfolgreich eingeloggt.");
+      } else if (action === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email: authEmail.trim(),
+          password: authPassword,
+          options: {
+            emailRedirectTo:
+              typeof window !== "undefined"
+                ? `${window.location.origin}/#/login`
+                : undefined,
+          },
+        });
+        if (error) throw error;
+        setAuthMessage(
+          "Registrierung gestartet. Bitte bestätige die E-Mail und logge dich danach ein."
+        );
+      } else if (action === "reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(authEmail.trim(), {
+          redirectTo:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/#/login`
+              : undefined,
+        });
+        if (error) throw error;
+        setAuthMessage("Passwort-Reset E-Mail wurde versendet.");
+      }
+    } catch (e) {
+      setAuthError(String(e?.message || e || "Authentifizierung fehlgeschlagen"));
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function logout() {
+    if (!supabase) return;
+    setAuthLoading(true);
+    setAuthError("");
+    setAuthMessage("");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setAuthMessage("Du wurdest ausgeloggt.");
+    } catch (e) {
+      setAuthError(String(e?.message || e || "Logout fehlgeschlagen"));
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function loadHistory() {
+    if (!supabase || !authUser) {
+      setHistoryItems([]);
+      return;
+    }
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const { data, error } = await supabase
+        .from("history_entries")
+        .select("id,file_name,uploaded_at,row_count,header_count,score,issues_count")
+        .order("uploaded_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      setHistoryItems(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setHistoryError(String(e?.message || e || "History konnte nicht geladen werden"));
+      setHistoryItems([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function saveHistoryEntry(meta) {
+    if (!supabase || !authUser) return;
+    try {
+      const { error } = await supabase.from("history_entries").insert({
+        user_id: authUser.id,
+        file_name: meta.fileName || "Unbekannt",
+        uploaded_at: new Date().toISOString(),
+        row_count: meta.rowCount ?? null,
+        header_count: meta.headerCount ?? null,
+        score: meta.score ?? null,
+        issues_count: meta.issuesCount ?? null,
+      });
+      if (error) throw error;
+      loadHistory();
+    } catch (_e) {
+      // Fail silently so upload flow is not blocked.
+    }
+  }
+
+  async function loadFeedbackTickets() {
+    if (!supabase) {
+      setFeedbackTickets([]);
+      return;
+    }
+    setFeedbackTicketsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("feedback_tickets")
+        .select("id,created_at,message,status,file_name,reporter_email,seller_key,category")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setFeedbackTickets(Array.isArray(data) ? data : []);
+    } catch (_e) {
+      setFeedbackTickets([]);
+    } finally {
+      setFeedbackTicketsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id, supabase]);
+
+  useEffect(() => {
+    if (route !== "feedback") return;
+    loadFeedbackTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, supabase, authUser?.id]);
+
+  async function submitQuickFeedback() {
+    setFeedbackError("");
+    setFeedbackMessage("");
+    const message = String(feedbackText || "").trim();
+    if (!message) {
+      setFeedbackError("Bitte kurz beschreiben, was nicht stimmt.");
+      return;
+    }
+
+    if (!authUser) {
+      setFeedbackError("Bitte zuerst einloggen, damit wir das Ticket korrekt zuordnen können.");
+      return;
+    }
+    try {
+      const payload = {
+        message,
+        sellerKey: String(feedbackSellerKey || "").trim(),
+        category: String(feedbackCategory || "score"),
+        route,
+        fileName: fileName || null,
+        createdAt: new Date().toISOString(),
+      };
+      if (supabase) {
+        setFeedbackSubmitting(true);
+        const primaryInsert = await supabase.from("feedback_tickets").insert({
+          message,
+          route: payload.route,
+          file_name: payload.fileName,
+          reporter_user_id: authUser?.id || null,
+          reporter_email: authUser?.email || null,
+          seller_key: payload.sellerKey || null,
+          category: payload.category || "score",
+          status: "Open",
+        });
+        if (primaryInsert.error) {
+          const fallbackInsert = await supabase.from("feedback_tickets").insert({
+            message: `${message}${payload.sellerKey ? ` | seller_key: ${payload.sellerKey}` : ""}${payload.category ? ` | category: ${payload.category}` : ""}`,
+            route: payload.route,
+            file_name: payload.fileName,
+            reporter_user_id: authUser?.id || null,
+            reporter_email: authUser?.email || null,
+            status: "Open",
+          });
+          if (fallbackInsert.error) throw fallbackInsert.error;
+        }
+      }
+      const key = "feed_quick_feedback_reports";
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      localStorage.setItem(key, JSON.stringify([payload, ...existing].slice(0, 100)));
+      setFeedbackText("");
+      setFeedbackSellerKey("");
+      setFeedbackCategory("score");
+      setFeedbackMessage("Danke! Dein Feedback wurde gespeichert.");
+      if (route === "feedback") loadFeedbackTickets();
+    } catch (e) {
+      setFeedbackError(String(e?.message || e || "Feedback konnte nicht gespeichert werden."));
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }
 
   async function saveRules(nextRules) {
     try {
@@ -2532,10 +2867,23 @@ export default function App() {
   const [headers, setHeaders] = useState([]);
   const [parseError, setParseError] = useState("");
   const fileInputRef = useRef(null);
+  const [historyItems, setHistoryItems] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackTickets, setFeedbackTickets] = useState([]);
+  const [feedbackTicketsLoading, setFeedbackTicketsLoading] = useState(false);
 
   const [shopName, setShopName] = useState("");
   const [previewCount, setPreviewCount] = useState(40);
   const [eanSearch, setEanSearch] = useState("");
+  const parseEanSearchTerms = (value) =>
+    String(value ?? "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+  const eanSearchTerms = useMemo(() => parseEanSearchTerms(eanSearch), [eanSearch]);
   const [visibleColumns, setVisibleColumns] = useState(null);
   const [columnFilterOpen, setColumnFilterOpen] = useState(false);
   const [showIssueRowsOnly, setShowIssueRowsOnly] = useState(false);
@@ -2641,8 +2989,9 @@ export default function App() {
   }, [headers]);
 
   const rows = useMemo(() => {
-    return rawRows.map((r) => {
+    return rawRows.map((r, idx) => {
       const o = {};
+      o.__rowIndex = idx;
       for (const h of headers) o[h] = r?.[h];
       return o;
     });
@@ -3183,6 +3532,30 @@ export default function App() {
       : "ok";
   }, [headers, optionalFindings]);
 
+  const hasOptionalShippingFindings = useMemo(() => {
+    if (!headers.length) return false;
+    const byField = optionalFindings.missingEansByField || {};
+    const missingCount =
+      (byField.material || []).length +
+      (byField.color || []).length +
+      (byField.delivery_includes || []).length +
+      (byField.delivery_time || []).length +
+      (optionalFindings.missingEANs || []).length;
+    return (
+      missingCount > 0 ||
+      (optionalFindings.invalidShipping || []).length > 0 ||
+      (optionalFindings.missingShipping || []).length > 0 ||
+      (optionalFindings.invalidMaterial || []).length > 0 ||
+      (optionalFindings.invalidColor || []).length > 0 ||
+      (optionalFindings.invalidDeliveryIncludes || []).length > 0 ||
+      (optionalFindings.invalidDeliveryTime || []).length > 0 ||
+      (optionalFindings.templateValueHits || []).length > 0 ||
+      (optionalFindings.invalidWashableCover || []).length > 0 ||
+      (optionalFindings.invalidMountingSide || []).length > 0 ||
+      (optionalFindings.scientificEans || []).length > 0
+    );
+  }, [headers, optionalFindings]);
+
   const imageSamples = useMemo(() => {
     if (!rows.length || !imageColumns.length) return [];
     const out = [];
@@ -3227,36 +3600,130 @@ export default function App() {
 
   const summary = useMemo(() => {
     if (!headers.length) {
-      return { score: 0, canStart: false, issues: [], tips: [] };
+      return { score: 0, canStart: false, issues: [], tips: [], issueTargets: [] };
     }
 
     const issues = [];
+    const issueTargets = [];
     const tips = [];
 
+    // Track which rows are affected by critical issues vs warnings.
+    // This enables the summary UI to show "X von Y Zeilen" consistently.
+    const criticalRowIdx = new Set();
+    const warningRowIdx = new Set();
+    const eanToRowIndices = new Map();
+
+    if (eanColumn) {
+      rows.forEach((r, idx) => {
+        const v = String(r?.[eanColumn] ?? "").trim();
+        if (!v) return;
+        if (!eanToRowIndices.has(v)) eanToRowIndices.set(v, new Set());
+        eanToRowIndices.get(v).add(idx);
+      });
+    }
+
+    const addRowsByEans = (eans, targetSet) => {
+      if (!eanColumn) return;
+      const list = Array.isArray(eans) ? eans : [];
+      for (const e of list) {
+        const key = String(e ?? "").trim();
+        if (!key) continue;
+        const idxSet = eanToRowIndices.get(key);
+        if (!idxSet) continue;
+        idxSet.forEach((idx) => targetSet.add(idx));
+      }
+    };
+
+    const addRowsByEanObjects = (arr, targetSet) => {
+      if (!eanColumn) return;
+      if (!Array.isArray(arr)) return;
+      for (const it of arr) {
+        const key = String(it?.ean ?? "").trim();
+        if (!key) continue;
+        const idxSet = eanToRowIndices.get(key);
+        if (!idxSet) continue;
+        idxSet.forEach((idx) => targetSet.add(idx));
+      }
+    };
+
+    const addAllRows = (targetSet) => {
+      for (let i = 0; i < rows.length; i += 1) targetSet.add(i);
+    };
+
+    const addIssue = (message, target = null) => {
+      issues.push(message);
+      issueTargets.push(target);
+    };
+    const findTargetByEan = (ean) => {
+      const value = String(ean ?? "").trim();
+      if (!value) return null;
+      const rowIndex = rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === value);
+      if (rowIndex < 0) return null;
+      return { rowIndex, ean: value };
+    };
+    const findTargetsByEans = (eans) => {
+      const list = Array.isArray(eans) ? eans : [];
+      const normalized = list.map((e) => String(e ?? "").trim()).filter(Boolean);
+      if (!normalized.length) return null;
+
+      const rowIndicesSet = new Set();
+      for (const e of normalized) {
+        const idxSet = eanToRowIndices.get(e);
+        if (!idxSet) continue;
+        idxSet.forEach((idx) => rowIndicesSet.add(idx));
+      }
+      const rowIndices = Array.from(rowIndicesSet).sort((a, b) => a - b);
+      const firstRowIndex = rowIndices.length ? rowIndices[0] : null;
+      return { eans: normalized, rowIndices, rowIndex: firstRowIndex, ean: normalized[0] };
+    };
+    const findTargetByRowIndex = (rowIndex) => {
+      if (rowIndex == null || rowIndex < 0 || rowIndex >= rows.length) return null;
+      const ean = eanColumn ? String(rows[rowIndex]?.[eanColumn] ?? "").trim() : "";
+      return { rowIndex, ean: ean || null };
+    };
+
     if (requiredPresence.missing.length) {
-      issues.push(`Pflichtfelder fehlen oder wurden nicht erkannt: ${requiredPresence.missing.join(", ")}`);
+      addIssue(`Pflichtfelder fehlen oder wurden nicht erkannt: ${requiredPresence.missing.join(", ")}`);
       tips.push("Bitte prüfen Sie die Spaltennamen oder liefern Sie die fehlenden Pflichtfelder nach.");
     }
 
     if (eanColumn) {
       const missingEAN = rows.filter((r) => isBlank(r[eanColumn])).length;
-      if (missingEAN > 0) issues.push(`EAN fehlt in ${missingEAN} Artikeln.`);
+      if (missingEAN > 0) {
+        rows.forEach((r, idx) => {
+          if (isBlank(r[eanColumn])) criticalRowIdx.add(idx);
+        });
+        addIssue(
+          `EAN fehlt in ${missingEAN} Artikeln.`,
+          findTargetByRowIndex(rows.findIndex((r) => isBlank(r[eanColumn])))
+        );
+      }
     } else {
-      issues.push("EAN-Spalte fehlt. Ohne EAN ist eine Verarbeitung nicht möglich.");
+      addIssue("EAN-Spalte fehlt. Ohne EAN ist eine Verarbeitung nicht möglich.");
       tips.push("Bitte liefern Sie eine EAN- oder GTIN-Spalte. Falls die Werte in Excel im E-Format stehen, bitte als Text formatieren.");
     }
 
     if (eanColumn) {
-      if (duplicates.eanDup.size > 0) issues.push(`Doppelte EAN erkannt in ${duplicates.eanDup.size} Zeilen.`);
+      if (duplicates.eanDup.size > 0) {
+        duplicates.eanDup.forEach((idx) => criticalRowIdx.add(idx));
+        const firstDupIndex = Array.from(duplicates.eanDup)[0];
+        addIssue(`Doppelte EAN erkannt in ${duplicates.eanDup.size} Zeilen.`, findTargetByRowIndex(firstDupIndex));
+      }
 
       if (optionalFindings.scientificEans.length > 0) {
-        issues.push(`EAN Darstellungsproblem erkannt in ${optionalFindings.scientificEans.length} Artikeln. Werte wirken wie wissenschaftliche Schreibweise.`);
+        addRowsByEans(optionalFindings.scientificEans, criticalRowIdx);
+        addIssue(
+          `EAN Darstellungsproblem erkannt in ${optionalFindings.scientificEans.length} Artikeln. Werte wirken wie wissenschaftliche Schreibweise.`,
+          findTargetsByEans(optionalFindings.scientificEans)
+        );
         tips.push("Bitte EAN Spalte als Text formatieren, damit die komplette GTIN erhalten bleibt.");
       }
     }
 
     if (titleColumn && duplicates.titleDup.size > 0) {
-      issues.push(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`);
+      duplicates.titleDup.forEach((idx) => criticalRowIdx.add(idx));
+      const firstTitleDupIndex = Array.from(duplicates.titleDup)[0];
+      addIssue(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`, findTargetByRowIndex(firstTitleDupIndex));
     }
 
     const optionalMissingCount =
@@ -3278,16 +3745,28 @@ export default function App() {
       : 0;
 
     if (optionalMissingCount > 0) {
+      addRowsByEans(
+        [
+          ...optionalFindings.missingEansByField.material,
+          ...optionalFindings.missingEansByField.color,
+          ...optionalFindings.missingEansByField.delivery_includes,
+        ],
+        warningRowIdx
+      );
       tips.push("Optionalfelder wie Material, Farbe und Lieferumfang wenn möglich vollständig pflegen.");
     }
 
     if (missingPriceCount > 0) {
-      issues.push(`Preis fehlt bei ${missingPriceCount} Artikeln.`);
+      addRowsByEans(optionalFindings.missingEansByField.price, criticalRowIdx);
+      addIssue(`Preis fehlt bei ${missingPriceCount} Artikeln.`);
     }
     if (missingHsCodeCount > 0) {
+      addRowsByEans(optionalFindings.missingEansByField.hs_code, warningRowIdx);
       tips.push(`HS‑Code fehlt bei ${missingHsCodeCount} Artikeln.`);
     }
     if (missingManufacturerNameCount > 0 || missingManufacturerCountryCount > 0) {
+      addRowsByEans(optionalFindings.missingEansByField.manufacturer_name, warningRowIdx);
+      addRowsByEans(optionalFindings.missingEansByField.manufacturer_country, warningRowIdx);
       tips.push(
         `Herstellerangaben fehlen bei ${
           missingManufacturerNameCount + missingManufacturerCountryCount
@@ -3296,25 +3775,34 @@ export default function App() {
     }
 
     if (lightingEnergyMissingCount > 0) {
-      issues.push(
-        `Energieeffizienz-Angaben fehlen bei ${lightingEnergyMissingCount} Artikeln, die als Leuchte/Lampe erkannt wurden (Titel enthält z. B. LED/Lampe/Leuchte).`
+      addRowsByEans(optionalFindings.lightingEnergyMissing, criticalRowIdx);
+      addIssue(
+        `Energieeffizienz-Angaben fehlen bei ${lightingEnergyMissingCount} Artikeln, die als Leuchte/Lampe erkannt wurden (Titel enthält z. B. LED/Lampe/Leuchte).`,
+        findTargetsByEans(optionalFindings.lightingEnergyMissing)
       );
     }
 
     if (imageColumns.length === 0) {
-      issues.push("Keine Bildspalten erkannt.");
+      addIssue("Keine Bildspalten erkannt.");
     } else {
       if (optionalFindings.imageZeroEans.length > 0) {
-        issues.push(`Keine Bilder bei ${optionalFindings.imageZeroEans.length} Artikeln.`);
+        addRowsByEans(optionalFindings.imageZeroEans, criticalRowIdx);
+        addIssue(
+          `Keine Bilder bei ${optionalFindings.imageZeroEans.length} Artikeln.`,
+          findTargetsByEans(optionalFindings.imageZeroEans)
+        );
       }
       if (optionalFindings.imageOneEans.length > 0) {
+        addRowsByEans(optionalFindings.imageOneEans, warningRowIdx);
         tips.push(`Nur ein Bild bei ${optionalFindings.imageOneEans.length} Artikeln. Empfohlen sind mindestens ${imageMin}.`);
       }
       if (optionalFindings.imageLowEans.length > 0) {
+        addRowsByEans(optionalFindings.imageLowEans, warningRowIdx);
         tips.push(`Bitte pro Produkt mindestens ${imageMin} Bildlinks liefern.`);
       }
       if (brokenImageIds.length > 0) {
-        issues.push(`Bei ${brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden. Bitte Bild-Links prüfen.`);
+        addRowsByEans(brokenImageIds, criticalRowIdx);
+        addIssue(`Bei ${brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden. Bitte Bild-Links prüfen.`);
       }
     }
 
@@ -3338,29 +3826,50 @@ export default function App() {
     score -= Math.min(20, brokenImageIds.length > 0 ? 20 : 0);
 
     if (mapping.delivery_includes && optionalFindings.invalidDeliveryIncludes.length > 0) {
-      issues.push(`Lieferumfang-Format ungültig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`);
+      addRowsByEanObjects(optionalFindings.invalidDeliveryIncludes, criticalRowIdx);
+      addRowsByEanObjects(optionalFindings.invalidDeliveryIncludes, warningRowIdx);
+      addIssue(
+        `Lieferumfang-Format ungültig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`,
+        findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean))
+      );
       tips.push("Lieferumfang bitte im Format Anzahl x Produkt angeben, z. B. 1x Tisch, 4x Stuhl.");
       score -= 5;
     }
 
     if (mapping.delivery_time && optionalFindings.invalidDeliveryTime.length > 0) {
-      issues.push(`Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`);
+      addRowsByEanObjects(optionalFindings.invalidDeliveryTime, criticalRowIdx);
+      addRowsByEanObjects(optionalFindings.invalidDeliveryTime, warningRowIdx);
+      addIssue(
+        `Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`,
+        findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean))
+      );
       tips.push('Lieferzeit bitte im Format z. B. "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" angeben.');
       score -= 5;
     }
 
     if (mapping.description) {
       if (optionalFindings.descriptionIssues.tooShort.length > 0) {
-        issues.push(`Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`);
+        addRowsByEans(optionalFindings.descriptionIssues.tooShort, criticalRowIdx);
+        addRowsByEans(optionalFindings.descriptionIssues.tooShort, warningRowIdx);
+        addIssue(
+          `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`,
+          findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean))
+        );
         tips.push("Produktbeschreibungen etwas ausfuehrlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).");
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.templateLike.length > 0) {
+        addRowsByEans(optionalFindings.descriptionIssues.templateLike, warningRowIdx);
         tips.push("Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden.");
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.usedOrBware.length > 0) {
-        issues.push(`Hinweise auf B-Ware / gebrauchte Ware in ${optionalFindings.descriptionIssues.usedOrBware.length} Artikeln.`);
+        addRowsByEans(optionalFindings.descriptionIssues.usedOrBware, criticalRowIdx);
+        addRowsByEans(optionalFindings.descriptionIssues.usedOrBware, warningRowIdx);
+        addIssue(
+          `Hinweise auf B-Ware / gebrauchte Ware in ${optionalFindings.descriptionIssues.usedOrBware.length} Artikeln.`,
+          findTargetsByEans(optionalFindings.descriptionIssues.usedOrBware.map((x) => x?.ean))
+        );
         tips.push("Wir können keine gebrauchten oder als B-Ware gekennzeichneten Produkte akzeptieren.");
         score -= 15;
       }
@@ -3368,14 +3877,27 @@ export default function App() {
 
     if (mapping.shipping_mode) {
       if (optionalFindings.missingShipping.length > 0) {
-        issues.push(`shipping_mode fehlt in ${optionalFindings.missingShipping.length} Artikeln.`);
+        addRowsByEans(optionalFindings.missingShipping, criticalRowIdx);
+        addIssue(
+          `shipping_mode fehlt in ${optionalFindings.missingShipping.length} Artikeln.`,
+          findTargetsByEans(optionalFindings.missingShipping)
+        );
       }
       if (optionalFindings.invalidShipping.length > 0) {
-        issues.push(`shipping_mode ungueltig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`);
+        addRowsByEanObjects(optionalFindings.invalidShipping, criticalRowIdx);
+        addIssue(
+          `shipping_mode ungueltig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`,
+          findTargetsByEans(optionalFindings.invalidShipping.map((x) => x?.ean))
+        );
       }
     }
     if (mapping.description && optionalFindings.descriptionIssues.externalLinks.length > 0) {
-      issues.push(`Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`);
+      addRowsByEans(optionalFindings.descriptionIssues.externalLinks, criticalRowIdx);
+      addRowsByEans(optionalFindings.descriptionIssues.externalLinks, warningRowIdx);
+      addIssue(
+        `Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`,
+        findTargetsByEans(optionalFindings.descriptionIssues.externalLinks.map((x) => x?.ean))
+      );
       tips.push("Bitte in der Beschreibung keine externen Links oder Werbung auf andere Seiten einfuegen.");
       score -= 3;
     }
@@ -3393,7 +3915,8 @@ export default function App() {
       const col = mapping.shipping_mode;
       shippingAllMissing = rows.length > 0 && rows.every((r) => isBlank(r[col]));
       if (shippingAllMissing) {
-        issues.push("shipping_mode ist fuer keinen Artikel befuellt.");
+        addIssue("shipping_mode ist fuer keinen Artikel befuellt.");
+        addAllRows(criticalRowIdx);
         score -= 10;
       }
     }
@@ -3403,7 +3926,8 @@ export default function App() {
       const col = mapping.delivery_includes;
       deliveryAllMissing = rows.length > 0 && rows.every((r) => isBlank(r[col]));
       if (deliveryAllMissing) {
-        issues.push("Lieferumfang ist fuer keinen Artikel befuellt.");
+        addIssue("Lieferumfang ist fuer keinen Artikel befuellt.");
+        addAllRows(criticalRowIdx);
         score -= 10;
       }
     }
@@ -3420,7 +3944,22 @@ export default function App() {
       (optionalFindings.lightingEnergyMissing?.length || 0) === 0 &&
       brokenImageIds.length === 0;
 
-    return { score, canStart, issues, tips };
+    const criticalRowsCount = criticalRowIdx.size;
+    const warningRowsCount = warningRowIdx.size;
+    const criticalRowsPct = rows.length ? Math.round((criticalRowsCount / rows.length) * 1000) / 10 : 0;
+    const warningRowsPct = rows.length ? Math.round((warningRowsCount / rows.length) * 1000) / 10 : 0;
+
+    return {
+      score,
+      canStart,
+      issues,
+      tips,
+      issueTargets,
+      criticalRowsCount: criticalRowIdx.size,
+      criticalRowsPct,
+      warningRowsCount: warningRowIdx.size,
+      warningRowsPct,
+    };
   }, [
     headers,
     requiredPresence,
@@ -3440,19 +3979,89 @@ export default function App() {
     return buildEmail({ shopName, issues: summary.issues, tips: summary.tips, canStart: summary.canStart });
   }, [headers, shopName, summary]);
 
+  const summaryVisual = useMemo(() => {
+    const score = Number(summary?.score ?? 0);
+    const band = score >= 75 ? "good" : score >= 50 ? "medium" : "low";
+    const palette =
+      band === "good"
+        ? { border: "#A7F3D0", bg: "#ECFDF3", text: "#166534" }
+        : band === "medium"
+        ? { border: "#FCD34D", bg: "#FFFBEB", text: "#92400E" }
+        : { border: "#FCA5A5", bg: "#FEF2F2", text: "#B91C1C" };
+    const qualityLabel = score >= 80 ? "Sehr gut" : score >= 60 ? "Mittel" : "Kritisch";
+    return { score, qualityLabel, ...palette };
+  }, [summary]);
+
   const [step2Expanded, setStep2Expanded] = useState(false);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const step6Ref = useRef(null);
+  const previewTableRef = useRef(null);
+  const previewAutoLoadLockRef = useRef(false);
+  const [pendingJumpRowKey, setPendingJumpRowKey] = useState(null);
+  const [highlightedJumpRowKey, setHighlightedJumpRowKey] = useState(null);
+
+  const filteredPreviewRows = useMemo(() => {
+    return rows
+      .filter((r) => {
+        if (!eanSearchTerms.length) return true;
+        if (eanColumn) {
+          const val = String(r[eanColumn] ?? "").trim();
+          return eanSearchTerms.some((t) => val.includes(t));
+        }
+        const termsLower = eanSearchTerms.map((t) => t.toLowerCase());
+        return Object.values(r).some((v) => {
+          const cell = String(v ?? "").toLowerCase();
+          return termsLower.some((t) => cell.includes(t));
+        });
+      })
+      .filter((r) => (showIssueRowsOnly ? rowsWithIssues.has(r) : true));
+  }, [rows, eanSearchTerms, eanColumn, showIssueRowsOnly, rowsWithIssues]);
 
   useEffect(() => {
     if (!headers.length) return;
     if (!allRequiredOk) setStep2Expanded(true);
   }, [allRequiredOk, headers.length]);
 
+  useEffect(() => {
+    if (highlightedJumpRowKey == null) return;
+    const t = window.setTimeout(() => setHighlightedJumpRowKey(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [highlightedJumpRowKey]);
+
+  const jumpToIssueTarget = (target) => {
+    if (!target) return;
+    setShowIssueRowsOnly(false);
+    const targetEans = Array.isArray(target.eans)
+      ? target.eans
+      : target.ean
+        ? [target.ean]
+        : [];
+    setEanSearch(targetEans.length ? targetEans.join(", ") : "");
+
+    const rowIndicesArr = Array.isArray(target.rowIndices)
+      ? target.rowIndices
+      : Number.isInteger(target.rowIndex)
+        ? [target.rowIndex]
+        : [];
+    const targetFirstRowIndex = rowIndicesArr.length ? Math.min(...rowIndicesArr) : null;
+    const targetMaxRowIndex = rowIndicesArr.length ? Math.max(...rowIndicesArr) : null;
+    if (targetMaxRowIndex != null && targetMaxRowIndex >= 0) {
+      setPreviewCount((current) => Math.max(current, targetMaxRowIndex + 1));
+    }
+    if (targetFirstRowIndex != null && targetFirstRowIndex >= 0) {
+      const rowKey = String(targetFirstRowIndex);
+      setPendingJumpRowKey(rowKey);
+      setHighlightedJumpRowKey(rowKey);
+    }
+
+    previewTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   function onPickFile(file) {
     setPreviewCount(20);
     setParseError("");
     setFileName(file?.name || "");
+    setEanSearch("");
     setRawRows([]);
     setHeaders([]);
     setBrokenImageIds([]);
@@ -3471,6 +4080,11 @@ export default function App() {
         const h = res.meta?.fields || Object.keys(data[0] || {});
         setHeaders(h);
         setRawRows(data);
+        saveHistoryEntry({
+          fileName: file?.name || "",
+          rowCount: data.length,
+          headerCount: h.length,
+        });
       },
       error: (err) => setParseError(String(err || "CSV parsing error")),
     });
@@ -3479,13 +4093,13 @@ export default function App() {
   // ── Step 7 preview JSX (shared between inline and fullscreen) ──────────────
   const step7Inner = (
     <>
-    <div style={{ marginTop: 10 }}>
+    <div style={{ marginTop: 0, position: "sticky", top: 0, zIndex: 20, background: "#FFFFFF", padding: "8px 0 8px", borderBottom: "1px solid #E5E7EB" }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Suche</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <input
           value={eanSearch}
           onChange={(e) => setEanSearch(e.target.value)}
-          placeholder="EAN eingeben um passende Zeilen zu filtern"
+          placeholder="EANs mit Komma trennen (z.B. 123,456) um passende Zeilen zu filtern"
           style={{
             flex: "1 1 0",
             minWidth: 0,
@@ -3596,41 +4210,18 @@ export default function App() {
         </div>
       ) : null}
     </div>
-    <div style={{ marginTop: 10 }}>
+    <div ref={previewTableRef} style={{ marginTop: 8 }}>
       <ResizableTable
         columns={previewColumns}
-        rows={rows
-          .filter((r) => {
-            if (!eanSearch) return true;
-            if (eanColumn) {
-              const val = String(r[eanColumn] ?? "").trim();
-              return val.includes(eanSearch);
-            }
-            const q = eanSearch.toLowerCase();
-            return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
-          })
-          .filter((r) => (showIssueRowsOnly ? rowsWithIssues.has(r) : true))
-          .slice(0, previewCount)}
+        rows={filteredPreviewRows.slice(0, previewCount)}
         highlightedCells={highlightedCells}
+        getRowTargetKey={(r) => r.__rowIndex}
+        targetRowKey={pendingJumpRowKey}
+        highlightedRowKey={highlightedJumpRowKey}
+        onTargetHandled={() => setPendingJumpRowKey(null)}
       />
-      <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <SmallText>Zeige {Math.min(previewCount, rows.length)} von {rows.length} Zeilen.</SmallText>
-        <button
-          onClick={() => setPreviewCount((c) => Math.min(rows.length, c + 20))}
-          disabled={previewCount >= rows.length}
-          style={{
-            padding: "10px 18px",
-            borderRadius: 999,
-            border: `1px solid ${BRAND_COLOR}`,
-            background: previewCount >= rows.length ? "#9CA3AF" : BRAND_COLOR,
-            cursor: previewCount >= rows.length ? "not-allowed" : "pointer",
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#FFFFFF",
-          }}
-        >
-          20 weitere laden
-        </button>
+      <div style={{ marginTop: 8 }}>
+        <SmallText>Zeige {Math.min(previewCount, filteredPreviewRows.length)} von {filteredPreviewRows.length} Zeilen.</SmallText>
       </div>
     </div>
     </>
@@ -3640,46 +4231,41 @@ export default function App() {
     if (!headers.length) return null;
     return (
       <div
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+          if (!nearBottom) return;
+          if (previewCount >= filteredPreviewRows.length) return;
+          if (previewAutoLoadLockRef.current) return;
+          previewAutoLoadLockRef.current = true;
+          setPreviewCount((c) => Math.min(filteredPreviewRows.length, c + 20));
+          window.setTimeout(() => {
+            previewAutoLoadLockRef.current = false;
+          }, 150);
+        }}
         style={{
-          flex: 1,
+          flex: "1 1 0",
           minWidth: 0,
           maxHeight: "100%",
-          overflowY: "auto",
-          paddingLeft: 4,
+          overflow: "auto",
+          background: "#FFFFFF",
+          padding: "10px 12px",
+          boxSizing: "border-box",
         }}
       >
-        <div
-          style={{
-            padding: 10,
-            borderRadius: 14,
-            border: "1px solid #E5E7EB",
-            background: "#FFFFFF",
-          }}
-        >
-          {children}
-        </div>
-        <div
-          style={{
-            marginTop: 8,
-            color: "#6B7280",
-            fontSize: 12,
-            lineHeight: "18px",
-          }}
-        >
-          Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
-        </div>
+        {children}
       </div>
     );
   }
 
   const topNav = (
-    <div style={{ background: "white", borderBottom: "1px solid #E5E7EB" }}>
+    <div style={{ background: "white", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 50 }}>
       <div
         style={{
           width: "100%",
-          maxWidth: 1000,
-          margin: "0 auto",
-          padding: "12px 24px",
+          maxWidth: "none",
+          margin: 0,
+          padding: "12px 12px",
           fontFamily: "ui-sans-serif, system-ui",
           boxSizing: "border-box",
           display: "flex",
@@ -3690,8 +4276,21 @@ export default function App() {
         }}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {["checker", "qs", "rules", "onboarding", "shop-performance"].map((r) => {
-            const labels = { checker: "Checker", qs: "QS/APA", rules: "Regeln", onboarding: "Onboarding", "shop-performance": "Shop Performance" };
+          <button
+            type="button"
+            onClick={() => { window.location.hash = "#/checker"; }}
+            style={{ border: "none", background: "transparent", padding: 0, margin: 0, cursor: "pointer", display: "flex", alignItems: "center" }}
+            aria-label="Feed Checker Startseite"
+            title="Feed Checker"
+          >
+            <img
+              src="/feedchecker-logo.png"
+              alt="Feed Checker"
+              style={{ height: 44, width: "auto", maxWidth: 340, display: "block" }}
+            />
+          </button>
+          {["checker", "qs", "feedback"].map((r) => {
+            const labels = { checker: "Checker", qs: "QS/APA", feedback: "Feedback" };
             return (
               <button
                 key={r}
@@ -3712,18 +4311,234 @@ export default function App() {
             );
           })}
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {rulesLoading ? <Pill tone="info">Regeln laden</Pill> : null}
-          {rulesError ? <Pill tone="warn">Regeln Fallback</Pill> : <Pill tone="ok">Regeln aktiv</Pill>}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {authUser?.email ? (
+            <div style={{ fontSize: 12, color: "#374151", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {authUser.email}
+            </div>
+          ) : null}
         </div>
       </div>
+      <button
+        type="button"
+        onClick={() => { window.location.hash = "#/login"; }}
+        style={{
+          position: "absolute",
+          right: 16,
+          top: 8,
+          padding: "10px 18px",
+          borderRadius: 999,
+          border: `1px solid ${BRAND_COLOR}`,
+          background: route === "login" ? "#1E3A8A" : BRAND_COLOR,
+          color: "#FFFFFF",
+          cursor: "pointer",
+          fontSize: 14,
+          fontWeight: 800,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          zIndex: 1,
+        }}
+      >
+        <span aria-hidden="true">🔐</span>
+        <span>{authUser ? "Konto" : "Login"}</span>
+      </button>
+    </div>
+  );
+
+  const stickyFeedbackCta =
+    route !== "login" ? (
+      <>
+        {feedbackOpen ? (
+          <div
+            style={{
+              position: "fixed",
+              right: 20,
+              bottom: 76,
+              zIndex: 61,
+              width: "min(360px, calc(100vw - 24px))",
+              padding: 12,
+              borderRadius: 14,
+              border: "1px solid #E5E7EB",
+              background: "#FFFFFF",
+              boxShadow: "0 18px 30px rgba(15, 23, 42, 0.24)",
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>Schnelles Feedback</div>
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen(false)}
+                style={{
+                  border: "1px solid #E5E7EB",
+                  background: "#F9FAFB",
+                  borderRadius: 999,
+                  padding: "4px 8px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                Schließen
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: "#6B7280" }}>
+              Melde kurz einen Fehler oder eine falsche Bewertung.
+            </div>
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Was ist falsch? (z. B. Score wirkt zu niedrig für EAN ...)"
+              rows={4}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                borderRadius: 10,
+                border: "1px solid #D1D5DB",
+                padding: 10,
+                fontSize: 12,
+                resize: "vertical",
+              }}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <input
+                value={feedbackSellerKey}
+                onChange={(e) => setFeedbackSellerKey(e.target.value)}
+                placeholder="seller_key (optional)"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  borderRadius: 10,
+                  border: "1px solid #D1D5DB",
+                  padding: 10,
+                  fontSize: 12,
+                }}
+              />
+              <select
+                value={feedbackCategory}
+                onChange={(e) => setFeedbackCategory(e.target.value)}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  borderRadius: 10,
+                  border: "1px solid #D1D5DB",
+                  padding: 10,
+                  fontSize: 12,
+                  background: "#FFFFFF",
+                }}
+              >
+                <option value="score">Kategorie: Score</option>
+                <option value="validation">Kategorie: Validierung</option>
+                <option value="ui">Kategorie: UI</option>
+                <option value="other">Kategorie: Sonstiges</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={submitQuickFeedback}
+                disabled={feedbackSubmitting}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: `1px solid ${BRAND_COLOR}`,
+                  background: BRAND_COLOR,
+                  color: "#FFFFFF",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: feedbackSubmitting ? "not-allowed" : "pointer",
+                }}
+              >
+                {feedbackSubmitting ? "Sende..." : "Feedback senden"}
+              </button>
+              {fileName ? (
+                <div style={{ fontSize: 11, color: "#6B7280" }}>Datei: {fileName}</div>
+              ) : null}
+            </div>
+            {feedbackError ? (
+              <div style={{ fontSize: 12, color: "#B91C1C" }}>{feedbackError}</div>
+            ) : null}
+            {feedbackMessage ? (
+              <div style={{ fontSize: 12, color: "#166534" }}>{feedbackMessage}</div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen((v) => !v)}
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: 20,
+            zIndex: 60,
+            padding: "12px 16px",
+            borderRadius: 999,
+            border: `1px solid ${BRAND_COLOR}`,
+            background: BRAND_COLOR,
+            color: "#FFFFFF",
+            fontSize: 13,
+            fontWeight: 800,
+            boxShadow: "0 10px 20px rgba(15, 23, 42, 0.2)",
+            cursor: "pointer",
+          }}
+          aria-label="Feedback öffnen"
+          title="Feedback senden"
+        >
+          {feedbackOpen ? "Feedback schließen" : "Feedback"}
+        </button>
+      </>
+    ) : null;
+
+  const historyCardBody = !isSupabaseConfigured ? (
+    <div style={{ fontSize: 13, color: "#92400E" }}>
+      Supabase ist noch nicht konfiguriert.
+    </div>
+  ) : !authUser ? (
+    <div style={{ fontSize: 13, color: "#6B7280" }}>
+      Bitte einloggen, um deine zuletzt geprueften Dateien zu sehen.
+    </div>
+  ) : historyLoading ? (
+    <div style={{ fontSize: 13, color: "#6B7280" }}>History wird geladen...</div>
+  ) : historyError ? (
+    <div style={{ fontSize: 13, color: "#B91C1C" }}>{historyError}</div>
+  ) : historyItems.length === 0 ? (
+    <div style={{ fontSize: 13, color: "#6B7280" }}>
+      Noch keine geprueften Dateien vorhanden.
+    </div>
+  ) : (
+    <div style={{ display: "grid", gap: 8 }}>
+      {historyItems.map((item) => (
+        <div
+          key={item.id}
+          style={{
+            padding: "8px 10px",
+            borderRadius: 10,
+            border: "1px solid #E5E7EB",
+            background: "#F9FAFB",
+            fontSize: 12,
+            color: "#111827",
+            display: "grid",
+            gap: 2,
+          }}
+        >
+          <div style={{ fontWeight: 700 }}>{item.file_name || "Unbekannte Datei"}</div>
+          <div style={{ color: "#6B7280" }}>
+            {item.uploaded_at ? new Date(item.uploaded_at).toLocaleString() : "-"}
+          </div>
+          <div style={{ color: "#6B7280" }}>
+            Zeilen: {item.row_count ?? "-"} | Spalten: {item.header_count ?? "-"}
+          </div>
+        </div>
+      ))}
     </div>
   );
 
   const page = (
     <div
       style={{
-        height: "100vh",
+        height: "100%",
         overflow: "hidden",
         fontFamily: "ui-sans-serif, system-ui",
         boxSizing: "border-box",
@@ -3745,7 +4560,7 @@ export default function App() {
           style={{
             width: "100%",
             maxWidth: headers.length ? "none" : 1000,
-            padding: 24,
+            padding: headers.length ? "0 12px 12px" : 24,
             boxSizing: "border-box",
             overflow: "hidden",
           }}
@@ -3753,7 +4568,7 @@ export default function App() {
           {/* ── Two-column layout once a file is loaded ── */}
           <div
             style={{
-              marginTop: 18,
+              marginTop: 0,
               display: headers.length ? "flex" : "block",
               gap: headers.length ? 16 : 14,
               alignItems: "flex-start",
@@ -3773,7 +4588,7 @@ export default function App() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
 
             {/* UPLOAD */}
-            <StepCard title="Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="CSV-Datei hochladen, um die Prüfung zu starten">
+            <StepCard title="Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
                 <button
                   type="button"
@@ -3797,41 +4612,24 @@ export default function App() {
               {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
             </StepCard>
 
-            {/* TOGGLE VISIBLE CHECKS */}
-            {headers.length ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAllChecks((v) => !v)}
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 999,
-                    border: "1px solid #E5E7EB",
-                    background: "#FFFFFF",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                    color: "#111827",
-                  }}
-                >
-                  {showAllChecks ? "Nur Probleme zeigen" : "Alle Bereiche zeigen"}
-                </button>
-                <SmallText>
-                  {showAllChecks
-                    ? "Alle Bereiche werden angezeigt."
-                    : "Nur Bereiche mit Auffälligkeiten werden angezeigt."}
-                </SmallText>
-              </div>
+            {/* CHECKER EMPTY-STATE HISTORY */}
+            {!headers.length ? (
+              <StepCard
+                title="History"
+                status="idle"
+                subtitle="Zuletzt geprüfte Dateien"
+              >
+                {historyCardBody}
+              </StepCard>
             ) : null}
 
+            {headers.length ? (
+              <>
             {/* SUMMARY */}
             <div ref={step6Ref}>
               <StepCard
                 title="Zusammenfassung und Entscheidung"
-              
-                status={headers.length ? (summary.canStart ? "ok" : "warn") : "idle"}
-                
+                status="idle"
               >
             
                 {headers.length ? (
@@ -3841,8 +4639,8 @@ export default function App() {
                         marginTop: 2,
                         padding: 10,
                         borderRadius: 14,
-                        border: `1px solid ${summary.canStart ? "#A7F3D0" : "#FCD34D"}`,
-                        background: summary.canStart ? "#ECFDF3" : "#FFFBEB",
+                        border: `1px solid ${summaryVisual.border}`,
+                        background: summaryVisual.bg,
                         display: "flex",
                         flexDirection: "column",
                         gap: 6,
@@ -3853,17 +4651,65 @@ export default function App() {
                           {summary.canStart ? "✅ Feed ist startklar" : "🚧 Noch nicht startklar"}
                         </Pill>
                         <Pill tone="info">Score {summary.score} / 100</Pill>
+                        {summary.issues.length ? (
+                          <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", whiteSpace: "nowrap" }}>
+                            {summary.issues.length} kritische Punkte gefunden.
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", whiteSpace: "nowrap" }}>
+                            Keine kritischen Fehler erkannt.
+                          </div>
+                        )}
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Kritisch (Top 3)</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Kritische Fehler</div>
+                        <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2, lineHeight: "16px" }}>
+                          Betroffene Zeilen: {summary.criticalRowsCount ?? 0} von {rows.length} ({summary.criticalRowsPct ?? 0}%)
+                        </div>
                         <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                          {(summary.issues.length ? summary.issues : ["Keine kritischen Fehler erkannt"]).slice(0, 3).map((x, idx) => (<li key={idx}>{x}</li>))}
+                          {summary.issues.length ? (
+                            summary.issues.map((x, idx) => {
+                              const target = summary.issueTargets?.[idx];
+                              return (
+                                <li key={idx}>
+                                  {target ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => jumpToIssueTarget(target)}
+                                      style={{
+                                        border: "none",
+                                        background: "transparent",
+                                        padding: 0,
+                                        margin: 0,
+                                        color: "#111827",
+                                        textDecoration: "underline",
+                                        cursor: "pointer",
+                                        fontSize: 12,
+                                        textAlign: "left",
+                                      }}
+                                    >
+                                      {x}
+                                    </button>
+                                  ) : (
+                                    x
+                                  )}
+                                </li>
+                              );
+                            })
+                          ) : (
+                            <li>Keine kritischen Fehler erkannt.</li>
+                          )}
                         </ul>
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>Optionale Checks (Top 3)</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#0369A1" }}>Warnungen</div>
+                        <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2, lineHeight: "16px" }}>
+                          Betroffene Zeilen: {summary.warningRowsCount ?? 0} von {rows.length} ({summary.warningRowsPct ?? 0}%)
+                        </div>
                         <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                          {(summary.tips.length ? summary.tips : ["Keine weiteren Empfehlungen"]).slice(0, 3).map((x, idx) => (<li key={idx}>{x}</li>))}
+                          {(summary.tips.length ? summary.tips : ["Keine weiteren Empfehlungen."]).map((x, idx) => (
+                            <li key={idx}>{x}</li>
+                          ))}
                         </ul>
                       </div>
                     </div>
@@ -4025,7 +4871,11 @@ export default function App() {
                             <CollapsibleList
                               title="Doppelte Titel"
                               items={groupByValueWithEans(duplicateTitleRows.map((x) => ({ value: x.title, ean: x.ean })))
-                                .filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch)))
+                                .filter((g) =>
+                                  !eanSearchTerms.length
+                                    ? true
+                                    : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                                )
                                 .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
                               tone="warn"
                               hint="Jede Zeile zeigt einen Titel und alle EANs, die diesen Titel mehrfach verwenden"
@@ -4051,87 +4901,66 @@ export default function App() {
             )}
 
             {/* STEP 4 */}
-            {(showAllChecks || stage3Status !== "ok") && (
+            {hasOptionalShippingFindings && (
             <StepCard title="Optionale Felder und Versand" status={stage3Status}>
               {!headers.length ? (
                 <SmallText>Bitte CSV hochladen, um optionale Felder und Versand zu prüfen.</SmallText>
               ) : (
                 <>
-                  {optionalFindings.titleIssues.tooShort.length > 0 ||
-                  optionalFindings.titleIssues.seeAbove.length > 0 ||
-                  optionalFindings.titleIssues.missingAttributes.length > 0 ||
-                  optionalFindings.descriptionIssues.templateLike.length > 0 ||
-                  optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Titelqualität</div>
-                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                        {optionalFindings.titleIssues.tooShort.length > 0 ? (
-                          <CollapsibleList title="Titel zu kurz" items={optionalFindings.titleIssues.tooShort.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}`)} tone="warn" hint="EANs/Zeilen, deren Titel kürzer als die im Regeln-Tab definierte Mindestlänge sind" />
-                        ) : null}
-                        {optionalFindings.titleIssues.seeAbove.length > 0 ? (
-                          <CollapsibleList title='Titel enthaelt "siehe oben"' items={optionalFindings.titleIssues.seeAbove.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}`)} tone="warn" hint='Titel, die einen Hinweis wie "siehe oben" enthalten und dadurch unklar sind' />
-                        ) : null}
-                        {optionalFindings.descriptionIssues.templateLike.length > 0 ? (
-                          <CollapsibleList
-                            title="Beschreibung wirkt wie Platzhalter"
-                            items={optionalFindings.descriptionIssues.templateLike.filter((ean) => !eanSearch || String(ean).includes(eanSearch)).map((ean) => {
-                              let titleVal = "";
-                              let descVal = "";
-                              if (eanColumn && titleColumn && mapping.description) {
-                                const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
-                                if (row) { titleVal = String(row[titleColumn] ?? "").trim(); descVal = String(row[mapping.description] ?? "").trim(); }
-                              }
-                              const preview = descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
-                              return titleVal ? `${ean}: ${titleVal} – ${preview}` : `${ean}: ${preview}`;
-                            })}
-                            tone="warn"
-                            hint="Beschreibung entspricht z.B. exakt dem Titel, ist extrem kurz oder enthaelt typische Beispieltexte"
-                          />
-                        ) : null}
-                        {optionalFindings.descriptionIssues.usedOrBware.length > 0 ? (
-                          <CollapsibleList
-                            title="Hinweise auf B-Ware / gebraucht"
-                            items={optionalFindings.descriptionIssues.usedOrBware.filter((ean) => !eanSearch || String(ean).includes(eanSearch)).map((ean) => {
-                              let titleVal = "";
-                              let descVal = "";
-                              if (eanColumn && titleColumn && mapping.description) {
-                                const row = rows.find((r) => String(r[eanColumn] ?? "").trim() === String(ean));
-                                if (row) { titleVal = String(row[titleColumn] ?? "").trim(); descVal = String(row[mapping.description] ?? "").trim(); }
-                              }
-                              const preview = descVal.length > 80 ? `${descVal.slice(0, 77).trimEnd()}...` : descVal || "Keine Beschreibung";
-                              return titleVal ? `${ean}: ${titleVal} – ${preview}` : `${ean}: ${preview}`;
-                            })}
-                            tone="bad"
-                            hint="Produkte, deren Beschreibung auf B-Ware, gebrauchte oder generalueberholte Ware hindeutet"
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-
                   {optionalFindings.missingEANs.length > 0 ? (
                     <div style={{ marginTop: 14 }}>
-                      <CollapsibleList title="Zeilen ohne EAN" items={optionalFindings.missingEANs.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="bad" hint="➜ bitte EAN nachliefern" />
+                      <CollapsibleList
+                        title="Zeilen ohne EAN"
+                        items={optionalFindings.missingEANs
+                          .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
+                          .map((ean) => ({ value: ean, eans: [ean] }))}
+                        tone="bad"
+                        hint="➜ bitte EAN nachliefern"
+                        onItemClick={(ean) =>
+                          jumpToIssueTarget({
+                            ean,
+                            rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                          })
+                        }
+                      />
                     </div>
                   ) : null}
 
                   {(optionalFindings.missingEansByField.material.length > 0 || (optionalFindings.invalidMaterial?.length || 0) > 0) && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Material</div>
-                      <SmallText>{optionalFindings.samplesByField.material.length ? optionalFindings.samplesByField.material.join(" | ") : "keine Beispielwerte gefunden"}</SmallText>
-                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      <div style={{ display: "grid", gap: 8 }}>
                         {optionalFindings.missingEansByField.material.length > 0 ? (
-                          <CollapsibleList title="Material fehlt" items={optionalFindings.missingEansByField.material.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
+                          <CollapsibleList
+                            title="Material fehlt"
+                            items={optionalFindings.missingEansByField.material
+                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
+                              .map((ean) => ({ value: "leer", eans: [ean] }))}
+                            tone="warn"
+                            onItemClick={(ean) =>
+                              jumpToIssueTarget({
+                                ean,
+                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                              })
+                            }
+                          />
                         ) : null}
                         {optionalFindings.invalidMaterial?.length ? (
                           <CollapsibleList
                             title="Material ausserhalb erlaubter Werte"
-                            items={groupByValueWithEans(optionalFindings.invalidMaterial)
-                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
-                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            items={groupByValueWithEans(optionalFindings.invalidMaterial).filter((g) =>
+                              !eanSearchTerms.length
+                                ? true
+                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                            )}
                             tone="warn"
                             hint="Werte, die nicht in der Material-Liste im Regeln-Tab stehen, gruppiert nach Wert"
                             onAddValue={(value) => addAllowedRuleValue("material", value)}
+                            onItemClick={(ean) =>
+                              jumpToIssueTarget({
+                                ean,
+                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                              })
+                            }
                           />
                         ) : null}
                         {optionalFindings.invalidMaterial?.length ? (
@@ -4148,69 +4977,97 @@ export default function App() {
                     </div>
                   )}
 
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Farbe</div>
-                    <SmallText>{optionalFindings.samplesByField.color.length ? optionalFindings.samplesByField.color.join(" | ") : "keine Beispielwerte gefunden"}</SmallText>
-                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                      {optionalFindings.missingEansByField.color.length > 0 ? (
-                        <CollapsibleList title="Farbe fehlt" items={optionalFindings.missingEansByField.color.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
-                      ) : null}
-                      {optionalFindings.invalidColor?.length ? (
-                        <>
+                  {(optionalFindings.missingEansByField.color.length > 0 || (optionalFindings.invalidColor?.length || 0) > 0) && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {optionalFindings.missingEansByField.color.length > 0 ? (
                           <CollapsibleList
-                            title="Farbe ausserhalb erlaubter Werte"
-                            items={groupByValueWithEans(optionalFindings.invalidColor)
-                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
-                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            title="Farbe fehlt"
+                            items={optionalFindings.missingEansByField.color
+                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
+                              .map((ean) => ({ value: ean, eans: [ean] }))}
                             tone="warn"
-                            hint="Werte, die nicht in der Farb-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-                            onAddValue={(value) => addAllowedRuleValue("color", value)}
+                            onItemClick={(ean) =>
+                              jumpToIssueTarget({
+                                ean,
+                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                              })
+                            }
                           />
-                          <div>
-                            <SmallText>Einzelne Farb-Werte als erlaubt markieren:</SmallText>
-                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {uniqueNonEmpty(optionalFindings.invalidColor.map((x) => x.value)).map((val) => (
-                                <button key={val} onClick={() => addAllowedRuleValue("color", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
-                              ))}
+                        ) : null}
+                        {optionalFindings.invalidColor?.length ? (
+                          <>
+                            <CollapsibleList
+                              title="Farbe ausserhalb erlaubter Werte"
+                              items={groupByValueWithEans(optionalFindings.invalidColor).filter((g) =>
+                                !eanSearchTerms.length
+                                  ? true
+                                  : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                              )}
+                              tone="warn"
+                              hint="Werte, die nicht in der Farb-Liste im Regeln-Tab stehen, gruppiert nach Wert"
+                              onAddValue={(value) => addAllowedRuleValue("color", value)}
+                              onItemClick={(ean) =>
+                                jumpToIssueTarget({
+                                  ean,
+                                  rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                                })
+                              }
+                            />
+                            <div>
+                              <SmallText>Einzelne Farb-Werte als erlaubt markieren:</SmallText>
+                              <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {uniqueNonEmpty(optionalFindings.invalidColor.map((x) => x.value)).map((val) => (
+                                  <button key={val} onClick={() => addAllowedRuleValue("color", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        </>
-                      ) : null}
-                      {false && optionalFindings.missingEansByField.color.length === 0 && !(optionalFindings.invalidColor?.length > 0) ? (<SmallText>Alle Farbwerte sind gueltig.</SmallText>) : null}
+                          </>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferumfang</div>
-                    <SmallText>{optionalFindings.samplesByField.delivery_includes.length ? optionalFindings.samplesByField.delivery_includes.join(" | ") : "keine Beispielwerte gefunden"}</SmallText>
-                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                      {optionalFindings.missingEansByField.delivery_includes.length > 0 ? (
-                        <CollapsibleList title="Lieferumfang fehlt" items={optionalFindings.missingEansByField.delivery_includes.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
-                      ) : null}
-                      {optionalFindings.invalidDeliveryIncludes?.length ? (
-                        <div>
+                  {(optionalFindings.missingEansByField.delivery_includes.length > 0 || (optionalFindings.invalidDeliveryIncludes?.length || 0) > 0) && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {optionalFindings.missingEansByField.delivery_includes.length > 0 ? (
+                          <CollapsibleList
+                            title="Lieferumfang fehlt"
+                            items={optionalFindings.missingEansByField.delivery_includes
+                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
+                              .map((ean) => ({ value: ean, eans: [ean] }))}
+                            tone="warn"
+                            onItemClick={(ean) =>
+                              jumpToIssueTarget({
+                                ean,
+                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                              })
+                            }
+                          />
+                        ) : null}
+                        {optionalFindings.invalidDeliveryIncludes?.length ? (
                           <CollapsibleList
                             title="Lieferumfang ausserhalb Pattern"
-                            items={groupByValueWithEans(optionalFindings.invalidDeliveryIncludes)
-                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
-                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            items={groupByValueWithEans(optionalFindings.invalidDeliveryIncludes).filter((g) =>
+                              !eanSearchTerms.length
+                                ? true
+                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                            )}
                             tone="warn"
                             hint="Werte, die nicht zum aktuellen Lieferumfang-Pattern passen, gruppiert nach Wert"
                             onAddValue={(value) => addAllowedRuleValue("delivery_includes", value)}
+                            onItemClick={(ean) =>
+                              jumpToIssueTarget({
+                                ean,
+                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                              })
+                            }
                           />
-                          <div style={{ marginTop: 8 }}>
-                            <SmallText>Einzelne Lieferumfang-Werte als erlaubt markieren:</SmallText>
-                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {uniqueNonEmpty(optionalFindings.invalidDeliveryIncludes.map((x) => x.value)).map((val) => (
-                                <button key={val} onClick={() => addAllowedRuleValue("delivery_includes", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-                      {false && optionalFindings.missingEansByField.delivery_includes.length === 0 && !(optionalFindings.invalidDeliveryIncludes?.length > 0) ? (<SmallText>Alle Lieferumfang-Werte sind gueltig.</SmallText>) : null}
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {mapping.delivery_time && ((optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0) || (optionalFindings.invalidDeliveryTime?.length > 0)) ? (
                     <div style={{ marginTop: 12 }}>
@@ -4218,10 +5075,33 @@ export default function App() {
                       <SmallText>Erwartetes Format z B &quot;3-5 Werktage&quot; oder &quot;2 Wochen&quot; ohne zusaetzlichen Fliesstext.</SmallText>
                       <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
                         {optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0 ? (
-                          <CollapsibleList title="Lieferzeit fehlt" items={optionalFindings.missingEansByField.delivery_time.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" />
+                          <CollapsibleList
+                            title="Lieferzeit fehlt"
+                            items={optionalFindings.missingEansByField.delivery_time
+                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
+                              .map((ean) => ({ value: ean, eans: [ean] }))}
+                            tone="warn"
+                            onItemClick={(ean) =>
+                              jumpToIssueTarget({
+                                ean,
+                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+                              })
+                            }
+                          />
                         ) : null}
                         {optionalFindings.invalidDeliveryTime?.length ? (
-                          <CollapsibleList title="Lieferzeit ausserhalb erlaubter Formate" items={groupByValueWithEans(optionalFindings.invalidDeliveryTime).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value || "(leer)"} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)} tone="warn" hint='Erwartet werden Angaben wie "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" ohne Mischformen.' />
+                          <CollapsibleList
+                            title="Lieferzeit ausserhalb erlaubter Formate"
+                            items={groupByValueWithEans(optionalFindings.invalidDeliveryTime)
+                              .filter((g) =>
+                                !eanSearchTerms.length
+                                  ? true
+                                  : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                              )
+                              .map((g) => `${g.value || "(leer)"} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                            tone="warn"
+                            hint='Erwartet werden Angaben wie "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" ohne Mischformen.'
+                          />
                         ) : null}
                       </div>
                     </div>
@@ -4232,7 +5112,18 @@ export default function App() {
                       <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Beispielwerte aus Muster-Feed</div>
                       <SmallText>In diesen Feldern scheinen noch Beispiel-/Demo-Werte aus dem Muster-Feed zu stehen. Bitte fuer echte Produkte entfernen oder korrekt ausfuellen.</SmallText>
                       <div style={{ marginTop: 8 }}>
-                        <CollapsibleList title="Felder mit Beispielwerten" items={groupByValueWithEans(optionalFindings.templateValueHits).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value} (${g.eans.length} EANs, Spalte ${g.column || "unbekannt"}): ${g.eans.join(", ")}`)} tone="warn" hint="Werte, die wie Beispielangaben aus einem Muster-Feed aussehen (z.B. Demo-URLs, Platzhalter)." />
+                        <CollapsibleList
+                          title="Felder mit Beispielwerten"
+                          items={groupByValueWithEans(optionalFindings.templateValueHits)
+                            .filter((g) =>
+                              !eanSearchTerms.length
+                                ? true
+                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                            )
+                            .map((g) => `${g.value} (${g.eans.length} EANs, Spalte ${g.column || "unbekannt"}): ${g.eans.join(", ")}`)}
+                          tone="warn"
+                          hint="Werte, die wie Beispielangaben aus einem Muster-Feed aussehen (z.B. Demo-URLs, Platzhalter)."
+                        />
                       </div>
                     </div>
                   ) : null}
@@ -4242,7 +5133,18 @@ export default function App() {
                       <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Waschbarer Bezug (washable_cover)</div>
                       <SmallText>Erlaubt sind nur die Werte &quot;ja&quot; oder &quot;nein&quot;.</SmallText>
                       <div style={{ marginTop: 8 }}>
-                        <CollapsibleList title="Ungültige washable_cover Werte" items={groupByValueWithEans(optionalFindings.invalidWashableCover).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)} tone="warn" hint='Waschbarer Bezug sollte nur "ja" oder "nein" enthalten' />
+                        <CollapsibleList
+                          title="Ungültige washable_cover Werte"
+                          items={groupByValueWithEans(optionalFindings.invalidWashableCover)
+                            .filter((g) =>
+                              !eanSearchTerms.length
+                                ? true
+                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                            )
+                            .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                          tone="warn"
+                          hint='Waschbarer Bezug sollte nur "ja" oder "nein" enthalten'
+                        />
                       </div>
                     </div>
                   ) : null}
@@ -4252,7 +5154,18 @@ export default function App() {
                       <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Montageseite (mounting_side)</div>
                       <SmallText>Erlaubt sind nur die Werte &quot;links&quot;, &quot;rechts&quot; oder &quot;beidseitig&quot; – Kombinationen wie &quot;links, rechts, beidseitig&quot; sind nicht erlaubt.</SmallText>
                       <div style={{ marginTop: 8 }}>
-                        <CollapsibleList title="Ungültige mounting_side Werte" items={groupByValueWithEans(optionalFindings.invalidMountingSide).filter((g) => !eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))).map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)} tone="warn" hint='Montageseite sollte nur "links", "rechts" oder "beidseitig" enthalten' />
+                      <CollapsibleList
+                        title="Ungültige mounting_side Werte"
+                        items={groupByValueWithEans(optionalFindings.invalidMountingSide)
+                          .filter((g) =>
+                            !eanSearchTerms.length
+                              ? true
+                              : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                          )
+                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                        tone="warn"
+                        hint='Montageseite sollte nur "links", "rechts" oder "beidseitig" enthalten'
+                      />
                       </div>
                     </div>
                   ) : null}
@@ -4263,13 +5176,24 @@ export default function App() {
                       <SmallText>Erlaubt sind Paket oder Spedition. Weitere erlaubte Werte koennen im Regeln Tab gepflegt werden.</SmallText>
                       <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
                         {optionalFindings.missingShipping.length > 0 ? (
-                          <CollapsibleList title="shipping_mode fehlt" items={optionalFindings.missingShipping.filter((x) => !eanSearch || String(x).includes(eanSearch)).map((x) => `${x}: None`)} tone="warn" hint="Felder ohne Versandart" />
+                          <CollapsibleList
+                            title="shipping_mode fehlt"
+                            items={optionalFindings.missingShipping
+                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
+                              .map((x) => `${x}: None`)}
+                            tone="warn"
+                            hint="Felder ohne Versandart"
+                          />
                         ) : null}
                         {optionalFindings.invalidShipping.length > 0 ? (
                           <CollapsibleList
                             title="shipping_mode ausserhalb erlaubter Werte"
                             items={groupByValueWithEans(optionalFindings.invalidShipping)
-                              .filter((g) => (!eanSearch ? true : g.eans.some((ean) => String(ean).includes(eanSearch))))
+                              .filter((g) =>
+                                !eanSearchTerms.length
+                                  ? true
+                                  : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
+                              )
                               .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
                             tone="warn"
                             hint="Werte, die nicht in der shipping_mode-Liste im Regeln-Tab stehen, gruppiert nach Wert"
@@ -4295,7 +5219,11 @@ export default function App() {
                       <div style={{ fontWeight: 700, color: "#92400E", fontSize: 13 }}>Hinweis EAN Format</div>
                       <div style={{ marginTop: 6, color: "#92400E", fontSize: 13 }}>Einige EAN Werte sehen nach wissenschaftlicher Schreibweise aus.</div>
                       <div style={{ marginTop: 10 }}>
-                        <CollapsibleList title="Betroffene EAN" items={optionalFindings.scientificEans.filter((x) => !eanSearch || String(x).includes(eanSearch))} tone="warn" />
+                        <CollapsibleList
+                          title="Betroffene EAN"
+                          items={optionalFindings.scientificEans.filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))}
+                          tone="warn"
+                        />
                       </div>
                     </div>
                   ) : null}
@@ -4308,7 +5236,7 @@ export default function App() {
             <StepCard
               title="Bilder"
               status={!headers.length ? "idle" : !imageColumns.length ? "warn" : brokenImageIds.length > 0 ? "bad" : "ok"}
-              subtitle="Wir prüfen Bilder je Produkt und zeigen Beispielprodukte"
+
             >
           {!headers.length ? (
             <SmallText>Bitte CSV hochladen, um die Bildprüfung zu sehen.</SmallText>
@@ -4347,33 +5275,86 @@ export default function App() {
 
                   {imageSamples.length ? (
                     <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                      {imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).slice(0, imageSampleLimitStep5).map((sample) => (
+                      {imageSamples
+                        .filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t)))
+                        .slice(0, imageSampleLimitStep5)
+                        .map((sample) => (
                         <div key={sample.id} style={{ padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#FFFFFF", display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
                           <div style={{ minWidth: 0, maxWidth: 220 }}>
                             <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sample.id}</div>
                           </div>
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                             {sample.urls.slice(0, 6).map((u) => (
-                              <div key={u} style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                                <a href={u} target="_blank" rel="noreferrer" style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}>
-                                  <img src={u} alt="Bild" loading="lazy" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}
+                              <a
+                                key={u}
+                                href={u}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={u}
+                                style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}
+                              >
+                                <div style={{ width: 64, height: 64, position: "relative" }}>
+                                  <img
+                                    src={u}
+                                    alt="Bild"
+                                    loading="lazy"
+                                    style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB", display: "block" }}
                                     onError={(e) => {
                                       e.currentTarget.style.display = "none";
-                                      const textEl = e.currentTarget.parentElement?.nextElementSibling;
-                                      if (textEl && textEl instanceof HTMLElement) { textEl.style.display = "block"; }
+                                      const fallback = e.currentTarget.nextElementSibling;
+                                      if (fallback && fallback instanceof HTMLElement) fallback.style.display = "flex";
                                       setBrokenImageIds((prev) => { const set = new Set(prev); set.add(sample.id); return Array.from(set); });
                                     }}
                                   />
-                                </a>
-                                <div style={{ display: "none", fontSize: 10, color: "#4B5563", wordBreak: "break-all", maxWidth: 180 }}>{u}</div>
-                              </div>
+                                  <div
+                                    style={{
+                                      display: "none",
+                                      width: 64,
+                                      height: 64,
+                                      borderRadius: 12,
+                                      border: "1px solid #E5E7EB",
+                                      background: "#F3F4F6",
+                                      color: "#6B7280",
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      textAlign: "center",
+                                      padding: "0 6px",
+                                      boxSizing: "border-box",
+                                      cursor: "copy",
+                                    }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (navigator?.clipboard?.writeText) {
+                                        navigator.clipboard.writeText(u).catch(() => {});
+                                      }
+                                    }}
+                                    title="Fehler - klicken um Link zu kopieren"
+                                  >
+                                    Fehler - Link kopieren
+                                  </div>
+                                </div>
+                              </a>
                             ))}
                           </div>
                         </div>
                       ))}
-                      {imageSampleLimitStep5 < imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length ? (
+                      {imageSampleLimitStep5 <
+                      imageSamples.filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t))).length ? (
                         <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-start" }}>
-                          <button onClick={() => setImageSampleLimitStep5((n) => Math.min(imageSamples.filter((s) => !eanSearch || String(s.id).includes(eanSearch)).length, n + 5))} style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                          <button
+                            onClick={() =>
+                              setImageSampleLimitStep5((n) =>
+                                Math.min(
+                                  imageSamples.filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t))).length,
+                                  n + 5
+                                )
+                              )
+                            }
+                            style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+                          >
                             Mehr Produkte anzeigen
                           </button>
                         </div>
@@ -4394,13 +5375,34 @@ export default function App() {
               )}
             </StepCard>
 
-            {/* Preview hint when NO file is loaded */}
-            {!headers.length ? (
-              <div style={{ marginTop: 8, padding: 10, borderRadius: 12, border: "1px dashed #E5E7EB", background: "#F9FAFB" }}>
-                <SmallText>Bitte CSV hochladen um eine Vorschau der Zeilen mit allen Spalten zu sehen.</SmallText>
-                <div style={{ marginTop: 4, color: "#6B7280", fontSize: 12, lineHeight: "18px" }}>
-                  Die Pruefungen orientieren sich am Feedleitfaden, inklusive eindeutiger EAN, Seller Offer ID, Name, Category Path, Beschreibung, Bestand und Versandfeldern, Preis und Marke sowie Bildanforderungen.
-                </div>
+              </>
+            ) : null}
+
+            {/* TOGGLE VISIBLE CHECKS */}
+            {headers.length ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAllChecks((v) => !v)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    border: "1px solid #E5E7EB",
+                    background: "#FFFFFF",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    color: "#111827",
+                  }}
+                >
+                  {showAllChecks ? "Nur Probleme zeigen" : "Alle Bereiche zeigen"}
+                </button>
+                <SmallText>
+                  {showAllChecks
+                    ? "Alle Bereiche werden angezeigt."
+                    : "Nur Bereiche mit Auffälligkeiten werden angezeigt."}
+                </SmallText>
               </div>
             ) : null}
 
@@ -4432,13 +5434,23 @@ export default function App() {
                 columns={previewColumns}
                 rows={rows
                   .filter((r) => {
-                    if (!eanSearch) return true;
-                    if (eanColumn) { const val = String(r[eanColumn] ?? "").trim(); return val.includes(eanSearch); }
-                    const q = eanSearch.toLowerCase();
-                    return Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q));
+                    if (!eanSearchTerms.length) return true;
+                    if (eanColumn) {
+                      const val = String(r[eanColumn] ?? "").trim();
+                      return eanSearchTerms.some((t) => val.includes(t));
+                    }
+                    const termsLower = eanSearchTerms.map((t) => t.toLowerCase());
+                    return Object.values(r).some((v) => {
+                      const cell = String(v ?? "").toLowerCase();
+                      return termsLower.some((t) => cell.includes(t));
+                    });
                   })
                 .slice(0, Math.max(previewCount, 200))}
               highlightedCells={highlightedCells}
+              getRowTargetKey={(r) => r.__rowIndex}
+              targetRowKey={pendingJumpRowKey}
+              highlightedRowKey={highlightedJumpRowKey}
+              onTargetHandled={() => setPendingJumpRowKey(null)}
               />
             </div>
           </div>
@@ -4452,6 +5464,236 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <RulesPage rules={rules} setRules={setRules} onSave={saveRules} saving={rulesSaving} saveError={rulesSaveError} savedAt={rulesSavedAt} adminToken={adminToken} updateAdminToken={updateAdminToken} />
+        {stickyFeedbackCta}
+      </div>
+    );
+  }
+
+  if (route === "feedback") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
+          <StepCard
+            title="Feedback Tool"
+            status="ok"
+            subtitle="Ticket senden, wenn ein Feed falsch bewertet wurde"
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <SmallText>
+                Du kannst Feedback direkt über den Sticky-Button senden. Hier siehst du eingegangene Tickets aus Supabase.
+              </SmallText>
+              {!isSupabaseConfigured ? (
+                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCD34D", background: "#FFFBEB", color: "#92400E", fontSize: 13 }}>
+                  Supabase ist nicht konfiguriert.
+                </div>
+              ) : feedbackTicketsLoading ? (
+                <div style={{ fontSize: 13, color: "#6B7280" }}>Tickets werden geladen...</div>
+              ) : feedbackTickets.length === 0 ? (
+                <div style={{ fontSize: 13, color: "#6B7280" }}>Noch keine Tickets vorhanden.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {feedbackTickets
+                    .filter((ticket) => String(ticket.status || "Open").toLowerCase() !== "resolved")
+                    .map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      style={{
+                        padding: 10,
+                        borderRadius: 12,
+                        border: "1px solid #E5E7EB",
+                        background: "#FFFFFF",
+                        display: "grid",
+                        gap: 4,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{ticket.message || "-"}</div>
+                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, border: "1px solid #CBD5E1", background: "#F8FAFC", color: "#334155" }}>
+                          {ticket.status || "Open"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6B7280" }}>
+                        {ticket.created_at ? new Date(ticket.created_at).toLocaleString() : "-"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6B7280" }}>
+                        Datei: {ticket.file_name || "-"} | User: {ticket.reporter_email || "-"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6B7280" }}>
+                        seller_key: {ticket.seller_key || "-"} | Kategorie: {ticket.category || "-"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ padding: 10, borderRadius: 12, border: "1px dashed #D1D5DB", background: "#F9FAFB" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Hinweis</div>
+                <div style={{ marginTop: 4, fontSize: 12, color: "#4B5563" }}>
+                  Falls Supabase temporär nicht erreichbar ist, wird Feedback lokal im Browser gespeichert und später nicht automatisch synchronisiert.
+                </div>
+              </div>
+            </div>
+          </StepCard>
+        </div>
+        {stickyFeedbackCta}
+      </div>
+    );
+  }
+
+  if (route === "login") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
+          <StepCard
+            title="Login"
+            status={authUser ? "ok" : "idle"}
+            subtitle=""
+          >
+            {!isSupabaseConfigured ? (
+              <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCD34D", background: "#FFFBEB", color: "#92400E", fontSize: 13 }}>
+                Supabase ist noch nicht vollständig konfiguriert. Bitte <code>NEXT_PUBLIC_SUPABASE_URL</code> und{" "}
+                <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY</code> in <code>.env.local</code> setzen und den Dev-Server neu starten.
+              </div>
+            ) : null}
+
+            {authUser ? (
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #A7F3D0", background: "#ECFDF3", color: "#166534", fontSize: 13 }}>
+                  Eingeloggt als <strong>{authUser.email || "Unbekannter Benutzer"}</strong>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={logout}
+                    disabled={authLoading}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: 999,
+                      border: "1px solid #CBD5E1",
+                      background: "#FFFFFF",
+                      color: "#111827",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: authLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {authLoading ? "Bitte warten..." : "Logout"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {[
+                    { id: "login", label: "Login" },
+                    { id: "signup", label: "Sign up" },
+                    { id: "reset", label: "Passwort vergessen" },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setAuthMode(m.id);
+                        setAuthError("");
+                        setAuthMessage("");
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: `1px solid ${BRAND_COLOR}`,
+                        background: authMode === m.id ? BRAND_COLOR : "#FFFFFF",
+                        color: authMode === m.id ? "#FFFFFF" : BRAND_COLOR,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>E-Mail</span>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="name@firma.de"
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #D1D5DB",
+                      background: "#FFFFFF",
+                      fontSize: 13,
+                      color: "#111827",
+                      maxWidth: 420,
+                    }}
+                  />
+                </label>
+
+                {authMode !== "reset" ? (
+                  <label style={{ display: "grid", gap: 4 }}>
+                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>Passwort</span>
+                    <input
+                      type="password"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      placeholder="Mindestens 8 Zeichen"
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 10,
+                        border: "1px solid #D1D5DB",
+                        background: "#FFFFFF",
+                        fontSize: 13,
+                        color: "#111827",
+                        maxWidth: 420,
+                      }}
+                    />
+                  </label>
+                ) : null}
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    disabled={authLoading || !authEmail.trim() || (authMode !== "reset" && !authPassword)}
+                    onClick={() => runAuthAction(authMode)}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: 999,
+                      border: `1px solid ${BRAND_COLOR}`,
+                      background: BRAND_COLOR,
+                      color: "#FFFFFF",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: authLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {authLoading
+                      ? "Bitte warten..."
+                      : authMode === "signup"
+                      ? "Konto erstellen"
+                      : authMode === "reset"
+                      ? "Reset E-Mail senden"
+                      : "Einloggen"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {authError ? (
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
+                {authError}
+              </div>
+            ) : null}
+            {authMessage ? (
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 12, border: "1px solid #A7F3D0", background: "#ECFDF3", color: "#166534", fontSize: 13 }}>
+                {authMessage}
+              </div>
+            ) : null}
+          </StepCard>
+        </div>
       </div>
     );
   }
@@ -4511,7 +5753,6 @@ export default function App() {
                     <StepCard
                       title="Datei hochladen"
                       status={headers.length ? "ok" : "idle"}
-                      subtitle="CSV-Datei hochladen, um die Prüfung zu starten"
                     >
                       <div
                         style={{
@@ -4596,15 +5837,28 @@ export default function App() {
                     </StepCard>
 
                     {headers.length ? <QsPage headers={headers} rows={rows} /> : null}
+
+                    {!headers.length ? (
+                      <StepCard
+                        title="History"
+                        status="idle"
+                        subtitle="Zuletzt geprüfte Dateien"
+                      >
+                        {historyCardBody}
+                      </StepCard>
+                    ) : null}
                   </div>
                 </div>
 
                 {/* RIGHT: shared file preview */}
-                <FeedPreviewPanel headers={headers}>{step7Inner}</FeedPreviewPanel>
+                {headers.length ? (
+                  <FeedPreviewPanel headers={headers}>{step7Inner}</FeedPreviewPanel>
+                ) : null}
               </div>
             </div>
           </div>
         </div>
+        {stickyFeedbackCta}
       </div>
     );
   }
@@ -4614,6 +5868,7 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <ShopPerformance />
+        {stickyFeedbackCta}
       </div>
     );
   }
@@ -4623,14 +5878,18 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <Onboarding />
+        {stickyFeedbackCta}
       </div>
     );
   }
 
   return (
-    <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+    <div style={{ background: "#F3F4F6", height: "100vh", overflow: "hidden", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
       {topNav}
-      {page}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {page}
+      </div>
+      {stickyFeedbackCta}
     </div>
   );
 }
