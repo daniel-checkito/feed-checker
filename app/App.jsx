@@ -286,7 +286,8 @@ function Table({ columns, rows, highlight }) {
 function ResizableTable({
   columns,
   rows,
-  highlightedCells,
+  criticalRowIndexSet,
+  rowCriticalIssuesByIndex,
   getRowTargetKey,
   targetRowKey,
   highlightedRowKey,
@@ -309,6 +310,8 @@ function ResizableTable({
   const MAX_ROW_HEIGHT = 48; // enforce compact preview height cap
   const [rowHeight, setRowHeight] = useState(32);
   const [descriptionModal, setDescriptionModal] = useState(null);
+  const [rowIssueModal, setRowIssueModal] = useState(null);
+  const [hoveredCriticalRowIndex, setHoveredCriticalRowIndex] = useState(null);
   const dragRef = useRef(null);
   const rowRefs = useRef(new Map());
 
@@ -463,11 +466,16 @@ function ResizableTable({
         <tbody>
           {rows.map((r, i) => {
             const zebra = i % 2 === 0 ? "#FFFFFF" : "#F9FAFB";
+            const absRowIndex = r?.__rowIndex;
+            const isCritical = absRowIndex != null && criticalRowIndexSet?.has(absRowIndex);
             const rowTargetKey = getRowTargetKey ? getRowTargetKey(r, i) : null;
-            const isJumpHighlighted =
-              highlightedRowKey != null &&
-              rowTargetKey != null &&
-              String(rowTargetKey) === String(highlightedRowKey);
+            const rowIssueMessages = isCritical ? rowCriticalIssuesByIndex?.[absRowIndex] ?? [] : [];
+            const rowIssueText = rowIssueMessages?.length ? String(rowIssueMessages.join(" • ")) : "";
+            const rowBg = isCritical ? "#FEE2E2" : zebra;
+            const isCriticalHovered =
+              hoveredCriticalRowIndex != null &&
+              absRowIndex != null &&
+              String(absRowIndex) === String(hoveredCriticalRowIndex);
             return (
               <tr
                 key={i}
@@ -477,7 +485,18 @@ function ResizableTable({
                   if (el) rowRefs.current.set(key, el);
                   else rowRefs.current.delete(key);
                 }}
-                style={{ background: isJumpHighlighted ? "#FEF3C7" : zebra }}
+                title={isCritical && rowIssueText ? rowIssueText : ""}
+                onMouseEnter={() => {
+                  if (isCritical) setHoveredCriticalRowIndex(absRowIndex);
+                }}
+                onMouseLeave={() => {
+                  setHoveredCriticalRowIndex(null);
+                }}
+                style={{
+                  background: rowBg,
+                  outline: isCriticalHovered ? "2px solid #F97316" : undefined,
+                  outlineOffset: -2,
+                }}
               >
               <td
                 style={{
@@ -493,24 +512,63 @@ function ResizableTable({
                   maxHeight: rowHeight,
                   overflow: "hidden",
                   lineHeight: "14px",
-                  background: isJumpHighlighted ? "#FEF3C7" : zebra,
+                  background: rowBg,
                 }}
               >
-                <div style={{ height: rowHeight, maxHeight: rowHeight, display: "flex", alignItems: "center", overflow: "hidden" }}>
-                  {i + 1}
+                <div
+                  style={{
+                    height: rowHeight,
+                    maxHeight: rowHeight,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    overflow: "hidden",
+                    width: "100%",
+                  }}
+                >
+                  <div style={{ width: 30, textAlign: "right", color: "#6B7280" }}>{i + 1}</div>
+                  {isCritical && rowIssueMessages?.length ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRowIssueModal({
+                          rowIndex: absRowIndex,
+                          rowNumber: i + 1,
+                          messages: rowIssueMessages,
+                        });
+                      }}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        padding: 0,
+                        borderRadius: 999,
+                        border: "1px solid #EF4444",
+                        background: "#FFFFFF",
+                        color: "#B91C1C",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                      aria-label="Kritischer Fehler Details anzeigen"
+                      title="Details anzeigen"
+                    >
+                      i
+                    </button>
+                  ) : null}
                 </div>
               </td>
               {columns.map((c) => {
                 const w = widths[c.key] ?? 90;
                 const longText = isLongTextColumn(c.key);
-                const cellId = `${i}:${c.key}`;
                 const rawValue = String(r?.[c.key] ?? "");
                 const displayValue = normalizePreviewText(rawValue);
-                const isHighlighted =
-                  highlightedCells && highlightedCells.has(cellId);
-                const tooltip = isHighlighted
-                  ? "In diesem Feld liegt ein Problem vor (z.B. fehlender Pflichtwert oder Dublette)."
-                  : "";
+                const tooltip = isCritical && rowIssueText ? rowIssueText : "";
                 return (
                   <td
                     key={c.key}
@@ -528,7 +586,7 @@ function ResizableTable({
                       overflow: "hidden",
                       lineHeight: "14px",
                       wordBreak: "break-word",
-                      background: isHighlighted ? "#FEE2E2" : (isJumpHighlighted ? "#FEF3C7" : zebra),
+                      background: isCritical ? "#FEE2E2" : zebra,
                       cursor: longText && rawValue ? "pointer" : "default",
                     }}
                     onClick={() => {
@@ -643,6 +701,83 @@ function ResizableTable({
               }}
             >
               {descriptionModal.text}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {rowIssueModal ? (
+        <div
+          onClick={() => setRowIssueModal(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.45)",
+            zIndex: 45,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 16,
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 720,
+              width: "100%",
+              maxHeight: "80vh",
+              background: "#FFFFFF",
+              borderRadius: 16,
+              border: "1px solid #E5E7EB",
+              boxShadow: "0 20px 40px rgba(15,23,42,0.25)",
+              padding: 16,
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#B91C1C" }}>
+                Kritischer Fehler (Zeile {rowIssueModal.rowNumber})
+              </div>
+              <button
+                onClick={() => setRowIssueModal(null)}
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  border: "1px solid #E5E7EB",
+                  background: "#FFFFFF",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                Schließen
+              </button>
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                padding: 10,
+                borderRadius: 12,
+                border: "1px solid #FEE2E2",
+                background: "#FEF2F2",
+                fontSize: 12,
+                lineHeight: "18px",
+                color: "#111827",
+                overflow: "auto",
+              }}
+            >
+              {rowIssueModal.messages?.length ? (
+                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                  {rowIssueModal.messages.map((m, idx) => (
+                    <li key={idx}>{m}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div>Keine weiteren Details.</div>
+              )}
             </div>
           </div>
         </div>
@@ -2498,6 +2633,185 @@ function QsPage({ headers, rows }) {
   );
 }
 
+function ProduktOptimierungPage() {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  async function runOptimization() {
+    const cleanUrl = String(url || "").trim();
+    if (!cleanUrl) {
+      setError("Bitte eine URL einfügen.");
+      setResult(null);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const res = await fetch("/api/product-optimization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: cleanUrl,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+
+      setResult(data);
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
+      <div style={{ fontSize: 22, fontWeight: 900, color: "#111827", marginBottom: 12 }}>Produkt Optimierung</div>
+
+      <StepCard
+        title="URL einfügen & optimieren"
+        status={result ? "ok" : "idle"}
+        subtitle="Wir optimieren zuerst per Regeln. Claude (AI) wird nur genutzt, wenn Titel/Beschreibung wirklich problematisch sind (Backend-konfiguriert)."
+      >
+        <div style={{ display: "grid", gap: 10 }}>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, color: "#374151", fontWeight: 700 }}>Produkt-URL</span>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://... (mit https://)"
+              style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid #D1D5DB",
+                background: "#FFFFFF",
+                fontSize: 13,
+                color: "#111827",
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            />
+          </label>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <button
+              type="button"
+              onClick={runOptimization}
+              disabled={loading}
+              style={{
+                padding: "10px 16px",
+                borderRadius: 999,
+                border: `1px solid ${BRAND_COLOR}`,
+                background: BRAND_COLOR,
+                color: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: loading ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Optimierung läuft..." : "Optimieren"}
+            </button>
+            {result?.feedback?.usedClaude ? (
+              <SmallText>AI wurde genutzt (Claude).</SmallText>
+            ) : (
+              <SmallText>AI: nur wenn nötig.</SmallText>
+            )}
+          </div>
+
+          {error ? (
+            <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
+              {error}
+            </div>
+          ) : null}
+        </div>
+      </StepCard>
+
+      {result ? (
+        <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+          <StepCard
+            title="Feedback"
+            status={result?.feedback?.issues?.length ? (result?.feedback?.enoughImages ? "warn" : "bad") : "ok"}
+            subtitle="Bild-Checks + Hinweise zu Titel/Beschreibung"
+          >
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 13, color: "#111827", fontWeight: 800 }}>
+                Bilder: {result?.extracted?.imageCount} (empfohlen: {result?.meta?.minImages})
+              </div>
+              {typeof result?.feedback?.offerCount === "number" ? (
+                <div style={{ fontSize: 12, color: "#6B7280" }}>Angebote geprüft: {result.feedback.offerCount}</div>
+              ) : null}
+              {result?.feedback?.imageIssues?.length ? (
+                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
+                  {result.feedback.imageIssues.map((x, idx) => (
+                    <li key={idx}>{x}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>Genug Bilder gefunden.</div>
+              )}
+
+              {result?.feedback?.titleIssues?.length ? (
+                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
+                  {result.feedback.titleIssues.map((x, idx) => (
+                    <li key={idx}>{x}</li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {result?.feedback?.descriptionIssues?.length ? (
+                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
+                  {result.feedback.descriptionIssues.map((x, idx) => (
+                    <li key={idx}>{x}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </StepCard>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: "#111827", marginBottom: 8 }}>Original</div>
+              <div style={{ border: "1px solid #E5E7EB", background: "#FFFFFF", borderRadius: 16, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>Titel</div>
+                <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 13, color: "#111827", lineHeight: "18px" }}>{result?.original?.title || "-"}</div>
+                <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800, color: "#374151" }}>Beschreibung</div>
+                <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 13, color: "#111827", lineHeight: "18px" }}>{result?.original?.description || "-"}</div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: "#111827", marginBottom: 8 }}>Optimiert</div>
+              <div style={{ border: "1px solid #E5E7EB", background: "#FFFFFF", borderRadius: 16, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>Titel</div>
+                <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 13, color: "#111827", lineHeight: "18px" }}>{result?.optimized?.title || "-"}</div>
+                <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800, color: "#374151" }}>Beschreibung</div>
+                <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 13, color: "#111827", lineHeight: "18px" }}>{result?.optimized?.description || "-"}</div>
+              </div>
+            </div>
+          </div>
+
+          {result?.ai?.claudeIssues?.length ? (
+            <div style={{ border: "1px solid #FDE68A", background: "#FFFBEB", borderRadius: 16, padding: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: "#92400E", marginBottom: 6 }}>Claude Hinweise</div>
+              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
+                {result.ai.claudeIssues.map((x, idx) => (
+                  <li key={idx}>{x}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function App() {
     const [adminToken, setAdminToken] = useState(() => {
         if (typeof window === "undefined") return "";
@@ -2516,6 +2830,8 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
     if (hash === "#/qs") return "qs";
+    if (hash === "#/produkt-optimierung") return "produkt-optimierung";
+    if (hash === "#/analytics") return "analytics";
     if (hash === "#/feedback") return "feedback";
     if (hash === "#/login") return "login";
     if (hash === "#/shop-performance") return "shop-performance";
@@ -2550,6 +2866,8 @@ export default function App() {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/qs") setRoute("qs");
+      else if (hash === "#/produkt-optimierung") setRoute("produkt-optimierung");
+      else if (hash === "#/analytics") setRoute("analytics");
       else if (hash === "#/feedback") setRoute("feedback");
       else if (hash === "#/login") setRoute("login");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
@@ -2874,6 +3192,42 @@ export default function App() {
   const [feedbackTickets, setFeedbackTickets] = useState([]);
   const [feedbackTicketsLoading, setFeedbackTicketsLoading] = useState(false);
 
+  const [analyticsStats, setAnalyticsStats] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState("");
+
+  async function loadProductOptimizationAnalytics() {
+    setAnalyticsError("");
+
+    const token = String(adminToken || "").trim();
+    if (!token) {
+      setAnalyticsError("Bitte Admin-Token eingeben.");
+      setAnalyticsStats(null);
+      return;
+    }
+
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch("/api/analytics/product-optimization", {
+        method: "GET",
+        headers: { "x-admin-token": token },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+      setAnalyticsStats(data);
+    } catch (e) {
+      setAnalyticsStats(null);
+      setAnalyticsError(String(e?.message || e));
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (route !== "analytics") return;
+    loadProductOptimizationAnalytics();
+  }, [route, adminToken]);
+
   const [shopName, setShopName] = useState("");
   const [previewCount, setPreviewCount] = useState(40);
   const [eanSearch, setEanSearch] = useState("");
@@ -2887,6 +3241,7 @@ export default function App() {
   const [visibleColumns, setVisibleColumns] = useState(null);
   const [columnFilterOpen, setColumnFilterOpen] = useState(false);
   const [showIssueRowsOnly, setShowIssueRowsOnly] = useState(false);
+  const eanSearchBeforeIssueOnlyRef = useRef("");
   const [activeStep, setActiveStep] = useState(1);
   const [showAllChecks, setShowAllChecks] = useState(false);
 
@@ -3077,17 +3432,6 @@ export default function App() {
 
     return set;
   }, [rows, eanColumn, titleColumn, duplicates, requiredFields, mapping]);
-
-  const rowsWithIssues = useMemo(() => {
-    const set = new Set();
-    highlightedCells.forEach((id) => {
-      const rowIndex = Number(String(id).split(":")[0]);
-      if (!Number.isNaN(rowIndex) && rows[rowIndex]) {
-        set.add(rows[rowIndex]);
-      }
-    });
-    return set;
-  }, [highlightedCells, rows]);
 
   const duplicateEans = useMemo(() => {
     if (!rows.length || !eanColumn) return [];
@@ -3959,6 +4303,8 @@ export default function App() {
       criticalRowsPct,
       warningRowsCount: warningRowIdx.size,
       warningRowsPct,
+      criticalRowIndices: Array.from(criticalRowIdx),
+      warningRowIndices: Array.from(warningRowIdx),
     };
   }, [
     headers,
@@ -3992,6 +4338,146 @@ export default function App() {
     return { score, qualityLabel, ...palette };
   }, [summary]);
 
+  const highlightedRowIndexSet = useMemo(() => {
+    const set = new Set();
+    highlightedCells.forEach((id) => {
+      const rowIndex = Number(String(id).split(":")[0]);
+      if (!Number.isNaN(rowIndex)) set.add(rowIndex);
+    });
+    return set;
+  }, [highlightedCells]);
+
+  const criticalRowIndexSet = useMemo(
+    () => new Set(summary?.criticalRowIndices ?? []),
+    [summary]
+  );
+  const warningRowIndexSet = useMemo(
+    () => new Set(summary?.warningRowIndices ?? []),
+    [summary]
+  );
+  const issueRowIndexSet = useMemo(
+    () =>
+      new Set([
+        ...(summary?.criticalRowIndices ?? []),
+        ...(summary?.warningRowIndices ?? []),
+        ...Array.from(highlightedRowIndexSet),
+      ]),
+    [summary, highlightedRowIndexSet]
+  );
+
+  const affectedIssueEans = useMemo(() => {
+    if (!headers.length || !eanColumn) return [];
+    const s = new Set();
+    const indices = [
+      ...(summary?.criticalRowIndices ?? []),
+      ...(summary?.warningRowIndices ?? []),
+      ...Array.from(highlightedRowIndexSet),
+    ];
+    for (const idx of indices) {
+      const v = String(rows[idx]?.[eanColumn] ?? "").trim();
+      if (v) s.add(v);
+    }
+    return Array.from(s);
+  }, [headers.length, eanColumn, rows, summary, highlightedRowIndexSet]);
+
+  const rowCriticalIssuesByIndex = useMemo(() => {
+    const out = {};
+    if (!headers.length || !eanColumn) return out;
+    const criticalIdxs = criticalRowIndexSet;
+    if (!criticalIdxs || criticalIdxs.size === 0) return out;
+
+    const requiredLabelByKey = {
+      ean: "EAN",
+      seller_offer_id: "Seller_Offer_ID",
+      name: "Name",
+    };
+
+    const imageZeroSet = new Set(optionalFindings.imageZeroEans || []);
+    const brokenSet = new Set(brokenImageIds || []);
+    const scientificSet = new Set(optionalFindings.scientificEans || []);
+    const lightingMissingSet = new Set(optionalFindings.lightingEnergyMissing || []);
+    const missingPriceSet = new Set(optionalFindings.missingEansByField?.price || []);
+    const missingShippingSet = new Set(optionalFindings.missingShipping || []);
+    const invalidShippingSet = new Set(
+      (optionalFindings.invalidShipping || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean)
+    );
+    const invalidDeliveryIncludesSet = new Set(
+      (optionalFindings.invalidDeliveryIncludes || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean)
+    );
+    const invalidDeliveryTimeSet = new Set(
+      (optionalFindings.invalidDeliveryTime || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean)
+    );
+    const tooShortSet = new Set((optionalFindings.descriptionIssues?.tooShort || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
+    const usedOrBwareSet = new Set((optionalFindings.descriptionIssues?.usedOrBware || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
+    const externalLinksSet = new Set((optionalFindings.descriptionIssues?.externalLinks || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
+
+    for (const idx of criticalIdxs) {
+      const ean = String(rows[idx]?.[eanColumn] ?? "").trim();
+      const messages = [];
+
+      for (const fieldKey of requiredFields) {
+        const col = mapping[fieldKey];
+        if (!col) continue;
+        if (isBlank(rows[idx]?.[col])) {
+          messages.push(`Pflichtfeld fehlt: ${requiredLabelByKey[fieldKey] || fieldKey}`);
+        }
+      }
+
+      if (duplicates.eanDup?.has(idx)) messages.push("Doppelte EAN");
+      if (duplicates.titleDup?.has(idx)) messages.push("Doppelter Produkttitel");
+
+      if (ean) {
+        if (missingPriceSet.has(ean)) messages.push("Preis fehlt");
+        if (imageZeroSet.has(ean)) messages.push("Keine Bilder vorhanden");
+        if (brokenSet.has(ean)) messages.push("Vorschaubild nicht ladbar");
+        if (scientificSet.has(ean)) messages.push("EAN wirkt wissenschaftlich");
+        if (lightingMissingSet.has(ean)) messages.push("Energieeffizienz-Angaben fehlen");
+        if (missingShippingSet.has(ean)) messages.push("shipping_mode fehlt");
+        if (invalidShippingSet.has(ean)) messages.push("shipping_mode ungültig");
+        if (invalidDeliveryIncludesSet.has(ean)) messages.push("Lieferumfang-Format ungültig");
+        if (invalidDeliveryTimeSet.has(ean)) messages.push("Lieferzeit ungültig");
+        if (tooShortSet.has(ean)) messages.push("Beschreibung zu kurz");
+        if (usedOrBwareSet.has(ean)) messages.push("Hinweis auf B-Ware/gebrauchte Ware");
+        if (externalLinksSet.has(ean)) messages.push("Externe Links in der Beschreibung");
+      }
+
+      if (messages.length) out[idx] = messages;
+    }
+
+    return out;
+  }, [
+    headers.length,
+    eanColumn,
+    criticalRowIndexSet,
+    rows,
+    requiredFields,
+    mapping,
+    duplicates,
+    optionalFindings,
+    brokenImageIds,
+  ]);
+
+  const toggleIssueRowsOnly = () => {
+    const next = !showIssueRowsOnly;
+    if (next) {
+      eanSearchBeforeIssueOnlyRef.current = eanSearch;
+
+      const indices = [
+        ...(summary?.criticalRowIndices ?? []),
+        ...(summary?.warningRowIndices ?? []),
+        ...Array.from(highlightedRowIndexSet),
+      ];
+      const maxIdx = indices.length ? Math.max(...indices) : null;
+      if (maxIdx != null) setPreviewCount((c) => Math.max(c, maxIdx + 1));
+
+      setEanSearch(affectedIssueEans.length ? affectedIssueEans.join(", ") : "");
+      setShowIssueRowsOnly(true);
+    } else {
+      setShowIssueRowsOnly(false);
+      setEanSearch(eanSearchBeforeIssueOnlyRef.current ?? "");
+    }
+  };
+
   const [step2Expanded, setStep2Expanded] = useState(false);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const step6Ref = useRef(null);
@@ -4014,8 +4500,8 @@ export default function App() {
           return termsLower.some((t) => cell.includes(t));
         });
       })
-      .filter((r) => (showIssueRowsOnly ? rowsWithIssues.has(r) : true));
-  }, [rows, eanSearchTerms, eanColumn, showIssueRowsOnly, rowsWithIssues]);
+      .filter((r) => (showIssueRowsOnly ? issueRowIndexSet.has(r.__rowIndex) : true));
+  }, [rows, eanSearchTerms, eanColumn, showIssueRowsOnly, issueRowIndexSet]);
 
   useEffect(() => {
     if (!headers.length) return;
@@ -4133,7 +4619,7 @@ export default function App() {
         </button>
         <button
           type="button"
-          onClick={() => setShowIssueRowsOnly((v) => !v)}
+          onClick={toggleIssueRowsOnly}
           style={{
             padding: "6px 10px",
             borderRadius: 999,
@@ -4214,7 +4700,8 @@ export default function App() {
       <ResizableTable
         columns={previewColumns}
         rows={filteredPreviewRows.slice(0, previewCount)}
-        highlightedCells={highlightedCells}
+        criticalRowIndexSet={criticalRowIndexSet}
+        rowCriticalIssuesByIndex={rowCriticalIssuesByIndex}
         getRowTargetKey={(r) => r.__rowIndex}
         targetRowKey={pendingJumpRowKey}
         highlightedRowKey={highlightedJumpRowKey}
@@ -4289,8 +4776,9 @@ export default function App() {
               style={{ height: 44, width: "auto", maxWidth: 340, display: "block" }}
             />
           </button>
-          {["checker", "qs", "feedback"].map((r) => {
-            const labels = { checker: "Checker", qs: "QS/APA", feedback: "Feedback" };
+          {["checker", "qs", "produkt-optimierung", "analytics", "feedback"].map((r) => {
+            const labels = { checker: "Checker", qs: "QS/APA", feedback: "Feedback", analytics: "Analytics" };
+            const labelsWithOptimization = { ...labels, "produkt-optimierung": "Produkt Optimierung" };
             return (
               <button
                 key={r}
@@ -4306,7 +4794,7 @@ export default function App() {
                   fontWeight: 800,
                 }}
               >
-                {labels[r]}
+                {labelsWithOptimization[r]}
               </button>
             );
           })}
@@ -4605,7 +5093,7 @@ export default function App() {
                   Feedvorlage (Excel) herunterladen
                 </button>
                 <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>
-                  {fileName ? `Aktuelle Datei: ${fileName}` : "Unterstuetzt CSV Dateien mit Kopfzeile"}
+                  {fileName ? `Aktuelle Datei: ${fileName}` : ""}
                 </div>
                 <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
               </div>
@@ -5055,7 +5543,7 @@ export default function App() {
                                 : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
                             )}
                             tone="warn"
-                            hint="Werte, die nicht zum aktuellen Lieferumfang-Pattern passen, gruppiert nach Wert"
+                            hint=""
                             onAddValue={(value) => addAllowedRuleValue("delivery_includes", value)}
                             onItemClick={(ean) =>
                               jumpToIssueTarget({
@@ -5446,7 +5934,8 @@ export default function App() {
                     });
                   })
                 .slice(0, Math.max(previewCount, 200))}
-              highlightedCells={highlightedCells}
+              rowCriticalIssuesByIndex={rowCriticalIssuesByIndex}
+                criticalRowIndexSet={criticalRowIndexSet}
               getRowTargetKey={(r) => r.__rowIndex}
               targetRowKey={pendingJumpRowKey}
               highlightedRowKey={highlightedJumpRowKey}
@@ -5698,6 +6187,114 @@ export default function App() {
     );
   }
 
+  if (route === "analytics") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
+          <StepCard
+            title="Analytics (Admin)"
+            status={analyticsStats ? "ok" : analyticsLoading ? "warn" : "idle"}
+            subtitle="Statistiken zur Produkt Optimierung"
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <label style={{ display: "grid", gap: 4 }}>
+                <span style={{ fontSize: 12, color: "#374151", fontWeight: 700 }}>Admin-Token</span>
+                <input
+                  type="password"
+                  value={adminToken}
+                  onChange={(e) => updateAdminToken(e.target.value)}
+                  placeholder="ADMIN_TOKEN"
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid #E5E7EB",
+                    fontSize: 13,
+                    background: "#FFFFFF",
+                    color: "#111827",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </label>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <button
+                  type="button"
+                  onClick={loadProductOptimizationAnalytics}
+                  disabled={analyticsLoading}
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: 999,
+                    border: `1px solid ${BRAND_COLOR}`,
+                    background: BRAND_COLOR,
+                    color: "#FFFFFF",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: analyticsLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {analyticsLoading ? "Lade..." : "Analytics laden"}
+                </button>
+                <SmallText>Die Daten werden nur gespeichert, wenn die Feature-Route genutzt wird.</SmallText>
+              </div>
+
+              {analyticsError ? (
+                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
+                  {analyticsError}
+                </div>
+              ) : null}
+
+              {analyticsStats ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Pill tone="info">Gesamt: {analyticsStats.totalRuns ?? 0} Läufe</Pill>
+                    <Pill tone={analyticsStats.totalClaudeUsed ? "warn" : "ok"}>Claude: {analyticsStats.totalClaudeUsed ?? 0}</Pill>
+                    <Pill tone="info">Claude-Quote: {analyticsStats.claudeRatePct ?? 0}%</Pill>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Pill tone="ok">Genug Bilder: {analyticsStats.imageEnoughTrue ?? 0}</Pill>
+                    <Pill tone="warn">Zu wenig Bilder: {analyticsStats.imageEnoughFalse ?? 0}</Pill>
+                    {typeof analyticsStats.offerCountAvg === "number" ? (
+                      <Pill tone="info">Angebote im Schnitt: {analyticsStats.offerCountAvg.toFixed(1)}</Pill>
+                    ) : null}
+                  </div>
+
+                  <div style={{ padding: 12, borderRadius: 16, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: "#111827", marginBottom: 8 }}>Letzte Tage</div>
+                    {Array.isArray(analyticsStats.last30Days) && analyticsStats.last30Days.length ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        {analyticsStats.last30Days.map((d) => (
+                          <div
+                            key={d.date}
+                            style={{
+                              padding: 10,
+                              borderRadius: 12,
+                              border: "1px solid #E5E7EB",
+                              background: d.total ? "#F9FAFB" : "#FFFFFF",
+                            }}
+                          >
+                            <div style={{ fontSize: 12, fontWeight: 800, color: "#111827" }}>{d.date}</div>
+                            <div style={{ fontSize: 12, color: "#374151" }}>Runs: {d.total}</div>
+                            <div style={{ fontSize: 12, color: "#92400E" }}>Claude: {d.claude}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <SmallText>Keine Daten vorhanden.</SmallText>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </StepCard>
+        </div>
+        {stickyFeedbackCta}
+      </div>
+    );
+  }
+
   if (route === "qs") {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
@@ -5819,7 +6416,7 @@ export default function App() {
                         >
                           {fileName
                             ? `Aktuelle Datei: ${fileName}`
-                            : "Unterstuetzt CSV Dateien mit Kopfzeile"}
+                            : ""}
                         </div>
                         <input
                           ref={fileInputRef}
@@ -5858,6 +6455,16 @@ export default function App() {
             </div>
           </div>
         </div>
+        {stickyFeedbackCta}
+      </div>
+    );
+  }
+
+  if (route === "produkt-optimierung") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <ProduktOptimierungPage />
         {stickyFeedbackCta}
       </div>
     );

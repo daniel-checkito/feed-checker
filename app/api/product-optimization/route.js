@@ -1,0 +1,1017 @@
+const DEFAULTS = {
+  minImages: 3,
+  titleMinLength: 10,
+  descriptionMinLength: 50,
+  titleMaxLength: 70,
+};
+
+const memoryAnalytics =
+  (globalThis.__productOptAnalytics = globalThis.__productOptAnalytics || {});
+let kvClient = null;
+try {
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { kv } = require("@vercel/kv");
+    kvClient = kv;
+  }
+} catch (e) {
+  kvClient = null;
+}
+
+const ANALYTICS_PREFIX = "product_opt_usage_v1";
+
+async function bumpNumber(key, delta = 1) {
+  const amount = Number(delta || 0);
+  if (!amount) return;
+  if (kvClient) {
+    const cur = await kvClient.get(key);
+    const next = Number(cur || 0) + amount;
+    await kvClient.set(key, next);
+    return;
+  }
+  const cur = Number(memoryAnalytics[key] || 0);
+  memoryAnalytics[key] = cur + amount;
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeWhitespace(s) {
+  return String(s ?? "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function decodeHtmlEntities(str) {
+  const s = String(str ?? "");
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function stripHtmlTags(s) {
+  return String(s ?? "").replace(/<[^>]+>/g, " ");
+}
+
+function safeParseJson(json) {
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function uniqueNonEmpty(list) {
+  const seen = new Set();
+  const out = [];
+  for (const it of Array.isArray(list) ? list : []) {
+    const v = normalizeWhitespace(it);
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out;
+}
+
+function isPlaceholderText(s) {
+  const t = normalizeWhitespace(s).toLowerCase();
+  if (!t) return true;
+  return (
+    t.includes("beschreibung folgt") ||
+    t.includes("beschreibung folgt.") ||
+    t.includes("n/a") ||
+    t.includes("keine beschreibung") ||
+    t.includes("undefined") ||
+    t.includes("null") ||
+    t.includes("produktbeschreibung") && t.length < 60
+  );
+}
+
+function extractMetaByAttributes(html) {
+  const metas = new Map();
+  const re = /<meta\s+([^>]*?)>/gi;
+  let match;
+  while ((match = re.exec(html))) {
+    const attrs = match[1];
+    const nameMatch = attrs.match(/(?:name|property)\s*=\s*["']([^"']+)["']/i);
+    const contentMatch = attrs.match(/content\s*=\s*["']([^"']*)["']/i);
+    if (!nameMatch || !contentMatch) continue;
+    const key = String(nameMatch[1] ?? "").trim().toLowerCase();
+    const content = decodeHtmlEntities(contentMatch[1] ?? "");
+    if (!key) continue;
+    // Prefer first non-empty meta
+    if (!metas.has(key) && normalizeWhitespace(content)) metas.set(key, content);
+  }
+  return metas;
+}
+
+function extractTitleAndDescriptionFromHtml(html) {
+  const metaMap = extractMetaByAttributes(html);
+
+  const ogTitle = metaMap.get("og:title");
+  const twitterTitle = metaMap.get("twitter:title");
+  const ogDescription = metaMap.get("og:description");
+  const metaDescription = metaMap.get("description");
+
+  const titleTag = String(html).match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "";
+
+  const titleCandidates = [ogTitle, twitterTitle, metaMap.get("og:product:title"), titleTag];
+  const descriptionCandidates = [metaDescription, ogDescription, metaMap.get("twitter:description")];
+
+  const originalTitle = normalizeWhitespace(titleCandidates.find((x) => normalizeWhitespace(x).length)) || "";
+  const originalDescription =
+    normalizeWhitespace(descriptionCandidates.find((x) => normalizeWhitespace(x).length)) || "";
+
+  return { originalTitle, originalDescription };
+}
+
+function extractH1(html) {
+  const m = String(html).match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  if (!m) return "";
+  return normalizeWhitespace(decodeHtmlEntities(stripHtmlTags(m[1])));
+}
+
+function extractJsonLdProducts(html) {
+  const out = [];
+  const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match;
+  while ((match = re.exec(html))) {
+    const jsonText = String(match[1] ?? "");
+    const parsed = safeParseJson(jsonText);
+    if (!parsed) continue;
+
+    const maybeAdd = (obj) => {
+      if (!obj) return;
+      if (Array.isArray(obj)) {
+        obj.forEach(maybeAdd);
+        return;
+      }
+      const t = obj?.["@type"];
+      if (t === "Product" || (Array.isArray(t) && t.includes("Product"))) out.push(obj);
+      if (t == null && obj?.itemListElement) maybeAdd(obj.itemListElement);
+      if (!t && obj?.offers && obj?.name) out.push(obj);
+    };
+    maybeAdd(parsed);
+  }
+  return out;
+}
+
+function extractProductFromJsonLd(products) {
+  for (const p of products) {
+    const name = normalizeWhitespace(p?.name ?? "");
+    const description = normalizeWhitespace(p?.description ?? "");
+    const images = p?.image;
+    const imageList = Array.isArray(images) ? images : images ? [images] : [];
+    const extractedImages = imageList
+      .map((x) => String(x ?? ""))
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const brandName = normalizeWhitespace(p?.brand?.name ?? p?.brand ?? "");
+    const modelName = normalizeWhitespace(p?.model ?? p?.sku ?? p?.productID ?? "");
+    const material = normalizeWhitespace(p?.material ?? "");
+    const color = normalizeWhitespace(p?.color ?? "");
+
+    const size = p?.size ? normalizeWhitespace(p.size) : "";
+    const width = p?.width != null ? normalizeWhitespace(p.width) : "";
+    const height = p?.height != null ? normalizeWhitespace(p.height) : "";
+    const depth = p?.depth != null ? normalizeWhitespace(p.depth) : "";
+    const length = p?.length != null ? normalizeWhitespace(p.length) : "";
+
+    const dimensions =
+      normalizeWhitespace(size) ||
+      [width, height, depth]
+        .map((x) => x && x.replace(/,/g, "."))
+        .filter(Boolean)
+        .join(" x ") ||
+      [length, width, height]
+        .map((x) => x && x.replace(/,/g, "."))
+        .filter(Boolean)
+        .join(" x ");
+
+    const additionalProperty = Array.isArray(p?.additionalProperty) ? p.additionalProperty : [];
+    const additionalMap = {};
+    additionalProperty.forEach((ap) => {
+      const key = normalizeWhitespace(ap?.name ?? ap?.propertyID ?? "");
+      const val = normalizeWhitespace(ap?.value ?? "");
+      if (!key) return;
+      if (val) additionalMap[String(key).toLowerCase()] = val;
+    });
+
+    const material2 = normalizeWhitespace(additionalMap["material"] ?? additionalMap["bezugsstoff"] ?? material);
+    const color2 = normalizeWhitespace(additionalMap["farbe"] ?? additionalMap["farben"] ?? color);
+
+    const dims2Raw =
+      additionalMap["maße"] ||
+      additionalMap["abmessungen"] ||
+      additionalMap["dimension"] ||
+      additionalMap["größe"] ||
+      "";
+
+    const dims2 = normalizeWhitespace(dims2Raw) || dimensions;
+
+    // Optional: "variante/feature" keywords (for the more advanced title pattern).
+    const variantValues = [];
+    const featureValues = [];
+    const categoryValues = [];
+
+    for (const key of Object.keys(additionalMap)) {
+      const lowerKey = key.toLowerCase();
+      const v = additionalMap[key];
+      if (!v) continue;
+      if (lowerKey.includes("variante") || lowerKey.includes("variant")) variantValues.push(v);
+      if (lowerKey.includes("feature") || lowerKey.includes("merkmal") || lowerKey.includes("funktion")) featureValues.push(v);
+      if (lowerKey.includes("kategorie") || lowerKey.includes("category") || lowerKey.includes("produktart"))
+        categoryValues.push(v);
+    }
+
+    if (name || description || extractedImages.length) {
+      return {
+        name,
+        description,
+        images: extractedImages,
+        brandName,
+        modelName,
+        material: material2,
+        color: color2,
+        dimensions: dims2,
+        variantValues: uniqueNonEmpty(variantValues).slice(0, 6),
+        featureValues: uniqueNonEmpty(featureValues).slice(0, 6),
+        categoryValues: uniqueNonEmpty(categoryValues).slice(0, 3),
+      };
+    }
+  }
+
+  return {
+    name: "",
+    description: "",
+    images: [],
+    brandName: "",
+    modelName: "",
+    material: "",
+    color: "",
+    dimensions: "",
+    variantValues: [],
+    featureValues: [],
+    categoryValues: [],
+  };
+}
+
+function resolveUrl(maybeUrl, baseUrl) {
+  if (!maybeUrl) return null;
+  const s = String(maybeUrl).trim();
+  if (!s) return null;
+  if (s.startsWith("data:")) return null;
+  if (s.startsWith("//")) {
+    return `https:${s}`;
+  }
+  try {
+    return new URL(s, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractImagesFromHtml(html, baseUrl) {
+  const urls = [];
+
+  // og:image
+  const metaMap = extractMetaByAttributes(html);
+  const ogImageKeys = Array.from(metaMap.keys()).filter((k) => k === "og:image" || k.startsWith("og:image:"));
+  ogImageKeys.forEach((k) => {
+    const v = metaMap.get(k);
+    const resolved = resolveUrl(v, baseUrl);
+    if (resolved) urls.push(resolved);
+  });
+
+  // JSON-LD images
+  const jsonLdProducts = extractJsonLdProducts(html);
+  const productFromLd = extractProductFromJsonLd(jsonLdProducts);
+  productFromLd.images.forEach((i) => {
+    const resolved = resolveUrl(i, baseUrl);
+    if (resolved) urls.push(resolved);
+  });
+
+  // <img src="..."> + data-src
+  const imgSrcRe = /<img[^>]+(?:src|data-src)\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let m;
+  while ((m = imgSrcRe.exec(html))) {
+    const src = m?.[1];
+    const resolved = resolveUrl(src, baseUrl);
+    if (resolved) urls.push(resolved);
+  }
+
+  return Array.from(new Set(urls));
+}
+
+function extractExternalOfferUrls(html, mainOrigin, limit = 4) {
+  const out = [];
+  const seen = new Set();
+
+  const allowHints = [
+    "amazon.",
+    "otto.",
+    "ebay.",
+    "wayfair.",
+    "home24.",
+    "real.",
+    "benuta.",
+    "kaufland.",
+    "ikea.",
+    "obi.",
+    "bauhaus.",
+    "hornbach.",
+    "empire.",
+    "manomano.",
+    "laredoute.",
+    "otto.de",
+  ];
+
+  const re = /href\s*=\s*["'](https?:\/\/[^"']+)["']/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const href = String(m?.[1] ?? "");
+    if (!href) continue;
+    const clean = href.split("#")[0];
+    if (!clean) continue;
+    if (!/^https?:\/\//i.test(clean)) continue;
+    let origin = "";
+    try {
+      origin = new URL(clean).origin;
+    } catch {
+      origin = "";
+    }
+    if (mainOrigin && origin && origin === mainOrigin) continue;
+
+    const lower = clean.toLowerCase();
+    const hintOk = allowHints.some((h) => lower.includes(h));
+    const productPathOk = lower.includes("/product/") || lower.includes("/products/") || lower.includes("/p/");
+
+    if (!hintOk && !productPathOk) continue;
+    if (clean.length > 500) continue;
+
+    if (seen.has(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+    if (out.length >= limit) break;
+  }
+
+  return out;
+}
+
+function escapeRegExp(s) {
+  return String(s ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeWhitespaceKeepNewlines(s) {
+  return String(s ?? "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line, idx, arr) => line || idx === 0 || idx === arr.length - 1)
+    .join("\n")
+    .trim();
+}
+
+function htmlToTextWithBullets(input) {
+  const raw = decodeHtmlEntities(String(input ?? ""));
+  const text = raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<p[^>]*>/gi, "")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/h1[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\n\s*\n+/g, "\n");
+  return normalizeWhitespaceKeepNewlines(text);
+}
+
+function extractDimensionsFromText(text) {
+  const s = String(text ?? "");
+  // e.g. 180x200 cm, 100 x 38,5 x 45 cm, 16 cm
+  const m1 = s.match(/(\d+(?:[.,]\d+)?)\s*(x|×)\s*(\d+(?:[.,]\d+)?)(?:\s*(x|×)\s*(\d+(?:[.,]\d+)?))?\s*(cm|mm|m)?/i);
+  if (m1) {
+    const a = m1[1];
+    const b = m1[3];
+    const c = m1[5];
+    const unit = m1[6] || "";
+    const sep = " x ";
+    return c ? `${a}${sep}${b}${sep}${c}${unit ? ` ${unit}` : ""}` : `${a}${sep}${b}${unit ? ` ${unit}` : ""}`;
+  }
+  return "";
+}
+
+function ruleBasedOptimizeTitle({
+  originalTitle,
+  h1,
+  productName,
+  brandName,
+  modelName,
+  material,
+  color,
+  dimensions,
+  variantValues,
+  featureValues,
+  categoryValues,
+}) {
+  const base = normalizeWhitespace(originalTitle || h1 || productName || "");
+  let brand = normalizeWhitespace(brandName || "");
+  let series = normalizeWhitespace(modelName || "");
+  let mat = normalizeWhitespace(material || "");
+  let col = normalizeWhitespace(color || "");
+  let dims = normalizeWhitespace(dimensions || "");
+
+  // If we still miss dimensions, try extracting from base text.
+  if (!dims || dims.length < 3) {
+    const fromText = extractDimensionsFromText(base);
+    if (fromText) dims = fromText;
+  }
+
+  // Heuristic series fallback: first token that looks like a model (contains digits).
+  if (!series) {
+    const m = base.match(/\b[A-Za-z]*\d[\w-]*\b/);
+    if (m) series = m[0];
+  }
+
+  const hasVariants = Array.isArray(variantValues) && variantValues.length;
+  const hasFeatures = Array.isArray(featureValues) && featureValues.length;
+  const hasCategory = Array.isArray(categoryValues) && categoryValues.length;
+  const category = hasCategory ? categoryValues[0] : "";
+  const variants = hasVariants ? variantValues.join(", ") : "";
+  const features = hasFeatures ? featureValues.join(", ") : "";
+
+  // Remove brand/series from the addon part to avoid duplication.
+  let addon = base;
+  if (brand && addon.toLowerCase().startsWith(brand.toLowerCase())) addon = addon.slice(brand.length).trim();
+  if (series) addon = addon.replace(new RegExp(`\\b${escapeRegExp(series)}\\b`, "gi"), "").trim();
+  if (mat) addon = addon.replace(new RegExp(`\\b${escapeRegExp(mat)}\\b`, "gi"), "").trim();
+  if (col) addon = addon.replace(new RegExp(`\\b${escapeRegExp(col)}\\b`, "gi"), "").trim();
+  if (dims) addon = addon.replace(new RegExp(escapeRegExp(dims).slice(0, 10), "gi"), "").trim();
+
+  addon = normalizeWhitespace(addon);
+  if (!addon) addon = base;
+
+  let title = "";
+
+  // Advanced pattern (if we extracted variants/features).
+  if (brand && series && (variants || features || category)) {
+    const catPart = category ? `${category} ` : "";
+    const variantPart = variants ? `${variants}, ` : "";
+    const featurePart = features ? ` ${features}` : "";
+    title = `${brand} '${series}' ${catPart}${variantPart}${featurePart}`.replace(/\s+/g, " ").trim();
+    if (addon && !title.toLowerCase().includes(addon.toLowerCase().slice(0, 8))) {
+      title = `${title} ${addon}`.replace(/\s+/g, " ").trim();
+    }
+  } else if (brand && series) {
+    title = `${brand} '${series}' ${addon}`.replace(/\s+/g, " ").trim();
+  } else if (series) {
+    title = `'${series}' ${addon}`.replace(/\s+/g, " ").trim();
+  } else {
+    title = addon;
+  }
+
+  // Suffix: Material Farbe, Maße (comma-separated)
+  const suffixParts = [];
+  const matColor = [mat, col].filter(Boolean).join(" ").trim();
+  if (matColor) suffixParts.push(matColor);
+  if (dims) suffixParts.push(dims);
+
+  if (suffixParts.length) {
+    title = `${title}, ${suffixParts.join(", ")}`.replace(/\s+,/g, ",").replace(/\\s+/g, " ").trim();
+  }
+
+  title = decodeHtmlEntities(title);
+  title = title.replace(/\s*[-|–|:]\s*$/, "");
+  title = title.replace(/\s+/g, " ").trim();
+
+  // Ensure series is present in quotes if we have it.
+  if (series) {
+    const quoted = new RegExp(`['"]${escapeRegExp(series)}['"]`, "i").test(title);
+    if (!quoted) {
+      // Insert after brand if possible, else at start.
+      if (brand && title.toLowerCase().startsWith(brand.toLowerCase())) {
+        title = `${brand} '${series}' ${title.slice(brand.length).trim()}`.replace(/\s+/g, " ").trim();
+      } else {
+        title = `'${series}' ${title}`.replace(/\s+/g, " ").trim();
+      }
+    }
+    if (!new RegExp(`\\b${escapeRegExp(series)}\\b`, "i").test(title)) {
+      title = `'${series}' ${title}`.replace(/\s+/g, " ").trim();
+    }
+  }
+
+  // Max length: keep start, cut end.
+  if (title.length > DEFAULTS.titleMaxLength) title = `${title.slice(0, DEFAULTS.titleMaxLength - 1)}…`;
+
+  title = normalizeWhitespace(title);
+  if (isPlaceholderText(title) || !title) return "";
+  return title;
+}
+
+function ruleBasedOptimizeDescription({ originalDescription }) {
+  let desc = String(originalDescription ?? "");
+  // If the description is HTML, keep structure a bit (bullets/newlines).
+  if (/<\w+[^>]*>/.test(desc)) {
+    desc = htmlToTextWithBullets(desc);
+  } else {
+    desc = normalizeWhitespaceKeepNewlines(desc);
+  }
+
+  desc = decodeHtmlEntities(desc);
+
+  // Remove URLs / tracking.
+  desc = desc.replace(/https?:\/\/\S+/gi, "").replace(/www\.\S+/gi, "");
+
+  // Remove generic filler lines we should not send to the feed.
+  const lines = desc
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const filtered = lines.filter((l) => {
+    const x = l.toLowerCase();
+    if (x.includes("weitere produktdetails")) return false;
+    if (x.includes("produktseite")) return false;
+    if (x.includes("hier erfahren")) return false;
+    if (x.includes("download") && x.includes(".pdf")) return false;
+    if (x.includes("http")) return false;
+    return true;
+  });
+  desc = filtered.join("\n").trim();
+
+  // Normalize whitespace again (keep newlines)
+  desc = normalizeWhitespaceKeepNewlines(desc);
+
+  if (isPlaceholderText(desc)) return "";
+  return desc;
+}
+
+function checkTitleRules(title, extracted) {
+  const issues = [];
+  const t = normalizeWhitespace(title || "");
+  const brandName = extracted.brandName || "";
+  const modelName = extracted.modelName || "";
+  const material = extracted.material || "";
+  const color = extracted.color || "";
+  const dimensions = extracted.dimensions || "";
+
+  if (!t || t.length < DEFAULTS.titleMinLength) issues.push("Titel zu kurz oder leer.");
+  if (isPlaceholderText(t)) issues.push("Titel wirkt wie Platzhalter.");
+
+  if (modelName) {
+    if (!new RegExp(`\\b${escapeRegExp(modelName)}\\b`, "i").test(t)) {
+      issues.push("Serienname (modell) fehlt im Titel.");
+    }
+    const quoted = new RegExp(`['"]${escapeRegExp(modelName)}['"]`, "i").test(t);
+    if (!quoted) issues.push("Serienname muss in Anführungszeichen stehen (z.B. 'FX-CT500').");
+  }
+
+  const matColor = [material, color].filter(Boolean).join(" ").trim();
+  if (matColor && dimensions) {
+    const commaCount = (t.match(/,/g) || []).length;
+    if (commaCount < 2) issues.push("Titel muss mit Kommas strukturiert sein (z.B. ..., Material Farbe, Maße).");
+  }
+
+  return issues;
+}
+
+function evaluateDescriptionQuality(description) {
+  const issues = [];
+  const d = normalizeWhitespaceKeepNewlines(description || "");
+
+  if (!d || d.length < DEFAULTS.descriptionMinLength) issues.push("Beschreibung zu kurz oder leer.");
+  if (isPlaceholderText(d)) issues.push("Beschreibung wirkt wie Platzhalter.");
+
+  if (/https?:\/\//i.test(d) || /www\./i.test(d)) issues.push("Beschreibung enthält Links (nicht erlaubt).");
+
+  const numeric = /\d/.test(d);
+  if (!numeric) issues.push("Beschreibung enthält keine konkreten Werte (z.B. Maße/Größen).");
+
+  const bulletLines = d
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => l.startsWith("•") || l.startsWith("-") || l.includes("• "));
+  const lineCount = d.split("\n").map((l) => l.trim()).filter(Boolean).length;
+
+  // Needs some structure to be considered "High quality"
+  if (lineCount < 3 && bulletLines.length === 0) issues.push("Beschreibung wirkt zu generisch (wenig Struktur/Bullets).");
+
+  // Avoid our own generic fallback text
+  const badGeneric = /(weitere produktdetails|produktseite|hier erfahren|klicke)/i.test(d);
+  if (badGeneric) issues.push("Generischer Fülltext erkannt.");
+
+  return issues;
+}
+
+function shouldUseClaudeForText({ title, description, extracted }) {
+  const titleIssues = checkTitleRules(title, extracted);
+  const descIssues = evaluateDescriptionQuality(description);
+  return titleIssues.length > 0 || descIssues.length > 0;
+}
+
+async function callClaude({ claudeApiKey, originalTitle, originalDescription, extracted }) {
+  const apiKey = String(claudeApiKey || "").trim() || String(process.env.CLAUDE_API_KEY || "").trim();
+  if (!apiKey) throw new Error("Claude API key missing.");
+
+  const model = process.env.CLAUDE_MODEL || "claude-3-5-sonnet-latest";
+
+  const prompt = {
+    extracted: {
+      productName: extracted.productName,
+      h1: extracted.h1,
+      ogTitle: extracted.ogTitle,
+      ogDescription: extracted.ogDescription,
+    },
+    original: {
+      title: originalTitle,
+      description: originalDescription,
+    },
+    constraints: {
+      titleMinLength: DEFAULTS.titleMinLength,
+      titleMaxLength: DEFAULTS.titleMaxLength,
+      descriptionMinLength: DEFAULTS.descriptionMinLength,
+      language: "de",
+      avoidHallucinations: true,
+      doNotInventFacts: true,
+    },
+    instructions: [
+      "Optimieren Sie Titel und Beschreibung für einen Feed-Eintrag.",
+      "Nutzen Sie nur Informationen, die im Originaltext oder in den extrahierten Feldern vorhanden sind.",
+      "Wenn Informationen fehlen, bleiben Sie allgemein (keine erfundenen Spezifikationen).",
+      "Titel-Regeln: Serien-/Modellname (falls vorhanden) muss im Titel vorkommen und in Anführungszeichen stehen. Verwenden Sie Kommas, um Abschnitte zu trennen (z.B. ..., Material Farbe, Maße).",
+      "Beschreibung-Regeln: Keine Links/URLs, keine generischen Füllsätze; Beschreibung soll konkrete Werte (z.B. Maße/Größen) und etwas Struktur (Bullets/Absätze) enthalten, wenn im Original vorhanden.",
+      "Geben Sie ausschließlich JSON zurück mit {title, description, issues, rationale}.",
+    ],
+  };
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 700,
+      temperature: 0.3,
+      messages: [
+        {
+          role: "user",
+          content: JSON.stringify(prompt),
+        },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Claude call failed ${res.status}: ${text.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  const content = data?.content?.[0]?.text || "";
+
+  // Content should be JSON. Try to parse, otherwise attempt to salvage JSON substring.
+  const parsed = safeParseJson(content);
+  if (parsed && parsed.title && parsed.description) return parsed;
+
+  const start = content.indexOf("{");
+  const end = content.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    const maybe = safeParseJson(content.slice(start, end + 1));
+    if (maybe && maybe.title && maybe.description) return maybe;
+  }
+
+  throw new Error("Claude returned invalid JSON.");
+}
+
+export async function POST(req) {
+  try {
+    const body = await req.json();
+    const url = String(body?.url || "").trim();
+    const claudeApiKey = String(body?.claudeApiKey || process.env.CLAUDE_API_KEY || "").trim();
+    const minImages = Number(body?.minImages ?? DEFAULTS.minImages);
+
+    if (!url) return Response.json({ error: "Missing url" }, { status: 400 });
+    if (!/^https?:\/\//i.test(url)) return Response.json({ error: "URL must start with http(s)://" }, { status: 400 });
+
+    let baseUrl;
+    try {
+      baseUrl = new URL(url).toString();
+    } catch {
+      return Response.json({ error: "Invalid URL" }, { status: 400 });
+    }
+
+    // Fetch HTML
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 12000);
+    let html = "";
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: { "User-Agent": "FeedChecker-ProductOptimizer/1.0" },
+      });
+      clearTimeout(t);
+      if (!res.ok) return Response.json({ error: `Fetch failed: ${res.status}` }, { status: 400 });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.toLowerCase().includes("text/html")) {
+        // Still try to read as text; many sites respond with html but different content type.
+      }
+      html = await res.text();
+      if (html.length > 2_000_000) html = html.slice(0, 2_000_000);
+    } catch (e) {
+      clearTimeout(t);
+      return Response.json({ error: `Fetch error: ${String(e?.message || e)}` }, { status: 400 });
+    }
+
+    const h1 = extractH1(html);
+    const { originalTitle, originalDescription } = extractTitleAndDescriptionFromHtml(html);
+
+    const jsonLdProducts = extractJsonLdProducts(html);
+    const productFromLd = extractProductFromJsonLd(jsonLdProducts);
+    const productName = productFromLd.name || h1 || originalTitle;
+
+    let extractedImages = extractImagesFromHtml(html, baseUrl);
+
+    // Og meta for transparency
+    const metaMap = extractMetaByAttributes(html);
+    const ogTitle = metaMap.get("og:title") || "";
+    const ogDescription = metaMap.get("og:description") || metaMap.get("description") || "";
+
+    const mainOrigin = (() => {
+      try {
+        return new URL(url).origin;
+      } catch {
+        return "";
+      }
+    })();
+    const offerUrls = extractExternalOfferUrls(html, mainOrigin, 3);
+
+    const offers = [];
+    for (const offerUrl of offerUrls) {
+      try {
+        const offerBaseUrl = new URL(offerUrl).toString();
+        const offerController = new AbortController();
+        const offerTimeout = setTimeout(() => offerController.abort(), 10000);
+
+        const offerRes = await fetch(offerUrl, {
+          method: "GET",
+          redirect: "follow",
+          signal: offerController.signal,
+          headers: { "User-Agent": "FeedChecker-ProductOptimizer/1.0" },
+        });
+        clearTimeout(offerTimeout);
+
+        if (!offerRes.ok) continue;
+        let offerHtml = await offerRes.text();
+        if (offerHtml.length > 2_000_000) offerHtml = offerHtml.slice(0, 2_000_000);
+
+        const offerH1 = extractH1(offerHtml);
+        const { originalTitle: offerOriginalTitle, originalDescription: offerOriginalDescription } =
+          extractTitleAndDescriptionFromHtml(offerHtml);
+
+        const offerJsonLdProducts = extractJsonLdProducts(offerHtml);
+        const offerProductFromLd = extractProductFromJsonLd(offerJsonLdProducts);
+        const offerImages = extractImagesFromHtml(offerHtml, offerBaseUrl);
+
+        extractedImages = Array.from(new Set([...extractedImages, ...offerImages]));
+
+        offers.push({
+          url: offerUrl,
+          h1: offerH1,
+          originalTitle: offerOriginalTitle,
+          originalDescription: offerOriginalDescription,
+          productFromLd: offerProductFromLd,
+          imagesCount: offerImages.length,
+        });
+      } catch {
+        // Best-effort only; ignore offer failures.
+      }
+    }
+
+    const offerCount = offers.length;
+
+    const combinedExtracted = {
+      brandName: productFromLd.brandName || offers.map((o) => o.productFromLd.brandName).find((v) => normalizeWhitespace(v).length) || "",
+      modelName: productFromLd.modelName || offers.map((o) => o.productFromLd.modelName).find((v) => normalizeWhitespace(v).length) || "",
+      material: productFromLd.material || offers.map((o) => o.productFromLd.material).find((v) => normalizeWhitespace(v).length) || "",
+      color: productFromLd.color || offers.map((o) => o.productFromLd.color).find((v) => normalizeWhitespace(v).length) || "",
+      dimensions:
+        productFromLd.dimensions ||
+        offers.map((o) => o.productFromLd.dimensions).find((v) => normalizeWhitespace(v).length) ||
+        "",
+      variantValues: uniqueNonEmpty([
+        ...(productFromLd.variantValues || []),
+        ...offers.flatMap((o) => o.productFromLd.variantValues || []),
+      ]).slice(0, 6),
+      featureValues: uniqueNonEmpty([
+        ...(productFromLd.featureValues || []),
+        ...offers.flatMap((o) => o.productFromLd.featureValues || []),
+      ]).slice(0, 6),
+      categoryValues: uniqueNonEmpty([
+        ...(productFromLd.categoryValues || []),
+        ...offers.flatMap((o) => o.productFromLd.categoryValues || []),
+      ]).slice(0, 3),
+    };
+
+    const productNameBest =
+      normalizeWhitespace(productName).length
+        ? productName
+        : productFromLd.name ||
+          offers.map((o) => o.productFromLd.name || o.originalTitle).find((v) => normalizeWhitespace(v).length) ||
+          "";
+
+    const titleCandidateSources = [];
+    const addTitleSource = (t, h1Source) => {
+      const norm = normalizeWhitespace(t);
+      if (!norm) return;
+      if (titleCandidateSources.some((x) => x.originalTitle === norm && x.h1 === h1Source)) return;
+      titleCandidateSources.push({ originalTitle: norm, h1: normalizeWhitespace(h1Source) });
+    };
+
+    addTitleSource(productFromLd.name || originalTitle, h1);
+    addTitleSource(originalTitle, h1);
+    addTitleSource(h1, h1);
+    offers.forEach((o) => {
+      addTitleSource(o.productFromLd.name || o.originalTitle, o.h1);
+      addTitleSource(o.originalTitle, o.h1);
+    });
+
+    let optimizedTitle = "";
+    let bestTitleIssueCount = Number.POSITIVE_INFINITY;
+    let bestTitleLen = 0;
+    for (const cand of titleCandidateSources) {
+      const candidateOptim = ruleBasedOptimizeTitle({
+        originalTitle: cand.originalTitle,
+        h1: cand.h1,
+        productName: productNameBest,
+        ...combinedExtracted,
+      });
+      const issues = checkTitleRules(candidateOptim, combinedExtracted);
+      const count = issues.length;
+      const len = candidateOptim?.length ?? 0;
+      if (!candidateOptim) continue;
+      if (count < bestTitleIssueCount || (count === bestTitleIssueCount && len > bestTitleLen)) {
+        bestTitleIssueCount = count;
+        bestTitleLen = len;
+        optimizedTitle = candidateOptim;
+      }
+    }
+    if (!optimizedTitle) {
+      optimizedTitle = ruleBasedOptimizeTitle({
+        originalTitle: productFromLd.name || originalTitle,
+        h1,
+        productName: productNameBest,
+        ...combinedExtracted,
+      });
+    }
+
+    const descriptionCandidateSources = [];
+    const addDescSource = (d) => {
+      const s = String(d ?? "");
+      if (!normalizeWhitespace(s).length) return;
+      if (descriptionCandidateSources.includes(s)) return;
+      descriptionCandidateSources.push(s);
+    };
+    addDescSource(productFromLd.description || originalDescription);
+    addDescSource(originalDescription);
+    offers.forEach((o) => {
+      addDescSource(o.productFromLd.description || o.originalDescription);
+      addDescSource(o.originalDescription);
+    });
+
+    let optimizedDescription = "";
+    let bestDescIssueCount = Number.POSITIVE_INFINITY;
+    let bestDescLen = 0;
+    for (const candDesc of descriptionCandidateSources) {
+      const candidateOptim = ruleBasedOptimizeDescription({ originalDescription: candDesc });
+      const issues = evaluateDescriptionQuality(candidateOptim);
+      const count = issues.length;
+      const len = candidateOptim?.length ?? 0;
+      if (!candidateOptim) continue;
+      if (count < bestDescIssueCount || (count === bestDescIssueCount && len > bestDescLen)) {
+        bestDescIssueCount = count;
+        bestDescLen = len;
+        optimizedDescription = candidateOptim;
+      }
+    }
+    if (!optimizedDescription) {
+      optimizedDescription = ruleBasedOptimizeDescription({ originalDescription: productFromLd.description || originalDescription });
+    }
+
+    const needsClaude = shouldUseClaudeForText({
+      title: optimizedTitle,
+      description: optimizedDescription,
+      extracted: combinedExtracted,
+    });
+
+    let usedClaude = false;
+    let claudeIssues = [];
+    let rationale = [];
+
+    if (needsClaude && claudeApiKey) {
+      const claudeResult = await callClaude({
+        claudeApiKey,
+        originalTitle: originalTitle || productFromLd.name || "",
+        originalDescription: originalDescription || productFromLd.description || "",
+        extracted: {
+          productName: productName || "",
+          h1,
+          ogTitle,
+          ogDescription,
+        },
+      });
+
+      optimizedTitle = normalizeWhitespace(claudeResult?.title ?? "");
+      optimizedDescription = normalizeWhitespace(claudeResult?.description ?? "");
+      claudeIssues = Array.isArray(claudeResult?.issues) ? claudeResult.issues : [];
+      rationale = Array.isArray(claudeResult?.rationale) ? claudeResult.rationale : [];
+      usedClaude = true;
+    }
+
+    const titleIssues = checkTitleRules(optimizedTitle, combinedExtracted);
+    const descriptionIssues = evaluateDescriptionQuality(optimizedDescription);
+
+    const imageIssues = [];
+    const enoughImages = extractedImages.length >= minImages;
+    if (!enoughImages) imageIssues.push(`Nur ${extractedImages.length} Bilder gefunden (empfohlen: mindestens ${minImages}).`);
+    if (!extractedImages.length) imageIssues.push("Keine Bild-URLs gefunden.");
+
+    const issues = [...titleIssues, ...descriptionIssues, ...imageIssues];
+    if (needsClaude && !claudeApiKey) {
+      issues.push("Claude API Key fehlt im Backend (Env: CLAUDE_API_KEY). Es wurde nur regelbasiert optimiert.");
+    }
+
+    // ── Analytics logging (best effort) ──────────────────────────────────────
+    try {
+      const date = todayKey();
+      await Promise.all([
+        bumpNumber(`${ANALYTICS_PREFIX}:totalRuns`, 1),
+        bumpNumber(`${ANALYTICS_PREFIX}:daily:${date}:totalRuns`, 1),
+        usedClaude ? bumpNumber(`${ANALYTICS_PREFIX}:totalClaudeUsed`, 1) : bumpNumber(`${ANALYTICS_PREFIX}:totalClaudeUsed`, 0),
+        usedClaude ? bumpNumber(`${ANALYTICS_PREFIX}:daily:${date}:totalClaudeUsed`, 1) : bumpNumber(`${ANALYTICS_PREFIX}:daily:${date}:totalClaudeUsed`, 0),
+        enoughImages ? bumpNumber(`${ANALYTICS_PREFIX}:imageEnoughTrue`, 1) : bumpNumber(`${ANALYTICS_PREFIX}:imageEnoughTrue`, 0),
+        !enoughImages ? bumpNumber(`${ANALYTICS_PREFIX}:imageEnoughFalse`, 1) : bumpNumber(`${ANALYTICS_PREFIX}:imageEnoughFalse`, 0),
+        bumpNumber(`${ANALYTICS_PREFIX}:offerCountSum`, offerCount),
+        bumpNumber(`${ANALYTICS_PREFIX}:offerCountN`, 1),
+      ]);
+    } catch (e) {
+      // Don't block the feature if analytics fails.
+    }
+
+    return Response.json({
+      original: {
+        title: normalizeWhitespace(originalTitle || productFromLd.name || ""),
+        description: normalizeWhitespace(originalDescription || productFromLd.description || ""),
+      },
+      optimized: {
+        title: optimizedTitle,
+        description: optimizedDescription,
+      },
+      extracted: {
+        productName: normalizeWhitespace(productName || ""),
+        h1,
+        ogTitle,
+        ogDescription,
+        imageCount: extractedImages.length,
+        images: extractedImages.slice(0, 20),
+      },
+      feedback: {
+        enoughImages,
+        issues,
+        titleIssues,
+        descriptionIssues,
+        imageIssues,
+        needsClaude,
+        usedClaude,
+        offerCount: offers.length,
+      },
+      ai: usedClaude
+        ? {
+            claudeIssues,
+            rationale,
+          }
+        : null,
+      meta: {
+        url,
+        minImages,
+      },
+    });
+  } catch (e) {
+    return Response.json({ error: String(e?.message || e) }, { status: 500 });
+  }
+}
+
