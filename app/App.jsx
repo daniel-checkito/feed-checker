@@ -2796,6 +2796,57 @@ function ProduktOptimierungPage() {
             </div>
           </div>
 
+          <StepCard
+            title="Produktseite & Bilder"
+            status={result?.extracted?.images?.length ? "ok" : "bad"}
+            subtitle="Zum manuellen Check (Originalbilder + Link zur Produktseite)."
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ fontSize: 13, color: "#111827", fontWeight: 800 }}>
+                Produktseite:&nbsp;
+                {result?.meta?.url ? (
+                  <a
+                    href={result.meta.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: BRAND_COLOR, textDecoration: "underline" }}
+                  >
+                    öffnen
+                  </a>
+                ) : (
+                  <span style={{ color: "#6B7280", fontWeight: 700 }}>-</span>
+                )}
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {(result?.extracted?.images || []).slice(0, 12).map((u) => (
+                  <a
+                    key={u}
+                    href={u}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "block", width: 72, height: 72, flex: "0 0 auto", borderRadius: 12 }}
+                    title={u}
+                  >
+                    <div style={{ width: 72, height: 72, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF", overflow: "hidden" }}>
+                      <img
+                        src={u}
+                        alt="Bild"
+                        loading="lazy"
+                        style={{ width: 72, height: 72, objectFit: "cover", display: "block" }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) parent.style.background = "#F3F4F6";
+                        }}
+                      />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </StepCard>
+
           {result?.ai?.claudeIssues?.length ? (
             <div style={{ border: "1px solid #FDE68A", background: "#FFFBEB", borderRadius: 16, padding: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 900, color: "#92400E", marginBottom: 6 }}>Claude Hinweise</div>

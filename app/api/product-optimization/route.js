@@ -1,8 +1,8 @@
 const DEFAULTS = {
   minImages: 3,
-  titleMinLength: 10,
-  descriptionMinLength: 50,
-  titleMaxLength: 70,
+  titleMinLength: 60,
+  descriptionMinLength: 150,
+  titleMaxLength: 80,
 };
 
 const memoryAnalytics =
@@ -175,7 +175,8 @@ function extractProductFromJsonLd(products) {
       .filter(Boolean);
 
     const brandName = normalizeWhitespace(p?.brand?.name ?? p?.brand ?? "");
-    const modelName = normalizeWhitespace(p?.model ?? p?.sku ?? p?.productID ?? "");
+    const modelCandidate = normalizeWhitespace(p?.model ?? p?.sku ?? p?.productID ?? "");
+    const modelName = looksLikeMeasurementToken(modelCandidate) ? "" : modelCandidate;
     const material = normalizeWhitespace(p?.material ?? "");
     const color = normalizeWhitespace(p?.color ?? "");
 
@@ -411,6 +412,51 @@ function extractDimensionsFromText(text) {
   return "";
 }
 
+function looksLikeMeasurementToken(s) {
+  const t = String(s ?? "").toLowerCase();
+  if (!t) return false;
+  if (/(cm|mm|m)\b/.test(t)) return true;
+  if (/\b\d+(?:[.,]\d+)?\s*(x|×)\s*\d+(?:[.,]\d+)?\b/.test(t)) return true;
+  if (/\b(höhe|breite|tiefe|l[aä]nge)\b/.test(t)) return true;
+  return false;
+}
+
+function extractQuotedSeries(text) {
+  const s = String(text ?? "");
+  const re = /['"]([^'"]+)['"]/g;
+  let match;
+  while ((match = re.exec(s))) {
+    const token = normalizeWhitespace(match[1] ?? "");
+    if (!token) continue;
+    if (looksLikeMeasurementToken(token)) continue;
+    return token;
+  }
+  return "";
+}
+
+function extractMeasurementPhrasesFromText(text) {
+  const s = String(text ?? "");
+  // Examples:
+  //  - 90x200 cm
+  //  - Höhe 15 cm / Tiefe: 12,5 cm
+  const re =
+    // Require units for "x/×" patterns to reduce false positives (e.g. product codes).
+    // Also support labeled German dimensions.
+    /\b\d+(?:[.,]\d+)?\s*(x|×)\s*\d+(?:[.,]\d+)?(?:\s*(x|×)\s*\d+(?:[.,]\d+)?)?\s*(cm|mm|m)\b|\b(höhe|breite|tiefe|l[aä]nge)\s*[:\-]?\s*\d+(?:[.,]\d+)?\s*(cm|mm|m)\b/gi;
+  const out = [];
+  let match;
+  while ((match = re.exec(s))) {
+    const phrase = normalizeWhitespace(match[0] ?? "");
+    if (!phrase) continue;
+    out.push(phrase);
+  }
+  return out;
+}
+
+function stripStarsAndEllipsis(s) {
+  return String(s ?? "").replace(/\*/g, "").replace(/…/g, "");
+}
+
 function ruleBasedOptimizeTitle({
   originalTitle,
   h1,
@@ -427,8 +473,8 @@ function ruleBasedOptimizeTitle({
   const base = normalizeWhitespace(originalTitle || h1 || productName || "");
   let brand = normalizeWhitespace(brandName || "");
   let series = normalizeWhitespace(modelName || "");
-  let mat = normalizeWhitespace(material || "");
-  let col = normalizeWhitespace(color || "");
+  const mat = normalizeWhitespace(material || "");
+  const col = normalizeWhitespace(color || "");
   let dims = normalizeWhitespace(dimensions || "");
 
   // If we still miss dimensions, try extracting from base text.
@@ -437,10 +483,14 @@ function ruleBasedOptimizeTitle({
     if (fromText) dims = fromText;
   }
 
-  // Heuristic series fallback: first token that looks like a model (contains digits).
+  // Prefer quoted series/model from the original text.
+  if (!series) series = extractQuotedSeries(base);
+
+  // Heuristic series fallback: first token that looks like a model (contains digits),
+  // but never treat measurement-like tokens as series.
   if (!series) {
     const m = base.match(/\b[A-Za-z]*\d[\w-]*\b/);
-    if (m) series = m[0];
+    if (m && !looksLikeMeasurementToken(m[0])) series = m[0];
   }
 
   const hasVariants = Array.isArray(variantValues) && variantValues.length;
@@ -450,75 +500,134 @@ function ruleBasedOptimizeTitle({
   const variants = hasVariants ? variantValues.join(", ") : "";
   const features = hasFeatures ? featureValues.join(", ") : "";
 
-  // Remove brand/series from the addon part to avoid duplication.
+  // Remove brand/series/material/color/dimensions from the addon part to avoid duplication.
   let addon = base;
   if (brand && addon.toLowerCase().startsWith(brand.toLowerCase())) addon = addon.slice(brand.length).trim();
-  if (series) addon = addon.replace(new RegExp(`\\b${escapeRegExp(series)}\\b`, "gi"), "").trim();
+  if (series) {
+    addon = addon.replace(new RegExp(`['"]${escapeRegExp(series)}['"]`, "gi"), "").trim();
+    addon = addon.replace(new RegExp(`\\b${escapeRegExp(series)}\\b`, "gi"), "").trim();
+  }
   if (mat) addon = addon.replace(new RegExp(`\\b${escapeRegExp(mat)}\\b`, "gi"), "").trim();
   if (col) addon = addon.replace(new RegExp(`\\b${escapeRegExp(col)}\\b`, "gi"), "").trim();
-  if (dims) addon = addon.replace(new RegExp(escapeRegExp(dims).slice(0, 10), "gi"), "").trim();
+  if (dims) addon = addon.replace(new RegExp(escapeRegExp(dims).slice(0, 18), "gi"), "").trim();
 
   addon = normalizeWhitespace(addon);
   if (!addon) addon = base;
 
-  let title = "";
-
-  // Advanced pattern (if we extracted variants/features).
-  if (brand && series && (variants || features || category)) {
-    const catPart = category ? `${category} ` : "";
-    const variantPart = variants ? `${variants}, ` : "";
-    const featurePart = features ? ` ${features}` : "";
-    title = `${brand} '${series}' ${catPart}${variantPart}${featurePart}`.replace(/\s+/g, " ").trim();
-    if (addon && !title.toLowerCase().includes(addon.toLowerCase().slice(0, 8))) {
-      title = `${title} ${addon}`.replace(/\s+/g, " ").trim();
-    }
-  } else if (brand && series) {
-    title = `${brand} '${series}' ${addon}`.replace(/\s+/g, " ").trim();
-  } else if (series) {
-    title = `'${series}' ${addon}`.replace(/\s+/g, " ").trim();
-  } else {
-    title = addon;
-  }
-
-  // Suffix: Material Farbe, Maße (comma-separated)
-  const suffixParts = [];
   const matColor = [mat, col].filter(Boolean).join(" ").trim();
-  if (matColor) suffixParts.push(matColor);
-  if (dims) suffixParts.push(dims);
 
-  if (suffixParts.length) {
-    title = `${title}, ${suffixParts.join(", ")}`.replace(/\s+,/g, ",").replace(/\\s+/g, " ").trim();
+  // Prefer "product type" from category (when available); otherwise fall back to first non-brand segment.
+  let productType = category || "";
+  if (!productType) {
+    let tmp = base;
+    if (brand && tmp.toLowerCase().startsWith(brand.toLowerCase())) tmp = tmp.slice(brand.length).trim();
+    if (series) tmp = tmp.replace(new RegExp(`['"]${escapeRegExp(series)}['"]`, "gi"), "").trim();
+    productType = tmp.split(",")[0].trim();
   }
 
-  title = decodeHtmlEntities(title);
+  // Build a prefix WITHOUT measurements; we will re-append all measurements at the very end.
+  let titlePrefix = "";
+  if (productType && series) {
+    titlePrefix = `${productType} '${series}' ${addon}`.trim();
+  } else if (productType) {
+    titlePrefix = `${productType} ${addon}`.trim();
+  } else if (series && brand) {
+    titlePrefix = `${brand} '${series}' ${addon}`.trim();
+  } else if (series) {
+    titlePrefix = `'${series}' ${addon}`.trim();
+  } else {
+    titlePrefix = addon;
+  }
+
+  // Optionally include variants/features (only if they are not already part of the prefix).
+  if (variants && !titlePrefix.toLowerCase().includes(variants.toLowerCase().slice(0, 10))) {
+    titlePrefix = `${titlePrefix} ${variants}`.trim();
+  }
+  if (features && !titlePrefix.toLowerCase().includes(features.toLowerCase().slice(0, 10))) {
+    titlePrefix = `${titlePrefix} ${features}`.trim();
+  }
+
+  // Ensure the brand is present before measurements (measurements are appended later).
+  if (brand && !titlePrefix.toLowerCase().includes(brand.toLowerCase())) {
+    titlePrefix = `${titlePrefix} ${brand}`.trim();
+  }
+
+  let title = decodeHtmlEntities(titlePrefix);
+  title = stripStarsAndEllipsis(title);
   title = title.replace(/\s*[-|–|:]\s*$/, "");
-  title = title.replace(/\s+/g, " ").trim();
+  title = normalizeWhitespace(title);
+
+  // Extract all measurement phrases from the current title and re-append them at the end.
+  let measurementPhrases = extractMeasurementPhrasesFromText(title);
+
+  const measurementKey = (p) =>
+    normalizeWhitespace(p)
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/×/g, "x")
+      .replace(/,/g, ".");
+
+  // De-duplicate while keeping first occurrence order.
+  if (measurementPhrases.length > 1) {
+    const seen = new Set();
+    const out = [];
+    for (const p of measurementPhrases) {
+      const k = measurementKey(p);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(p);
+    }
+    measurementPhrases = out;
+  }
+  if (dims && looksLikeMeasurementToken(dims)) {
+    const normDims = normalizeWhitespace(dims).toLowerCase().replace(/\s+/g, "");
+    const hasDims = measurementPhrases.some((p) => measurementKey(p) === measurementKey(normDims));
+    if (!hasDims) measurementPhrases.push(dims);
+  }
+
+  // Remove measurements from prefix so they don't appear in the middle.
+  if (measurementPhrases.length) {
+    for (const phrase of measurementPhrases) {
+      title = title.replace(new RegExp(escapeRegExp(phrase), "gi"), "");
+    }
+  }
+
+  title = title.replace(/\s+,/g, ",").replace(/,+/g, ",").replace(/[,\s]+$/g, "").trim();
+
+  // Append material/color ONLY when we actually have measurements.
+  if (measurementPhrases.length) {
+    const suffix = matColor ? `${matColor}, ${measurementPhrases.join(", ")}` : measurementPhrases.join(", ");
+    title = `${title}, ${suffix}`.replace(/\s+,/g, ",").trim();
+  }
 
   // Ensure series is present in quotes if we have it.
   if (series) {
     const quoted = new RegExp(`['"]${escapeRegExp(series)}['"]`, "i").test(title);
     if (!quoted) {
-      // Insert after brand if possible, else at start.
-      if (brand && title.toLowerCase().startsWith(brand.toLowerCase())) {
-        title = `${brand} '${series}' ${title.slice(brand.length).trim()}`.replace(/\s+/g, " ").trim();
+      if (brand && title.toLowerCase().endsWith(brand.toLowerCase())) {
+        title = `${title.slice(0, title.length - brand.length).trim()} '${series}' ${brand}`.replace(/\s+/g, " ").trim();
       } else {
         title = `'${series}' ${title}`.replace(/\s+/g, " ").trim();
       }
     }
-    if (!new RegExp(`\\b${escapeRegExp(series)}\\b`, "i").test(title)) {
-      title = `'${series}' ${title}`.replace(/\s+/g, " ").trim();
-    }
   }
 
-  // Max length: keep start, cut end.
-  if (title.length > DEFAULTS.titleMaxLength) title = `${title.slice(0, DEFAULTS.titleMaxLength - 1)}…`;
-
   title = normalizeWhitespace(title);
+  title = stripStarsAndEllipsis(title);
+
   if (isPlaceholderText(title) || !title) return "";
   return title;
 }
 
-function ruleBasedOptimizeDescription({ originalDescription }) {
+function truncateByLastNewline(text, maxLen) {
+  const s = String(text ?? "");
+  if (s.length <= maxLen) return s.trim();
+  const cut = s.lastIndexOf("\n", maxLen);
+  if (cut > 0) return s.slice(0, cut).trim();
+  return s.slice(0, maxLen).trim();
+}
+
+function ruleBasedOptimizeDescription({ originalDescription, extracted }) {
   let desc = String(originalDescription ?? "");
   // If the description is HTML, keep structure a bit (bullets/newlines).
   if (/<\w+[^>]*>/.test(desc)) {
@@ -528,6 +637,7 @@ function ruleBasedOptimizeDescription({ originalDescription }) {
   }
 
   desc = decodeHtmlEntities(desc);
+  desc = stripStarsAndEllipsis(desc);
 
   // Remove URLs / tracking.
   desc = desc.replace(/https?:\/\/\S+/gi, "").replace(/www\.\S+/gi, "");
@@ -551,7 +661,30 @@ function ruleBasedOptimizeDescription({ originalDescription }) {
   // Normalize whitespace again (keep newlines)
   desc = normalizeWhitespaceKeepNewlines(desc);
 
-  if (isPlaceholderText(desc)) return "";
+  // Build a structured technical bullet block from extracted attributes (feed-ready + no hallucinations).
+  const bullets = [];
+  const dims = normalizeWhitespace(extracted?.dimensions || "");
+  const mat = normalizeWhitespace(extracted?.material || "");
+  const col = normalizeWhitespace(extracted?.color || "");
+  const variants = Array.isArray(extracted?.variantValues) ? extracted.variantValues : [];
+  const features = Array.isArray(extracted?.featureValues) ? extracted.featureValues : [];
+
+  if (dims) bullets.push(`• Maße: ${dims}`);
+  if (mat) bullets.push(`• Material: ${mat}`);
+  if (col) bullets.push(`• Farbe: ${col}`);
+  if (variants.length) bullets.push(`• Varianten: ${variants.filter(Boolean).slice(0, 4).join(", ")}`);
+  if (features.length) bullets.push(`• Merkmale: ${features.filter(Boolean).slice(0, 4).join(", ")}`);
+
+  const bulletBlock = bullets.length ? bullets.join("\n") : "";
+
+  // If cleaned original is a placeholder, fall back to structured bullets.
+  if (!desc || isPlaceholderText(desc)) desc = bulletBlock;
+  else if (bulletBlock) desc = `${desc}\n\n${bulletBlock}`;
+
+  if (isPlaceholderText(desc) || !desc) return "";
+
+  // Keep within the feed-friendly size window.
+  desc = truncateByLastNewline(desc, 500);
   return desc;
 }
 
@@ -567,6 +700,12 @@ function checkTitleRules(title, extracted) {
   if (!t || t.length < DEFAULTS.titleMinLength) issues.push("Titel zu kurz oder leer.");
   if (isPlaceholderText(t)) issues.push("Titel wirkt wie Platzhalter.");
 
+  if (/\*/.test(t) || /…/.test(t)) issues.push("Titel enthält '*' oder '…' (nicht erlaubt).");
+
+  // Avoid marketing fluff.
+  const badPhrases = /(super|top|günstig|hochwertig|premium|billig|beste|ideal|unschlagbar|perfekt|traumhaft)/i;
+  if (badPhrases.test(t)) issues.push("Titel enthält Marketing-/Werbefloskeln (nicht erlaubt).");
+
   if (modelName) {
     if (!new RegExp(`\\b${escapeRegExp(modelName)}\\b`, "i").test(t)) {
       issues.push("Serienname (modell) fehlt im Titel.");
@@ -575,23 +714,72 @@ function checkTitleRules(title, extracted) {
     if (!quoted) issues.push("Serienname muss in Anführungszeichen stehen (z.B. 'FX-CT500').");
   }
 
+  // Validate that the quoted series token matches the extracted modelName.
+  const quotedSeries = extractQuotedSeries(t);
+  if (modelName && quotedSeries) {
+    if (normalizeWhitespace(modelName).toLowerCase() !== normalizeWhitespace(quotedSeries).toLowerCase()) {
+      issues.push("Serienname stimmt nicht mit dem Modellnamen überein.");
+    }
+  }
+
+  // Measurements must be at the very end (including "Höhe 15 cm", etc.).
+  const titleMeasurements = extractMeasurementPhrasesFromText(t);
+  if (dimensions) {
+    if (titleMeasurements.length === 0) {
+      issues.push("Maße fehlen oder konnten nicht erkannt werden.");
+    } else {
+      const last = titleMeasurements[titleMeasurements.length - 1];
+      if (!t.toLowerCase().endsWith(normalizeWhitespace(last).toLowerCase())) {
+        issues.push("Maße müssen am Ende des Titels stehen.");
+      }
+
+      const normExtractDims = normalizeWhitespace(dimensions).toLowerCase().replace(/\s+/g, "");
+      const hasExtractDims = titleMeasurements.some(
+        (p) => normalizeWhitespace(p).toLowerCase().replace(/\s+/g, "") === normExtractDims
+      );
+      if (!hasExtractDims && normExtractDims.length > 0) {
+        issues.push("Die Maße im Titel passen nicht zu den extrahierten Maßen.");
+      }
+    }
+  }
+
   const matColor = [material, color].filter(Boolean).join(" ").trim();
-  if (matColor && dimensions) {
-    const commaCount = (t.match(/,/g) || []).length;
-    if (commaCount < 2) issues.push("Titel muss mit Kommas strukturiert sein (z.B. ..., Material Farbe, Maße).");
+  const commaCount = (t.match(/,/g) || []).length;
+  if (dimensions && commaCount < 1) {
+    issues.push("Titel soll die wichtigsten Abschnitte mit Kommas trennen (z.B. ..., Material Farbe, Maße).");
+  }
+  if (matColor && dimensions && commaCount < 2) {
+    issues.push("Titel muss mit Kommas strukturiert sein (z.B. ..., Material Farbe, Maße).");
+  }
+
+  // Variant/size coherence (best-effort): if a variant contains a measurement, it should appear in the title.
+  const variantValues = Array.isArray(extracted.variantValues) ? extracted.variantValues : [];
+  if (variantValues.length) {
+    const variantMeasurements = uniqueNonEmpty(
+      variantValues.flatMap((v) => extractMeasurementPhrasesFromText(v))
+    ).slice(0, 3);
+    if (variantMeasurements.length && titleMeasurements.length) {
+      const hasAtLeastOne = variantMeasurements.some((vm) =>
+        titleMeasurements.some((tm) => normalizeWhitespace(tm).toLowerCase().replace(/\s+/g, "") === normalizeWhitespace(vm).toLowerCase().replace(/\s+/g, ""))
+      );
+      if (!hasAtLeastOne) issues.push("Größen/Varianten passen nicht zum Titel.");
+    }
   }
 
   return issues;
 }
 
-function evaluateDescriptionQuality(description) {
+function evaluateDescriptionQuality(description, extracted) {
   const issues = [];
   const d = normalizeWhitespaceKeepNewlines(description || "");
 
   if (!d || d.length < DEFAULTS.descriptionMinLength) issues.push("Beschreibung zu kurz oder leer.");
   if (isPlaceholderText(d)) issues.push("Beschreibung wirkt wie Platzhalter.");
+  if (/\*/.test(d) || /…/.test(d)) issues.push("Beschreibung enthält '*' oder '…' (nicht erlaubt).");
 
   if (/https?:\/\//i.test(d) || /www\./i.test(d)) issues.push("Beschreibung enthält Links (nicht erlaubt).");
+
+  if (d.length > 500) issues.push("Beschreibung ist zu lang (max 500 Zeichen).");
 
   const numeric = /\d/.test(d);
   if (!numeric) issues.push("Beschreibung enthält keine konkreten Werte (z.B. Maße/Größen).");
@@ -605,25 +793,88 @@ function evaluateDescriptionQuality(description) {
 
   // Needs some structure to be considered "High quality"
   if (lineCount < 3 && bulletLines.length === 0) issues.push("Beschreibung wirkt zu generisch (wenig Struktur/Bullets).");
+  if (lineCount < 2 && bulletLines.length > 0 && bulletLines.length < 2) {
+    issues.push("Beschreibung hat zu wenig Zeilen/Struktur.");
+  }
 
   // Avoid our own generic fallback text
   const badGeneric = /(weitere produktdetails|produktseite|hier erfahren|klicke)/i.test(d);
   if (badGeneric) issues.push("Generischer Fülltext erkannt.");
+
+  // Extracted token coverage (hard-ish checks): if we have extracted attributes,
+  // the optimized description should include them (rule-based path should satisfy).
+  const dims = normalizeWhitespace(extracted?.dimensions || "");
+  const mat = normalizeWhitespace(extracted?.material || "");
+  const col = normalizeWhitespace(extracted?.color || "");
+
+  const descNorm = normalizeWhitespace(d).toLowerCase();
+  const normKey = (x) => normalizeWhitespace(String(x ?? "")).toLowerCase().replace(/\s+/g, "");
+
+  if (dims) {
+    const dimsKey = normKey(dims);
+    const descDimsKey = normKey(descNorm).replace(/[,]/g, "");
+    if (!descNorm || !descDimsKey.includes(dimsKey)) issues.push("Maße fehlen in der Beschreibung.");
+  }
+  if (mat) {
+    if (!descNorm.includes(normKey(mat))) issues.push("Material fehlt in der Beschreibung.");
+  }
+  if (col) {
+    if (!descNorm.includes(normKey(col))) issues.push("Farbe fehlt in der Beschreibung.");
+  }
 
   return issues;
 }
 
 function shouldUseClaudeForText({ title, description, extracted }) {
   const titleIssues = checkTitleRules(title, extracted);
-  const descIssues = evaluateDescriptionQuality(description);
-  return titleIssues.length > 0 || descIssues.length > 0;
+  const descIssues = evaluateDescriptionQuality(description, extracted);
+
+  const hasTechnical =
+    Boolean(normalizeWhitespace(extracted?.dimensions || "")) ||
+    Boolean(normalizeWhitespace(extracted?.material || "")) ||
+    Boolean(normalizeWhitespace(extracted?.color || "")) ||
+    (Array.isArray(extracted?.variantValues) && extracted.variantValues.length > 0) ||
+    (Array.isArray(extracted?.featureValues) && extracted.featureValues.length > 0);
+
+  const isHardTitleIssue = (msg) =>
+    msg.includes("Maße") ||
+    msg.includes("Serienname") ||
+    msg.includes("Marketing") ||
+    msg.includes("Platzhalter") ||
+    msg.includes("'*'") ||
+    msg.includes("'…'");
+
+  const isHardDescIssue = (msg) =>
+    msg.includes("Links") ||
+    msg.includes("'*'") ||
+    msg.includes("'…'") ||
+    msg.includes("Platzhalter") ||
+    msg.includes("keine konkreten Werte") ||
+    msg.includes("Generischer Fülltext") ||
+    msg.includes("fehlen in der Beschreibung") ||
+    msg.includes("ist zu lang") ||
+    msg.includes("zu generisch");
+
+  if (titleIssues.some(isHardTitleIssue)) return true;
+  if (descIssues.some(isHardDescIssue)) return true;
+
+  // Threshold fallback: only call Claude when we can't build a structured technical description.
+  if (!hasTechnical) {
+    if (
+      descIssues.some((i) => i.includes("keine konkreten Werte") || i.includes("zu generisch") || i.includes("zu kurz"))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function callClaude({ claudeApiKey, originalTitle, originalDescription, extracted }) {
   const apiKey = String(claudeApiKey || "").trim() || String(process.env.CLAUDE_API_KEY || "").trim();
   if (!apiKey) throw new Error("Claude API key missing.");
 
-  const model = process.env.CLAUDE_MODEL || "claude-3-5-sonnet-latest";
+  const model = process.env.CLAUDE_MODEL || "claude-3-5-sonnet";
 
   const prompt = {
     extracted: {
@@ -648,8 +899,10 @@ async function callClaude({ claudeApiKey, originalTitle, originalDescription, ex
       "Optimieren Sie Titel und Beschreibung für einen Feed-Eintrag.",
       "Nutzen Sie nur Informationen, die im Originaltext oder in den extrahierten Feldern vorhanden sind.",
       "Wenn Informationen fehlen, bleiben Sie allgemein (keine erfundenen Spezifikationen).",
-      "Titel-Regeln: Serien-/Modellname (falls vorhanden) muss im Titel vorkommen und in Anführungszeichen stehen. Verwenden Sie Kommas, um Abschnitte zu trennen (z.B. ..., Material Farbe, Maße).",
+      "Titel-Regeln: Keine '…' und kein '*'. Serien-/Modellname (falls vorhanden) muss im Titel vorkommen und in Anführungszeichen stehen. Verwenden Sie Kommas, um Abschnitte zu trennen (z.B. ..., Material Farbe, Maße).",
+      "Titel-Regeln: Alle Maße/Größen müssen am SEHR ENDE des Titels stehen (z.B. '90x200 cm', 'Höhe 15 cm').",
       "Beschreibung-Regeln: Keine Links/URLs, keine generischen Füllsätze; Beschreibung soll konkrete Werte (z.B. Maße/Größen) und etwas Struktur (Bullets/Absätze) enthalten, wenn im Original vorhanden.",
+      "Beschreibung-Regeln: Keine '…' und kein '*'. Keine Platzhalter.",
       "Geben Sie ausschließlich JSON zurück mit {title, description, issues, rationale}.",
     ],
   };
@@ -804,7 +1057,7 @@ export async function POST(req) {
 
     const offerCount = offers.length;
 
-    const combinedExtracted = {
+    let combinedExtracted = {
       brandName: productFromLd.brandName || offers.map((o) => o.productFromLd.brandName).find((v) => normalizeWhitespace(v).length) || "",
       modelName: productFromLd.modelName || offers.map((o) => o.productFromLd.modelName).find((v) => normalizeWhitespace(v).length) || "",
       material: productFromLd.material || offers.map((o) => o.productFromLd.material).find((v) => normalizeWhitespace(v).length) || "",
@@ -826,6 +1079,15 @@ export async function POST(req) {
         ...offers.flatMap((o) => o.productFromLd.categoryValues || []),
       ]).slice(0, 3),
     };
+
+    // If JSON-LD accidentally picked a dimension-like token as "model/series",
+    // prefer a quoted series token from title/H1 (e.g. 'Twist').
+    const quotedSeries = extractQuotedSeries(originalTitle) || extractQuotedSeries(h1);
+    if (quotedSeries) {
+      if (!combinedExtracted.modelName || looksLikeMeasurementToken(combinedExtracted.modelName)) {
+        combinedExtracted = { ...combinedExtracted, modelName: quotedSeries };
+      }
+    }
 
     const productNameBest =
       normalizeWhitespace(productName).length
@@ -851,8 +1113,25 @@ export async function POST(req) {
     });
 
     let optimizedTitle = "";
-    let bestTitleIssueCount = Number.POSITIVE_INFINITY;
+    let bestTitleScore = Number.POSITIVE_INFINITY;
     let bestTitleLen = 0;
+
+    const isHardTitleIssue = (msg) =>
+      msg.includes("Maße") ||
+      msg.includes("Serienname") ||
+      msg.includes("Marketing") ||
+      msg.includes("Platzhalter") ||
+      msg.includes("'*'") ||
+      msg.includes("'…'");
+
+    const scoreTitleIssues = (issues, len) => {
+      const hardCount = issues.filter((i) => isHardTitleIssue(i)).length;
+      const softCount = issues.length - hardCount;
+      // Penalize very long titles to keep titles usable even when >80 is allowed.
+      const lenPenalty = Math.max(0, len - DEFAULTS.titleMaxLength);
+      return hardCount * 100000 + softCount * 100 + lenPenalty;
+    };
+
     for (const cand of titleCandidateSources) {
       const candidateOptim = ruleBasedOptimizeTitle({
         originalTitle: cand.originalTitle,
@@ -861,11 +1140,11 @@ export async function POST(req) {
         ...combinedExtracted,
       });
       const issues = checkTitleRules(candidateOptim, combinedExtracted);
-      const count = issues.length;
       const len = candidateOptim?.length ?? 0;
       if (!candidateOptim) continue;
-      if (count < bestTitleIssueCount || (count === bestTitleIssueCount && len > bestTitleLen)) {
-        bestTitleIssueCount = count;
+      const score = scoreTitleIssues(issues, len);
+      if (score < bestTitleScore || (score === bestTitleScore && len > bestTitleLen)) {
+        bestTitleScore = score;
         bestTitleLen = len;
         optimizedTitle = candidateOptim;
       }
@@ -894,22 +1173,44 @@ export async function POST(req) {
     });
 
     let optimizedDescription = "";
-    let bestDescIssueCount = Number.POSITIVE_INFINITY;
+    let bestDescScore = Number.POSITIVE_INFINITY;
     let bestDescLen = 0;
     for (const candDesc of descriptionCandidateSources) {
-      const candidateOptim = ruleBasedOptimizeDescription({ originalDescription: candDesc });
-      const issues = evaluateDescriptionQuality(candidateOptim);
-      const count = issues.length;
+      const candidateOptim = ruleBasedOptimizeDescription({ originalDescription: candDesc, extracted: combinedExtracted });
+      const issues = evaluateDescriptionQuality(candidateOptim, combinedExtracted);
       const len = candidateOptim?.length ?? 0;
       if (!candidateOptim) continue;
-      if (count < bestDescIssueCount || (count === bestDescIssueCount && len > bestDescLen)) {
-        bestDescIssueCount = count;
+
+      const isHardDescIssue = (msg) =>
+        msg.includes("Links") ||
+        msg.includes("'*'") ||
+        msg.includes("'…'") ||
+        msg.includes("Platzhalter") ||
+        msg.includes("keine konkreten Werte") ||
+        msg.includes("Generischer Fülltext") ||
+        msg.includes("fehlen in der Beschreibung") ||
+        msg.includes("ist zu lang") ||
+        msg.includes("zu generisch");
+
+      const scoreDescriptionIssues = (issuesList, length) => {
+        const hardCount = issuesList.filter((i) => isHardDescIssue(i)).length;
+        const softCount = issuesList.length - hardCount;
+        const lenPenalty = length < DEFAULTS.descriptionMinLength ? DEFAULTS.descriptionMinLength - length : 0;
+        return hardCount * 100000 + softCount * 100 + lenPenalty;
+      };
+
+      const score = scoreDescriptionIssues(issues, len);
+      if (score < bestDescScore || (score === bestDescScore && len > bestDescLen)) {
+        bestDescScore = score;
         bestDescLen = len;
         optimizedDescription = candidateOptim;
       }
     }
     if (!optimizedDescription) {
-      optimizedDescription = ruleBasedOptimizeDescription({ originalDescription: productFromLd.description || originalDescription });
+      optimizedDescription = ruleBasedOptimizeDescription({
+        originalDescription: productFromLd.description || originalDescription,
+        extracted: combinedExtracted,
+      });
     }
 
     const needsClaude = shouldUseClaudeForText({
@@ -936,14 +1237,15 @@ export async function POST(req) {
       });
 
       optimizedTitle = normalizeWhitespace(claudeResult?.title ?? "");
-      optimizedDescription = normalizeWhitespace(claudeResult?.description ?? "");
+      optimizedTitle = stripStarsAndEllipsis(optimizedTitle);
+      optimizedDescription = stripStarsAndEllipsis(normalizeWhitespace(claudeResult?.description ?? ""));
       claudeIssues = Array.isArray(claudeResult?.issues) ? claudeResult.issues : [];
       rationale = Array.isArray(claudeResult?.rationale) ? claudeResult.rationale : [];
       usedClaude = true;
     }
 
     const titleIssues = checkTitleRules(optimizedTitle, combinedExtracted);
-    const descriptionIssues = evaluateDescriptionQuality(optimizedDescription);
+    const descriptionIssues = evaluateDescriptionQuality(optimizedDescription, combinedExtracted);
 
     const imageIssues = [];
     const enoughImages = extractedImages.length >= minImages;
