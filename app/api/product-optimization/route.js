@@ -176,7 +176,8 @@ function extractProductFromJsonLd(products) {
 
     const brandName = normalizeWhitespace(p?.brand?.name ?? p?.brand ?? "");
     const modelCandidate = normalizeWhitespace(p?.model ?? p?.sku ?? p?.productID ?? "");
-    const modelName = looksLikeMeasurementToken(modelCandidate) ? "" : modelCandidate;
+    const modelName =
+      looksLikeMeasurementToken(modelCandidate) || isNumericOnlyToken(modelCandidate) ? "" : modelCandidate;
     const material = normalizeWhitespace(p?.material ?? "");
     const color = normalizeWhitespace(p?.color ?? "");
 
@@ -421,6 +422,46 @@ function looksLikeMeasurementToken(s) {
   return false;
 }
 
+function isNumericOnlyToken(s) {
+  const t = String(s ?? "").trim();
+  if (!t) return false;
+  // "463", "463.0", "463,0"
+  return /^\d+(?:[.,]\d+)?$/.test(t);
+}
+
+function isValidSeriesToken(s) {
+  const t = normalizeWhitespace(s || "");
+  if (!t) return false;
+  if (isNumericOnlyToken(t)) return false;
+  if (!/[A-Za-zÄÖÜäöüß]/.test(t)) return false;
+  if (/check24/i.test(t)) return false;
+  if (t.includes("|")) return false;
+  return true;
+}
+
+function sanitizeTitleText(input) {
+  let s = String(input ?? "");
+  // Remove CHECK24 mentions and hard separator pipes.
+  s = s.replace(/check24/gi, "");
+  // If the input has numeric-only quoted tokens like "'463'", remove them entirely.
+  // This avoids wrapping wrong numeric identifiers in ''.
+  s = s.replace(/['"]\s*\d+(?:[.,]\d+)?\s*['"]/g, "");
+  // Replace separator pipes with spaces (do not truncate the rest; we may have color/dimensions after it).
+  s = s.replace(/\|/g, " ");
+  // Remove prices like "für 90 €" or "für,90 €" (best-effort)
+  s = s.replace(/für\s*[\d.,]+(?:\s?€)?/gi, "");
+  // Normalize whitespace and remove trailing punctuation artifacts.
+  s = normalizeWhitespace(s).replace(/[,\s]+$/g, "").trim();
+  return s;
+}
+
+function sanitizeDescriptionText(input) {
+  let s = String(input ?? "");
+  s = s.replace(/check24/gi, "");
+  s = s.replace(/\|/g, " ");
+  return s;
+}
+
 function extractQuotedSeries(text) {
   const s = String(text ?? "");
   const re = /['"]([^'"]+)['"]/g;
@@ -470,7 +511,7 @@ function ruleBasedOptimizeTitle({
   featureValues,
   categoryValues,
 }) {
-  const base = normalizeWhitespace(originalTitle || h1 || productName || "");
+  const base = sanitizeTitleText(normalizeWhitespace(originalTitle || h1 || productName || ""));
   let brand = normalizeWhitespace(brandName || "");
   let series = normalizeWhitespace(modelName || "");
   const mat = normalizeWhitespace(material || "");
@@ -492,6 +533,10 @@ function ruleBasedOptimizeTitle({
     const m = base.match(/\b[A-Za-z]*\d[\w-]*\b/);
     if (m && !looksLikeMeasurementToken(m[0])) series = m[0];
   }
+
+  // Only keep series tokens that look like a real series/model identifier.
+  // This prevents numeric-only tokens (e.g. "463") from being wrapped in quotes.
+  if (series && !isValidSeriesToken(series)) series = "";
 
   const hasVariants = Array.isArray(variantValues) && variantValues.length;
   const hasFeatures = Array.isArray(featureValues) && featureValues.length;
@@ -555,7 +600,7 @@ function ruleBasedOptimizeTitle({
   let title = decodeHtmlEntities(titlePrefix);
   title = stripStarsAndEllipsis(title);
   title = title.replace(/\s*[-|–|:]\s*$/, "");
-  title = normalizeWhitespace(title);
+  title = sanitizeTitleText(title);
 
   // Extract all measurement phrases from the current title and re-append them at the end.
   let measurementPhrases = extractMeasurementPhrasesFromText(title);
@@ -638,6 +683,7 @@ function ruleBasedOptimizeDescription({ originalDescription, extracted }) {
 
   desc = decodeHtmlEntities(desc);
   desc = stripStarsAndEllipsis(desc);
+  desc = sanitizeDescriptionText(desc);
 
   // Remove URLs / tracking.
   desc = desc.replace(/https?:\/\/\S+/gi, "").replace(/www\.\S+/gi, "");
@@ -701,6 +747,9 @@ function checkTitleRules(title, extracted) {
   if (isPlaceholderText(t)) issues.push("Titel wirkt wie Platzhalter.");
 
   if (/\*/.test(t) || /…/.test(t)) issues.push("Titel enthält '*' oder '…' (nicht erlaubt).");
+
+  if (/\|/.test(t)) issues.push("Titel darf kein '|' enthalten.");
+  if (/check24/i.test(t)) issues.push("Titel darf 'CHECK24' nicht enthalten.");
 
   // Avoid marketing fluff.
   const badPhrases = /(super|top|günstig|hochwertig|premium|billig|beste|ideal|unschlagbar|perfekt|traumhaft)/i;
@@ -776,6 +825,8 @@ function evaluateDescriptionQuality(description, extracted) {
   if (!d || d.length < DEFAULTS.descriptionMinLength) issues.push("Beschreibung zu kurz oder leer.");
   if (isPlaceholderText(d)) issues.push("Beschreibung wirkt wie Platzhalter.");
   if (/\*/.test(d) || /…/.test(d)) issues.push("Beschreibung enthält '*' oder '…' (nicht erlaubt).");
+  if (/\|/.test(d)) issues.push("Beschreibung darf kein '|' enthalten.");
+  if (/check24/i.test(d)) issues.push("Beschreibung darf 'CHECK24' nicht enthalten.");
 
   if (/https?:\/\//i.test(d) || /www\./i.test(d)) issues.push("Beschreibung enthält Links (nicht erlaubt).");
 
@@ -901,8 +952,10 @@ async function callClaude({ claudeApiKey, originalTitle, originalDescription, ex
       "Wenn Informationen fehlen, bleiben Sie allgemein (keine erfundenen Spezifikationen).",
       "Titel-Regeln: Keine '…' und kein '*'. Serien-/Modellname (falls vorhanden) muss im Titel vorkommen und in Anführungszeichen stehen. Verwenden Sie Kommas, um Abschnitte zu trennen (z.B. ..., Material Farbe, Maße).",
       "Titel-Regeln: Alle Maße/Größen müssen am SEHR ENDE des Titels stehen (z.B. '90x200 cm', 'Höhe 15 cm').",
+      "Titel-Regeln: Verwenden Sie niemals den Trennstrich '|' und erwähnen Sie niemals 'CHECK24'.",
       "Beschreibung-Regeln: Keine Links/URLs, keine generischen Füllsätze; Beschreibung soll konkrete Werte (z.B. Maße/Größen) und etwas Struktur (Bullets/Absätze) enthalten, wenn im Original vorhanden.",
       "Beschreibung-Regeln: Keine '…' und kein '*'. Keine Platzhalter.",
+      "Beschreibung-Regeln: Verwenden Sie niemals den Trennstrich '|' und erwähnen Sie niemals 'CHECK24'.",
       "Geben Sie ausschließlich JSON zurück mit {title, description, issues, rationale}.",
     ],
   };
@@ -1238,7 +1291,9 @@ export async function POST(req) {
 
       optimizedTitle = normalizeWhitespace(claudeResult?.title ?? "");
       optimizedTitle = stripStarsAndEllipsis(optimizedTitle);
+      optimizedTitle = sanitizeTitleText(normalizeWhitespace(optimizedTitle));
       optimizedDescription = stripStarsAndEllipsis(normalizeWhitespace(claudeResult?.description ?? ""));
+      optimizedDescription = sanitizeDescriptionText(optimizedDescription);
       claudeIssues = Array.isArray(claudeResult?.issues) ? claudeResult.issues : [];
       rationale = Array.isArray(claudeResult?.rationale) ? claudeResult.rationale : [];
       usedClaude = true;
@@ -1289,7 +1344,7 @@ export async function POST(req) {
         ogTitle,
         ogDescription,
         imageCount: extractedImages.length,
-        images: extractedImages.slice(0, 20),
+        images: extractedImages,
       },
       feedback: {
         enoughImages,

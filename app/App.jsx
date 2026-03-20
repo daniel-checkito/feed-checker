@@ -2819,7 +2819,7 @@ function ProduktOptimierungPage() {
               </div>
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {(result?.extracted?.images || []).slice(0, 12).map((u) => (
+                {(result?.extracted?.images || []).map((u) => (
                   <a
                     key={u}
                     href={u}
@@ -2828,7 +2828,7 @@ function ProduktOptimierungPage() {
                     style={{ display: "block", width: 72, height: 72, flex: "0 0 auto", borderRadius: 12 }}
                     title={u}
                   >
-                    <div style={{ width: 72, height: 72, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF", overflow: "hidden" }}>
+                    <div style={{ width: 72, height: 72, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF", overflow: "hidden", position: "relative" }}>
                       <img
                         src={u}
                         alt="Bild"
@@ -2836,10 +2836,41 @@ function ProduktOptimierungPage() {
                         style={{ width: 72, height: 72, objectFit: "cover", display: "block" }}
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
-                          const parent = e.currentTarget.parentElement;
-                          if (parent) parent.style.background = "#F3F4F6";
+                          const fallback = e.currentTarget.nextElementSibling;
+                          if (fallback && fallback instanceof HTMLElement) fallback.style.display = "flex";
                         }}
                       />
+                      <div
+                        style={{
+                          display: "none",
+                          position: "absolute",
+                          inset: 0,
+                          width: 72,
+                          height: 72,
+                          borderRadius: 12,
+                          border: "1px solid #E5E7EB",
+                          background: "#F3F4F6",
+                          color: "#6B7280",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          textAlign: "center",
+                          padding: "0 4px",
+                          boxSizing: "border-box",
+                          cursor: "copy",
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (navigator?.clipboard?.writeText) {
+                            navigator.clipboard.writeText(u).catch(() => {});
+                          }
+                        }}
+                        title="Fehler - klicken um Link zu kopieren"
+                      >
+                        Fehler - Link kopieren
+                      </div>
                     </div>
                   </a>
                 ))}
@@ -2979,7 +3010,7 @@ export default function App() {
   }, []);
 
   async function runAuthAction(action) {
-    if (!supabase) {
+    if (!supabase && action !== "login") {
       setAuthError("Supabase ist nicht konfiguriert. Bitte .env.local prüfen.");
       return;
     }
@@ -2988,12 +3019,32 @@ export default function App() {
     setAuthMessage("");
     try {
       if (action === "login") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: authEmail.trim(),
-          password: authPassword,
-        });
-        if (error) throw error;
-        setAuthMessage("Erfolgreich eingeloggt.");
+        const email = authEmail.trim();
+        // First: try normal Supabase login.
+        try {
+          const { error } = await supabase?.auth.signInWithPassword({
+            email,
+            password: authPassword,
+          });
+          if (error) throw error;
+          setAuthMessage("Erfolgreich eingeloggt.");
+        } catch (_e) {
+          // Fallback: admin username/password (env-based).
+          const res = await fetch("/api/admin-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: email,
+              password: authPassword,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.error || "Admin Login fehlgeschlagen");
+          updateAdminToken(data?.token || "");
+          setAuthMessage("Admin erfolgreich eingeloggt.");
+          window.location.hash = "#/analytics";
+          return;
+        }
       } else if (action === "signup") {
         const { error } = await supabase.auth.signUp({
           email: authEmail.trim(),
@@ -3027,13 +3078,16 @@ export default function App() {
   }
 
   async function logout() {
-    if (!supabase) return;
     setAuthLoading(true);
     setAuthError("");
     setAuthMessage("");
+    // Clear admin session token (used for Analytics gating).
+    updateAdminToken("");
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (supabase) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      }
       setAuthMessage("Du wurdest ausgeloggt.");
     } catch (e) {
       setAuthError(String(e?.message || e || "Logout fehlgeschlagen"));
@@ -4827,7 +4881,7 @@ export default function App() {
               style={{ height: 44, width: "auto", maxWidth: 340, display: "block" }}
             />
           </button>
-          {["checker", "qs", "produkt-optimierung", "analytics", "feedback"].map((r) => {
+          {["checker", "qs", "produkt-optimierung", ...(adminToken ? ["analytics"] : []), "feedback"].map((r) => {
             const labels = { checker: "Checker", qs: "QS/APA", feedback: "Feedback", analytics: "Analytics" };
             const labelsWithOptimization = { ...labels, "produkt-optimierung": "Produkt Optimierung" };
             return (
@@ -6239,6 +6293,45 @@ export default function App() {
   }
 
   if (route === "analytics") {
+    if (!adminToken) {
+      return (
+        <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+          {topNav}
+          <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
+            <StepCard
+              title="Analytics (Admin)"
+              status="warn"
+              subtitle="Bitte zuerst als Admin einloggen."
+            >
+              <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
+                  Admin Login erforderlich.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.hash = "#/login";
+                  }}
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: 999,
+                    border: `1px solid ${BRAND_COLOR}`,
+                    background: BRAND_COLOR,
+                    color: "#FFFFFF",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    width: "fit-content",
+                  }}
+                >
+                  Zur Admin Anmeldung
+                </button>
+              </div>
+            </StepCard>
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
@@ -6250,23 +6343,10 @@ export default function App() {
           >
             <div style={{ display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 4 }}>
-                <span style={{ fontSize: 12, color: "#374151", fontWeight: 700 }}>Admin-Token</span>
-                <input
-                  type="password"
-                  value={adminToken}
-                  onChange={(e) => updateAdminToken(e.target.value)}
-                  placeholder="ADMIN_TOKEN"
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #E5E7EB",
-                    fontSize: 13,
-                    background: "#FFFFFF",
-                    color: "#111827",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
-                />
+                <span style={{ fontSize: 12, color: "#374151", fontWeight: 700 }}>Admin-Status</span>
+                <div style={{ fontSize: 13, color: "#111827", fontWeight: 800, padding: "10px 12px", borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                  Admin ist eingeloggt.
+                </div>
               </label>
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
