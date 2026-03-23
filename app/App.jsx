@@ -83,11 +83,86 @@ function isBlank(value) {
   return s === "";
 }
 
+function resolveImageSrc(u) {
+  const raw = String(u ?? "").trim();
+  if (!raw) return "";
+
+  // Preserve remote images as-is.
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  // Remove wrapping quotes and ignore query/hash when mapping local files.
+  const cleaned = raw
+    .replace(/^["']|["']$/g, "")
+    .replace(/[?#].*$/, "");
+
+  // Only map local references that point to our `product_images` folder (or are bare filenames).
+  const EXT_RE = /\.(jpe?g|png|webp|gif)$/i;
+  if (!EXT_RE.test(cleaned)) return raw;
+
+  let rel = cleaned.replace(/^\/+/, "");
+  rel = rel.replace(/^product_images\//, "");
+
+  // If the token contains subfolders other than `product_images`, we can't safely map it.
+  // (But `product_images/sub/x.jpg` is handled by stripping the prefix above.)
+  if (rel.includes("/")) {
+    // Allowed only if it came from `product_images/...` (after stripping, still may contain `/`).
+    // If user provided a random absolute path like `/Users/.../x.jpg`, that would become
+    // `Users/.../x.jpg`, which we intentionally reject.
+    if (!cleaned.startsWith("product_images/") && !raw.startsWith("/product_images/") && !raw.startsWith("product_images/")) {
+      return raw;
+    }
+  }
+
+  // Map `image.jpg` -> `/api/product-images/image.jpg`
+  const parts = rel.split("/").filter(Boolean).map((p) => encodeURIComponent(p));
+  return `/api/product-images/${parts.join("/")}`;
+}
+
+function extractImageUrlsFromCell(cellValue) {
+  const raw = String(cellValue ?? "").trim();
+  if (!raw) return [];
+
+  // Split on common separators. This assumes image refs are either URLs or simple local paths.
+  // (If your CSV contains multiple images per cell, they should typically be separated by
+  // `;`, `|`, or whitespace.)
+  const tokens = raw.split(/[;\n\r|,]+/).map((t) => t.trim()).filter(Boolean);
+  const out = [];
+
+  const stripPunctuation = (s) => String(s ?? "").trim().replace(/^[<\s(]+|[>\s),.;:]+$/g, "");
+
+  for (const t0 of tokens) {
+    const t = stripPunctuation(t0).replace(/^["']|["']$/g, "");
+    if (!t) continue;
+
+    // Accept:
+    // - full http(s) URLs
+    // - anything containing `product_images/`
+    // - bare filenames with an image extension
+    if (/^https?:\/\//i.test(t)) out.push(t);
+    else if (/^\/+product_images\//i.test(t) || /^product_images\//i.test(t)) out.push(t);
+    else if (!t.includes("/") && /\.(jpe?g|png|webp|gif)$/i.test(t)) out.push(t);
+    else if (t.includes("product_images/") && /\.(jpe?g|png|webp|gif)$/i.test(t)) out.push(t);
+  }
+
+  // De-dupe while keeping original order.
+  const seen = new Set();
+  const uniq = [];
+  for (const x of out) {
+    const k = x.trim();
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(k);
+  }
+
+  return uniq;
+}
+
 function countNonEmptyImageLinks(row, imageCols) {
   let count = 0;
   for (const c of imageCols) {
-    const v = String(row?.[c] ?? "").trim();
-    if (v) count += 1;
+    const refs = extractImageUrlsFromCell(row?.[c]);
+    count += refs.length;
   }
   return count;
 }
@@ -852,8 +927,11 @@ function firstImageUrls(rows, imageCols, limit) {
   const urls = [];
   for (const r of rows) {
     for (const c of imageCols) {
-      const u = String(r?.[c] ?? "").trim();
-      if (u) urls.push(u);
+      const refs = extractImageUrlsFromCell(r?.[c]);
+      for (const ref of refs) {
+        const src = resolveImageSrc(ref);
+        if (src) urls.push(src);
+      }
       if (urls.length >= limit * 10) break;
     }
     if (urls.length >= limit * 10) break;
@@ -1532,8 +1610,11 @@ function QsPage({ headers, rows }) {
       const r = rows[i];
       const urls = [];
       for (const c of imageColumns) {
-        const u = safeStr(r?.[c] ?? "").trim();
-        if (u) urls.push(u);
+        const refs = extractImageUrlsFromCell(r?.[c]);
+        for (const ref of refs) {
+          const src = resolveImageSrc(ref);
+          if (src) urls.push(src);
+        }
       }
       if (!urls.length) continue;
       const id =
@@ -2740,11 +2821,61 @@ function ProduktOptimierungPage() {
             subtitle="Bild-Checks + Hinweise zu Titel/Beschreibung"
           >
             <div style={{ display: "grid", gap: 8 }}>
+              {typeof result?.feedback?.score === "number" ? (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <Pill tone={result.feedback.score >= 80 ? "ok" : result.feedback.score >= 50 ? "warn" : "bad"}>
+                    Score nachher: {result.feedback.score} / 100
+                  </Pill>
+                  {typeof result?.feedback?.scoreBefore === "number" ? (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: result.feedback.score - result.feedback.scoreBefore >= 0 ? "#166534" : "#92400E",
+                        fontWeight: 800,
+                      }}
+                    >
+                      Vorher: {result.feedback.scoreBefore} / 100
+                      {"  "}
+                      (Δ{" "}
+                      {result.feedback.score - result.feedback.scoreBefore >= 0
+                        ? `+${result.feedback.score - result.feedback.scoreBefore}`
+                        : `${result.feedback.score - result.feedback.scoreBefore}`}
+                      )
+                    </div>
+                  ) : null}
+                  {result?.feedback?.passedText ? (
+                    <div style={{ fontSize: 12, color: "#166534", fontWeight: 800 }}>
+                      Titel & Beschreibung bestanden (nur kleine Bereinigungen).
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div style={{ fontSize: 13, color: "#111827", fontWeight: 800 }}>
                 Bilder: {result?.extracted?.imageCount} (empfohlen: {result?.meta?.minImages})
               </div>
               {typeof result?.feedback?.offerCount === "number" ? (
                 <div style={{ fontSize: 12, color: "#6B7280" }}>Angebote geprüft: {result.feedback.offerCount}</div>
+              ) : null}
+
+              {Array.isArray(result?.meta?.offersChecked) && result.meta.offersChecked.length ? (
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 12, color: "#6B7280", fontWeight: 800 }}>Weitere Angebote (geprüft)</div>
+                  <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {result.meta.offersChecked.map((o) => (
+                      <a
+                        key={o.url}
+                        href={o.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, fontWeight: 700, color: "#111827", textDecoration: "none" }}
+                        title={o.title || o.url}
+                      >
+                        {o.domain || o.url}
+                      </a>
+                    ))}
+                  </div>
+                </div>
               ) : null}
               {result?.feedback?.imageIssues?.length ? (
                 <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: "#111827", lineHeight: "20px" }}>
@@ -2788,10 +2919,65 @@ function ProduktOptimierungPage() {
             <div>
               <div style={{ fontSize: 13, fontWeight: 900, color: "#111827", marginBottom: 8 }}>Optimiert</div>
               <div style={{ border: "1px solid #E5E7EB", background: "#FFFFFF", borderRadius: 16, padding: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>Titel</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>Titel</div>
+                  <button
+                    type="button"
+                    disabled={!result?.optimized?.title}
+                    onClick={() => {
+                      const txt = String(result?.optimized?.title || "");
+                      if (!txt) return;
+                      if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(txt).catch(() => {});
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      border: `1px solid ${BRAND_COLOR}`,
+                      background: "#FFFFFF",
+                      color: BRAND_COLOR,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: result?.optimized?.title ? "pointer" : "not-allowed",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Kopieren
+                  </button>
+                </div>
                 <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 13, color: "#111827", lineHeight: "18px" }}>{result?.optimized?.title || "-"}</div>
-                <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800, color: "#374151" }}>Beschreibung</div>
+                <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280", fontWeight: 800 }}>
+                  Zeichen: {String(result?.optimized?.title || "").length}
+                </div>
+
+                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>Beschreibung</div>
+                  <button
+                    type="button"
+                    disabled={!result?.optimized?.description}
+                    onClick={() => {
+                      const txt = String(result?.optimized?.description || "");
+                      if (!txt) return;
+                      if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(txt).catch(() => {});
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      border: `1px solid ${BRAND_COLOR}`,
+                      background: "#FFFFFF",
+                      color: BRAND_COLOR,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: result?.optimized?.description ? "pointer" : "not-allowed",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Kopieren
+                  </button>
+                </div>
                 <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 13, color: "#111827", lineHeight: "18px" }}>{result?.optimized?.description || "-"}</div>
+                <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280", fontWeight: 800 }}>
+                  Zeichen: {String(result?.optimized?.description || "").length}
+                </div>
               </div>
             </div>
           </div>
@@ -3353,6 +3539,11 @@ export default function App() {
   const [imageMin, setImageMin] = useState(DEFAULT_RULES.image_min_per_product);
   const [imageSampleLimitStep5, setImageSampleLimitStep5] = useState(5);
   const [brokenImageIds, setBrokenImageIds] = useState([]);
+  const [eanImageViewerOpen, setEanImageViewerOpen] = useState(false);
+  const [eanImageViewerInput, setEanImageViewerInput] = useState("");
+  const [eanImageViewerEan, setEanImageViewerEan] = useState("");
+  const [eanImageViewerUrls, setEanImageViewerUrls] = useState([]);
+  const [eanImageViewerLimit, setEanImageViewerLimit] = useState(24);
 
   const previewColumns = useMemo(() => {
     if (!headers.length) return [];
@@ -3487,6 +3678,41 @@ export default function App() {
   const eanColumn = mapping.ean;
   const titleColumn = mapping.name;
   const sellerColumn = mapping.seller_offer_id;
+
+  const openEanImageViewer = (ean) => {
+    const target = String(ean ?? "").trim();
+    setEanImageViewerInput(target);
+    setEanImageViewerEan(target);
+    setEanImageViewerLimit(24);
+
+    if (!target || !eanColumn || !rows.length || !imageColumns.length) {
+      setEanImageViewerUrls([]);
+      setEanImageViewerOpen(true);
+      return;
+    }
+
+    const seen = new Set();
+    const urls = [];
+
+    rows.forEach((r) => {
+      const rowEan = String(r?.[eanColumn] ?? "").trim();
+      if (rowEan !== target) return;
+
+      for (const c of imageColumns) {
+        const refs = extractImageUrlsFromCell(r?.[c]);
+        for (const ref of refs) {
+          const src = resolveImageSrc(ref);
+          if (!src) continue;
+          if (seen.has(src)) continue;
+          seen.add(src);
+          urls.push(src);
+        }
+      }
+    });
+
+    setEanImageViewerUrls(urls);
+    setEanImageViewerOpen(true);
+  };
 
   const duplicates = useMemo(() => {
     if (!rows.length) return { eanDup: new Set(), titleDup: new Set(), sellerDup: new Set() };
@@ -4012,8 +4238,11 @@ export default function App() {
       const r = rows[i];
       const urls = [];
       for (const c of imageColumns) {
-        const u = String(r?.[c] ?? "").trim();
-        if (u) urls.push(u);
+        const refs = extractImageUrlsFromCell(r?.[c]);
+        for (const ref of refs) {
+          const src = resolveImageSrc(ref);
+          if (src) urls.push(src);
+        }
       }
       if (!urls.length) continue;
       const id = eanColumn
@@ -5839,6 +6068,103 @@ export default function App() {
                     <Pill tone={imageColumns.length ? "ok" : "warn"}>{imageColumns.length ? `Bildspalten ${imageColumns.length}` : "Keine Bildspalten erkannt"}</Pill>
                   </div>
               
+                  {eanColumn ? (
+                    <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Bilder nach EAN</div>
+                        {eanImageViewerOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => setEanImageViewerOpen(false)}
+                            style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+                          >
+                            Schliessen
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <input
+                          value={eanImageViewerInput}
+                          onChange={(e) => setEanImageViewerInput(e.target.value)}
+                          placeholder="EAN eingeben"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") openEanImageViewer(eanImageViewerInput);
+                          }}
+                          style={{ flex: "1 1 220px", minWidth: 0, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 13, color: "#111827", boxSizing: "border-box" }}
+                        />
+                        <button
+                          type="button"
+                          disabled={!eanImageViewerInput.trim()}
+                          onClick={() => openEanImageViewer(eanImageViewerInput)}
+                          style={{ padding: "10px 16px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, color: "#FFFFFF", fontSize: 12, fontWeight: 800, cursor: eanImageViewerInput.trim() ? "pointer" : "not-allowed" }}
+                        >
+                          Bilder laden
+                        </button>
+                      </div>
+
+                      {eanImageViewerOpen ? (
+                        <div style={{ marginTop: 10 }}>
+                          <SmallText>EAN: {eanImageViewerEan || "-"}</SmallText>
+
+                          {eanImageViewerUrls.length ? (
+                            <>
+                              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                {eanImageViewerUrls.slice(0, eanImageViewerLimit).map((u) => (
+                                  <a
+                                    key={u}
+                                    href={u}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title={u}
+                                    style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}
+                                  >
+                                    <img
+                                      src={u}
+                                      alt="Bild"
+                                      loading="lazy"
+                                      style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB", display: "block" }}
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = "none";
+                                      }}
+                                    />
+                                  </a>
+                                ))}
+                              </div>
+
+                              <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!navigator?.clipboard?.writeText) return;
+                                    const txt = eanImageViewerUrls.join("\n");
+                                    navigator.clipboard.writeText(txt).catch(() => {});
+                                  }}
+                                  style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+                                >
+                                  Links kopieren
+                                </button>
+
+                                {eanImageViewerUrls.length > eanImageViewerLimit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEanImageViewerLimit((n) => Math.min(eanImageViewerUrls.length, n + 12))}
+                                    style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+                                  >
+                                    Mehr ({eanImageViewerUrls.length})
+                                  </button>
+                                ) : null}
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ marginTop: 8 }}>
+                              <SmallText>Keine Bilder für diese EAN gefunden.</SmallText>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
                     <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
@@ -5858,7 +6184,16 @@ export default function App() {
                             const tone = n === 0 ? "bad" : n === 1 ? "warn" : "ok";
                             const title = n === 0 ? `0 Bilder (${list.length})` : n === 1 ? `1 Bild (${list.length})` : `${n} Bilder (${list.length})`;
                             const hint = n === 0 ? "EANs ohne jegliche Bilder" : n === 1 ? "EANs mit genau einem Bild" : `EANs mit genau ${n} Bildern`;
-                            items.push(<CollapsibleList key={`img-${n}`} title={title} items={list} tone={tone} hint={hint} />);
+                            items.push(
+                              <CollapsibleList
+                                key={`img-${n}`}
+                                title={title}
+                                items={list}
+                                tone={tone}
+                                hint={hint}
+                                onItemClick={(ean) => openEanImageViewer(ean)}
+                              />
+                            );
                           }
                           return items;
                         })()}
@@ -6178,35 +6513,44 @@ export default function App() {
               </div>
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {[
+                {/** Only show password reset if the user likely entered a wrong password. */}
+                {(() => {
+                  const showResetOption =
+                    Boolean(authError) &&
+                    /(invalid login credentials|wrong password|invalid password|passwort|password)/i.test(String(authError));
+                  const modes = [
                     { id: "login", label: "Login" },
                     { id: "signup", label: "Sign up" },
-                    { id: "reset", label: "Passwort vergessen" },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => {
-                        setAuthMode(m.id);
-                        setAuthError("");
-                        setAuthMessage("");
-                      }}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        border: `1px solid ${BRAND_COLOR}`,
-                        background: authMode === m.id ? BRAND_COLOR : "#FFFFFF",
-                        color: authMode === m.id ? "#FFFFFF" : BRAND_COLOR,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
+                    ...(showResetOption ? [{ id: "reset", label: "Passwort vergessen" }] : []),
+                  ];
+                  return (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {modes.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setAuthMode(m.id);
+                            setAuthError("");
+                            setAuthMessage("");
+                          }}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 999,
+                            border: `1px solid ${BRAND_COLOR}`,
+                            background: authMode === m.id ? BRAND_COLOR : "#FFFFFF",
+                            color: authMode === m.id ? "#FFFFFF" : BRAND_COLOR,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 <label style={{ display: "grid", gap: 4 }}>
                   <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>E-Mail</span>

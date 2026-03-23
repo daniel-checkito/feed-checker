@@ -2,6 +2,7 @@ const DEFAULTS = {
   minImages: 3,
   titleMinLength: 60,
   descriptionMinLength: 150,
+  descriptionMaxLength: 1200,
   titleMaxLength: 80,
 };
 
@@ -130,6 +131,37 @@ function extractTitleAndDescriptionFromHtml(html) {
     normalizeWhitespace(descriptionCandidates.find((x) => normalizeWhitespace(x).length)) || "";
 
   return { originalTitle, originalDescription };
+}
+
+function extractCheck24ProductFromEmbeddedJson(html) {
+  // Check24 embeds the full product payload in a comment block.
+  // Example (Python equivalent regex):
+  // data-ssr-key="desktop_check24de_ProductDetailPage" ...><!--({ ...json... })-->
+  const match = String(html).match(
+    /data-ssr-key="desktop_check24de_ProductDetailPage"[^>]*><!--({.+?})-->/s,
+  );
+  if (!match?.[1]) return null;
+
+  const data = safeParseJson(match[1]);
+  const product = data?.productDetail?.product;
+  if (!product) return null;
+
+  const title = normalizeWhitespace(product?.name ?? "");
+  const description = String(product?.description ?? "").trim();
+
+  const media = product?.media ?? {};
+  const image_urls = [];
+  if (media && typeof media === "object") {
+    for (const item of Object.values(media)) {
+      if (!item || item?.mediaType !== "image") continue;
+      const host = String(item?.host ?? "").replace(/^\/+/, "");
+      const path = String(item?.localUri ?? "");
+      if (!host || !path) continue;
+      image_urls.push(`https://${host}/resize/1500_1500${path}`);
+    }
+  }
+
+  return { title, description, image_urls };
 }
 
 function extractH1(html) {
@@ -281,8 +313,10 @@ function resolveUrl(maybeUrl, baseUrl) {
   }
 }
 
-function extractImagesFromHtml(html, baseUrl) {
-  const urls = [];
+function extractImagesFromHtml(html, baseUrl, minImages = 0) {
+  // IMPORTANT: many pages contain <img> elements for the shop logo,
+  // payment-method icons, and other UI bits. We want only product media.
+  let urls = [];
 
   // og:image
   const metaMap = extractMetaByAttributes(html);
@@ -301,16 +335,91 @@ function extractImagesFromHtml(html, baseUrl) {
     if (resolved) urls.push(resolved);
   });
 
+  // Filter out obvious non-product media from structured sources too
+  // (e.g. buggy og:image or JSON-LD that points to a logo/icon).
+  const NON_PRODUCT_RE = /(logo|payment|zahlung|paypal|visa|mastercard|klarna|sofort|giropay|sepa|icon|icons)/i;
+  urls = urls.filter((u) => {
+    const s = String(u || "");
+    if (!s) return false;
+    const lower = s.toLowerCase();
+    if (NON_PRODUCT_RE.test(lower)) return false;
+    if (lower.includes(".svg") || lower.includes(".ico") || lower.includes("favicon")) return false;
+    return true;
+  });
+
+  // If we already have enough product images from structured data,
+  // don't fall back to scraping *all* <img> tags.
+  const wantMin = Number(minImages || 0);
+  if (wantMin > 0 && urls.length >= wantMin) {
+    return Array.from(new Set(urls)).slice(0, 60);
+  }
+
+  const BLACKLIST_TOKENS = [
+    "logo",
+    "payment",
+    "zahlung",
+    "paypal",
+    "visa",
+    "mastercard",
+    "klarna",
+    "sofort",
+    "giropay",
+    "sepa",
+    "icon",
+    "icons",
+    "method",
+    "methods",
+    "secure",
+    "ssl",
+    "trusted",
+    "trust",
+    "trustpilot",
+    "shipping",
+    "versand",
+  ];
+
+  const looksLikeImageFile = (u) => {
+    const s = String(u || "");
+    // Allow extension-based images OR CDN resize URLs.
+    return /\.(jpe?g|png|webp|gif)(?:$|[?#])/i.test(s) || /\/resize\/|_1500_1500|_1_1_|\/media\//i.test(s);
+  };
+
+  const isBlacklisted = (u, tagText = "") => {
+    const text = `${u || ""} ${tagText || ""}`.toLowerCase();
+    return BLACKLIST_TOKENS.some((t) => text.includes(t));
+  };
+
   // <img src="..."> + data-src
   const imgSrcRe = /<img[^>]+(?:src|data-src)\s*=\s*["']([^"']+)["'][^>]*>/gi;
   let m;
+  let guard = 0;
+  const maxScraped = wantMin > 0 ? wantMin * 12 : 120;
   while ((m = imgSrcRe.exec(html))) {
+    guard += 1;
+    if (guard > maxScraped) break;
+
     const src = m?.[1];
+    const tag = m?.[0] || "";
     const resolved = resolveUrl(src, baseUrl);
-    if (resolved) urls.push(resolved);
+    if (!resolved) continue;
+
+    // Skip UI bits (logos, payment methods, etc.).
+    const altMatch = tag.match(/\balt\s*=\s*["']([^"']+)["']/i);
+    const alt = altMatch ? altMatch[1] : "";
+    if (isBlacklisted(resolved, alt) || isBlacklisted(resolved, tag)) continue;
+
+    // Skip non-image assets.
+    const lower = String(resolved).toLowerCase();
+    if (lower.includes(".svg") || lower.includes(".ico") || lower.includes("favicon")) continue;
+    if (!looksLikeImageFile(resolved)) continue;
+
+    urls.push(resolved);
+
+    // Once we have enough images for the UI, stop collecting more to avoid noise.
+    if (wantMin > 0 && urls.length >= Math.max(wantMin, 12)) break;
   }
 
-  return Array.from(new Set(urls));
+  return Array.from(new Set(urls)).slice(0, 60);
 }
 
 function extractExternalOfferUrls(html, mainOrigin, limit = 4) {
@@ -455,6 +564,41 @@ function sanitizeTitleText(input) {
   return s;
 }
 
+function sanitizeBrandForTitle(input) {
+  let s = normalizeWhitespace(input || "");
+  if (!s) return "";
+  // Keep the brand but strip legal company suffixes from manufacturer names.
+  s = s
+    .replace(/\b(gmbh|mbh|ag|kg|ug|ohg|gbr|ltd|limited|inc\.?|llc|corp\.?|corporation)\b\.?/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return s;
+}
+
+function dedupeTitleTokens(text) {
+  // Remove repeated words/numbers while keeping first occurrence order.
+  const tokens = String(text ?? "").split(/\s+/).filter(Boolean);
+  if (!tokens.length) return "";
+
+  const seen = new Set();
+  const out = [];
+  for (const tok of tokens) {
+    const normalized = tok
+      .toLowerCase()
+      .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
+      .replace(/,/g, ".")
+      .trim();
+    if (!normalized) {
+      out.push(tok);
+      continue;
+    }
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(tok);
+  }
+  return out.join(" ").replace(/\s+,/g, ",").replace(/\s+/g, " ").trim();
+}
+
 function sanitizeDescriptionText(input) {
   let s = String(input ?? "");
   s = s.replace(/check24/gi, "");
@@ -512,7 +656,7 @@ function ruleBasedOptimizeTitle({
   categoryValues,
 }) {
   const base = sanitizeTitleText(normalizeWhitespace(originalTitle || h1 || productName || ""));
-  let brand = normalizeWhitespace(brandName || "");
+  let brand = sanitizeBrandForTitle(brandName || "");
   let series = normalizeWhitespace(modelName || "");
   const mat = normalizeWhitespace(material || "");
   const col = normalizeWhitespace(color || "");
@@ -658,6 +802,7 @@ function ruleBasedOptimizeTitle({
   }
 
   title = normalizeWhitespace(title);
+  title = dedupeTitleTokens(title);
   title = stripStarsAndEllipsis(title);
 
   if (isPlaceholderText(title) || !title) return "";
@@ -672,7 +817,7 @@ function truncateByLastNewline(text, maxLen) {
   return s.slice(0, maxLen).trim();
 }
 
-function ruleBasedOptimizeDescription({ originalDescription, extracted }) {
+function cleanDescriptionOnly(originalDescription) {
   let desc = String(originalDescription ?? "");
   // If the description is HTML, keep structure a bit (bullets/newlines).
   if (/<\w+[^>]*>/.test(desc)) {
@@ -707,6 +852,65 @@ function ruleBasedOptimizeDescription({ originalDescription, extracted }) {
   // Normalize whitespace again (keep newlines)
   desc = normalizeWhitespaceKeepNewlines(desc);
 
+  if (isPlaceholderText(desc)) return "";
+  return desc;
+}
+
+function ruleBasedOptimizeDescription({ originalDescription, extracted }) {
+  let desc = cleanDescriptionOnly(originalDescription);
+
+  function extractLieferumfangBullets(text) {
+    const d = normalizeWhitespaceKeepNewlines(String(text ?? ""));
+    if (!d) return [];
+    const lines = d
+      .split("\n")
+      .map((l) => String(l ?? "").trim())
+      .filter(Boolean);
+
+    const idx = lines.findIndex((l) => /lieferumfang/i.test(l));
+    if (idx < 0) return [];
+
+    const items = [];
+    const stopRe = /^(maße|material|farbe|varianten|merkmale|beschreibung|hinweis|energie|maßangabe)\b/i;
+
+    const takeFromLine = (line) => {
+      let s = String(line ?? "").trim();
+      if (!s) return;
+      s = s.replace(/https?:\/\/\S+/gi, "").replace(/www\.\S+/gi, "");
+      s = s.replace(/lieferumfang[:\s-]*/i, "").trim();
+      s = s.replace(/^\s*[•-]\s*/, "").trim();
+      s = s.replace(/\s+/g, " ");
+      if (!s) return;
+      if (s.length > 160) s = s.slice(0, 157).trim() + "...";
+      items.push(s);
+    };
+
+    for (let j = idx; j < Math.min(lines.length, idx + 7); j += 1) {
+      const line = lines[j];
+      if (j !== idx && stopRe.test(line)) break;
+
+      if (j === idx) {
+        if (line.includes(":")) takeFromLine(line.split(":").slice(1).join(":"));
+        continue;
+      }
+
+      if (/^[•-]\s*/.test(line)) takeFromLine(line);
+      else takeFromLine(line);
+    }
+
+    const uniq = [];
+    const seen = new Set();
+    for (const it of items) {
+      const k = it.toLowerCase();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      uniq.push(`• ${it}`);
+      if (uniq.length >= 6) break;
+    }
+
+    return uniq;
+  }
+
   // Build a structured technical bullet block from extracted attributes (feed-ready + no hallucinations).
   const bullets = [];
   const dims = normalizeWhitespace(extracted?.dimensions || "");
@@ -721,16 +925,20 @@ function ruleBasedOptimizeDescription({ originalDescription, extracted }) {
   if (variants.length) bullets.push(`• Varianten: ${variants.filter(Boolean).slice(0, 4).join(", ")}`);
   if (features.length) bullets.push(`• Merkmale: ${features.filter(Boolean).slice(0, 4).join(", ")}`);
 
-  const bulletBlock = bullets.length ? bullets.join("\n") : "";
+  const highlightsBlock = bullets.length ? `Highlights:\n${bullets.join("\n")}` : "";
+  const scopeBullets = extractLieferumfangBullets(desc);
+  const scopeBlock = scopeBullets.length ? `Lieferumfang:\n${scopeBullets.join("\n")}` : "";
 
-  // If cleaned original is a placeholder, fall back to structured bullets.
-  if (!desc || isPlaceholderText(desc)) desc = bulletBlock;
-  else if (bulletBlock) desc = `${desc}\n\n${bulletBlock}`;
+  const tailBlocks = [highlightsBlock, scopeBlock].filter(Boolean);
+
+  // If cleaned original is a placeholder, fall back to structured blocks.
+  if (!desc) desc = tailBlocks.join("\n\n");
+  else if (tailBlocks.length) desc = `${desc}\n\n${tailBlocks.join("\n\n")}`;
 
   if (isPlaceholderText(desc) || !desc) return "";
 
   // Keep within the feed-friendly size window.
-  desc = truncateByLastNewline(desc, 500);
+  desc = truncateByLastNewline(desc, DEFAULTS.descriptionMaxLength);
   return desc;
 }
 
@@ -750,6 +958,25 @@ function checkTitleRules(title, extracted) {
 
   if (/\|/.test(t)) issues.push("Titel darf kein '|' enthalten.");
   if (/check24/i.test(t)) issues.push("Titel darf 'CHECK24' nicht enthalten.");
+  if (/\b(gmbh|mbh|ag|kg|ug|ohg|gbr|ltd|limited|inc\.?|llc|corp\.?|corporation)\b/i.test(t)) {
+    issues.push("Titel darf keine Firmierungszusätze wie GmbH/AG enthalten.");
+  }
+
+  // No repeated words/numbers in title.
+  const titleTokens = t
+    .split(/\s+/)
+    .map((x) => x.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "").replace(/,/g, ".").trim())
+    .filter(Boolean);
+  const tokenSeen = new Set();
+  let hasTokenDuplicate = false;
+  for (const tk of titleTokens) {
+    if (tokenSeen.has(tk)) {
+      hasTokenDuplicate = true;
+      break;
+    }
+    tokenSeen.add(tk);
+  }
+  if (hasTokenDuplicate) issues.push("Titel enthält doppelte Wörter/Zahlen (nicht erlaubt).");
 
   // Avoid marketing fluff.
   const badPhrases = /(super|top|günstig|hochwertig|premium|billig|beste|ideal|unschlagbar|perfekt|traumhaft)/i;
@@ -830,7 +1057,9 @@ function evaluateDescriptionQuality(description, extracted) {
 
   if (/https?:\/\//i.test(d) || /www\./i.test(d)) issues.push("Beschreibung enthält Links (nicht erlaubt).");
 
-  if (d.length > 500) issues.push("Beschreibung ist zu lang (max 500 Zeichen).");
+  if (d.length > DEFAULTS.descriptionMaxLength) {
+    issues.push(`Beschreibung ist zu lang (max ${DEFAULTS.descriptionMaxLength} Zeichen).`);
+  }
 
   const numeric = /\d/.test(d);
   if (!numeric) issues.push("Beschreibung enthält keine konkreten Werte (z.B. Maße/Größen).");
@@ -893,7 +1122,9 @@ function shouldUseClaudeForText({ title, description, extracted }) {
     msg.includes("Marketing") ||
     msg.includes("Platzhalter") ||
     msg.includes("'*'") ||
-    msg.includes("'…'");
+    msg.includes("'…'") ||
+    msg.includes("CHECK24") ||
+    msg.includes("|");
 
   const isHardDescIssue = (msg) =>
     msg.includes("Links") ||
@@ -904,7 +1135,9 @@ function shouldUseClaudeForText({ title, description, extracted }) {
     msg.includes("Generischer Fülltext") ||
     msg.includes("fehlen in der Beschreibung") ||
     msg.includes("ist zu lang") ||
-    msg.includes("zu generisch");
+    msg.includes("zu generisch") ||
+    msg.includes("CHECK24") ||
+    msg.includes("|");
 
   if (titleIssues.some(isHardTitleIssue)) return true;
   if (descIssues.some(isHardDescIssue)) return true;
@@ -942,6 +1175,7 @@ async function callClaude({ claudeApiKey, originalTitle, originalDescription, ex
       titleMinLength: DEFAULTS.titleMinLength,
       titleMaxLength: DEFAULTS.titleMaxLength,
       descriptionMinLength: DEFAULTS.descriptionMinLength,
+      descriptionMaxLength: DEFAULTS.descriptionMaxLength,
       language: "de",
       avoidHallucinations: true,
       doNotInventFacts: true,
@@ -956,6 +1190,8 @@ async function callClaude({ claudeApiKey, originalTitle, originalDescription, ex
       "Beschreibung-Regeln: Keine Links/URLs, keine generischen Füllsätze; Beschreibung soll konkrete Werte (z.B. Maße/Größen) und etwas Struktur (Bullets/Absätze) enthalten, wenn im Original vorhanden.",
       "Beschreibung-Regeln: Keine '…' und kein '*'. Keine Platzhalter.",
       "Beschreibung-Regeln: Verwenden Sie niemals den Trennstrich '|' und erwähnen Sie niemals 'CHECK24'.",
+      "Beschreibung-Format: Füge am ENDE der Beschreibung zwei Abschnitte hinzu (ohne '*', ohne '…'). 1) 'Highlights:' gefolgt von 5-8 Bulletpoints mit '• ' (z.B. Maße/Material/Farbe/Varianten/Merkmale, nur wenn vorhanden). 2) 'Lieferumfang:' gefolgt von 2-5 Bulletpoints mit '• ' (nur aus dem Originaltext; wenn kein Lieferumfang erkennbar ist, Abschnitt 'Lieferumfang:' weglassen).",
+      `Beachte: Gesamtlänge der Beschreibung max ${DEFAULTS.descriptionMaxLength} Zeichen. Kürze bei Bedarf, aber halte sie so informativ wie möglich.`,
       "Geben Sie ausschließlich JSON zurück mit {title, description, issues, rationale}.",
     ],
   };
@@ -1044,13 +1280,41 @@ export async function POST(req) {
     }
 
     const h1 = extractH1(html);
-    const { originalTitle, originalDescription } = extractTitleAndDescriptionFromHtml(html);
+    const host = (() => {
+      try {
+        return new URL(url).hostname;
+      } catch {
+        return "";
+      }
+    })();
+    const isCheck24 = host.includes("moebel.check24.de");
+
+    let originalTitle = "";
+    let originalDescription = "";
+    if (isCheck24) {
+      const check24 = extractCheck24ProductFromEmbeddedJson(html);
+      if (check24?.title) originalTitle = check24.title;
+      if (check24?.description) originalDescription = check24.description;
+    }
+
+    // Fallbacks for cases where embedded JSON is missing/unexpected.
+    if (!originalTitle || !originalDescription) {
+      const metaRes = extractTitleAndDescriptionFromHtml(html);
+      originalTitle = originalTitle || metaRes.originalTitle;
+      originalDescription = originalDescription || metaRes.originalDescription;
+    }
 
     const jsonLdProducts = extractJsonLdProducts(html);
     const productFromLd = extractProductFromJsonLd(jsonLdProducts);
     const productName = productFromLd.name || h1 || originalTitle;
 
-    let extractedImages = extractImagesFromHtml(html, baseUrl);
+    let extractedImages = extractImagesFromHtml(html, baseUrl, minImages);
+    if (isCheck24) {
+      const check24 = extractCheck24ProductFromEmbeddedJson(html);
+      if (check24?.image_urls?.length) {
+        extractedImages = Array.from(new Set([...extractedImages, ...check24.image_urls]));
+      }
+    }
 
     // Og meta for transparency
     const metaMap = extractMetaByAttributes(html);
@@ -1091,7 +1355,7 @@ export async function POST(req) {
 
         const offerJsonLdProducts = extractJsonLdProducts(offerHtml);
         const offerProductFromLd = extractProductFromJsonLd(offerJsonLdProducts);
-        const offerImages = extractImagesFromHtml(offerHtml, offerBaseUrl);
+        const offerImages = extractImagesFromHtml(offerHtml, offerBaseUrl, minImages);
 
         extractedImages = Array.from(new Set([...extractedImages, ...offerImages]));
 
@@ -1168,14 +1432,17 @@ export async function POST(req) {
     let optimizedTitle = "";
     let bestTitleScore = Number.POSITIVE_INFINITY;
     let bestTitleLen = 0;
+    let textOptimizationMode = "rule-based";
 
-    const isHardTitleIssue = (msg) =>
+    const isHardTitleIssueFinal = (msg) =>
       msg.includes("Maße") ||
       msg.includes("Serienname") ||
       msg.includes("Marketing") ||
       msg.includes("Platzhalter") ||
       msg.includes("'*'") ||
-      msg.includes("'…'");
+      msg.includes("'…'") ||
+      msg.includes("CHECK24") ||
+      msg.includes("|");
 
     const scoreTitleIssues = (issues, len) => {
       const hardCount = issues.filter((i) => isHardTitleIssue(i)).length;
@@ -1243,7 +1510,9 @@ export async function POST(req) {
         msg.includes("Generischer Fülltext") ||
         msg.includes("fehlen in der Beschreibung") ||
         msg.includes("ist zu lang") ||
-        msg.includes("zu generisch");
+        msg.includes("zu generisch") ||
+        msg.includes("CHECK24") ||
+        msg.includes("|");
 
       const scoreDescriptionIssues = (issuesList, length) => {
         const hardCount = issuesList.filter((i) => isHardDescIssue(i)).length;
@@ -1264,6 +1533,78 @@ export async function POST(req) {
         originalDescription: productFromLd.description || originalDescription,
         extracted: combinedExtracted,
       });
+    }
+
+    // If the scraped original title/description already satisfies our validators,
+    // keep it (with minimal sanitation) to avoid unnecessary rewrites.
+    // This also allows the UI to show “passed check” with only small changes.
+    const cleanedOriginalTitle = sanitizeTitleText(
+      stripStarsAndEllipsis(normalizeWhitespace(originalTitle || productFromLd.name || ""))
+    );
+    const cleanedOriginalDescription = cleanDescriptionOnly(originalDescription);
+    const originalTitleIssues = checkTitleRules(cleanedOriginalTitle, combinedExtracted);
+    const originalDescriptionIssues = evaluateDescriptionQuality(cleanedOriginalDescription, combinedExtracted);
+    const originalPassed = originalTitleIssues.length === 0 && originalDescriptionIssues.length === 0;
+
+    // Score "before optimisation"
+    // (use the same scoring heuristic we apply later to the optimized title/description)
+    const clampScoreForOriginal = (n) => Math.max(0, Math.min(100, Math.round(n)));
+    const isHardTitleIssueForOriginal = (msg) =>
+      msg.includes("Maße") ||
+      msg.includes("Serienname") ||
+      msg.includes("Marketing") ||
+      msg.includes("Platzhalter") ||
+      msg.includes("'*'") ||
+      msg.includes("'…'") ||
+      msg.includes("CHECK24") ||
+      msg.includes("|");
+
+    const isHardDescIssueForOriginal = (msg) =>
+      msg.includes("Links") ||
+      msg.includes("'*'") ||
+      msg.includes("'…'") ||
+      msg.includes("Platzhalter") ||
+      msg.includes("keine konkreten Werte") ||
+      msg.includes("Generischer Fülltext") ||
+      msg.includes("fehlen in der Beschreibung") ||
+      msg.includes("ist zu lang") ||
+      msg.includes("zu generisch") ||
+      msg.includes("CHECK24") ||
+      msg.includes("|");
+
+    const titleHardCountBefore = originalTitleIssues.filter((i) => isHardTitleIssueForOriginal(i)).length;
+    const titleSoftCountBefore = originalTitleIssues.length - titleHardCountBefore;
+    const titleScoreBefore = clampScoreForOriginal(100 - titleHardCountBefore * 25 - titleSoftCountBefore * 8);
+
+    const descHardCountBefore = originalDescriptionIssues.filter((i) => isHardDescIssueForOriginal(i)).length;
+    const descSoftCountBefore = originalDescriptionIssues.length - descHardCountBefore;
+    const descriptionScoreBefore = clampScoreForOriginal(100 - descHardCountBefore * 25 - descSoftCountBefore * 8);
+
+    const dimsOkBefore = Boolean(normalizeWhitespace(combinedExtracted?.dimensions || ""));
+    const matOkBefore = Boolean(normalizeWhitespace(combinedExtracted?.material || ""));
+    const colOkBefore = Boolean(normalizeWhitespace(combinedExtracted?.color || ""));
+    const variantOkBefore = Array.isArray(combinedExtracted?.variantValues) && combinedExtracted.variantValues.length > 0;
+    const featureOkBefore = Array.isArray(combinedExtracted?.featureValues) && combinedExtracted.featureValues.length > 0;
+    const categoryOkBefore = Array.isArray(combinedExtracted?.categoryValues) && combinedExtracted.categoryValues.length > 0;
+
+    // Weights sum to 100.
+    const attributeScoreBefore = clampScoreForOriginal(
+      (dimsOkBefore ? 25 : 0) +
+        (matOkBefore ? 20 : 0) +
+        (colOkBefore ? 20 : 0) +
+        (variantOkBefore ? 15 : 0) +
+        (featureOkBefore ? 10 : 0) +
+        (categoryOkBefore ? 10 : 0)
+    );
+
+    const scoreBefore = clampScoreForOriginal(
+      titleScoreBefore * 0.4 + descriptionScoreBefore * 0.4 + attributeScoreBefore * 0.2
+    );
+
+    if (originalPassed) {
+      optimizedTitle = cleanedOriginalTitle;
+      optimizedDescription = cleanedOriginalDescription;
+      textOptimizationMode = "minimal";
     }
 
     const needsClaude = shouldUseClaudeForText({
@@ -1292,7 +1633,9 @@ export async function POST(req) {
       optimizedTitle = normalizeWhitespace(claudeResult?.title ?? "");
       optimizedTitle = stripStarsAndEllipsis(optimizedTitle);
       optimizedTitle = sanitizeTitleText(normalizeWhitespace(optimizedTitle));
-      optimizedDescription = stripStarsAndEllipsis(normalizeWhitespace(claudeResult?.description ?? ""));
+      optimizedDescription = stripStarsAndEllipsis(
+        normalizeWhitespaceKeepNewlines(claudeResult?.description ?? "")
+      );
       optimizedDescription = sanitizeDescriptionText(optimizedDescription);
       claudeIssues = Array.isArray(claudeResult?.issues) ? claudeResult.issues : [];
       rationale = Array.isArray(claudeResult?.rationale) ? claudeResult.rationale : [];
@@ -1301,6 +1644,52 @@ export async function POST(req) {
 
     const titleIssues = checkTitleRules(optimizedTitle, combinedExtracted);
     const descriptionIssues = evaluateDescriptionQuality(optimizedDescription, combinedExtracted);
+
+    const clampScore = (n) => Math.max(0, Math.min(100, Math.round(n)));
+
+    const isHardTitleIssue = (msg) =>
+      msg.includes("Maße") ||
+      msg.includes("Serienname") ||
+      msg.includes("Marketing") ||
+      msg.includes("Platzhalter") ||
+      msg.includes("'*'") ||
+      msg.includes("'…'") ||
+      msg.includes("CHECK24") ||
+      msg.includes("|");
+
+    const isHardDescIssueFinal = (msg) =>
+      msg.includes("Links") ||
+      msg.includes("'*'") ||
+      msg.includes("'…'") ||
+      msg.includes("Platzhalter") ||
+      msg.includes("keine konkreten Werte") ||
+      msg.includes("Generischer Fülltext") ||
+      msg.includes("fehlen in der Beschreibung") ||
+      msg.includes("ist zu lang") ||
+      msg.includes("zu generisch") ||
+      msg.includes("CHECK24") ||
+      msg.includes("|");
+
+    const titleHardCount = titleIssues.filter((i) => isHardTitleIssueFinal(i)).length;
+    const titleSoftCount = titleIssues.length - titleHardCount;
+    const titleScore = clampScore(100 - titleHardCount * 25 - titleSoftCount * 8);
+
+    const descHardCount = descriptionIssues.filter((i) => isHardDescIssueFinal(i)).length;
+    const descSoftCount = descriptionIssues.length - descHardCount;
+    const descriptionScore = clampScore(100 - descHardCount * 25 - descSoftCount * 8);
+
+    const dimsOk = Boolean(normalizeWhitespace(combinedExtracted?.dimensions || ""));
+    const matOk = Boolean(normalizeWhitespace(combinedExtracted?.material || ""));
+    const colOk = Boolean(normalizeWhitespace(combinedExtracted?.color || ""));
+    const variantOk = Array.isArray(combinedExtracted?.variantValues) && combinedExtracted.variantValues.length > 0;
+    const featureOk = Array.isArray(combinedExtracted?.featureValues) && combinedExtracted.featureValues.length > 0;
+    const categoryOk = Array.isArray(combinedExtracted?.categoryValues) && combinedExtracted.categoryValues.length > 0;
+
+    // Weights sum to 100.
+    const attributeScore = clampScore((dimsOk ? 25 : 0) + (matOk ? 20 : 0) + (colOk ? 20 : 0) + (variantOk ? 15 : 0) + (featureOk ? 10 : 0) + (categoryOk ? 10 : 0));
+
+    const passedText = titleIssues.length === 0 && descriptionIssues.length === 0;
+    const overallScore = clampScore(titleScore * 0.4 + descriptionScore * 0.4 + attributeScore * 0.2);
 
     const imageIssues = [];
     const enoughImages = extractedImages.length >= minImages;
@@ -1329,6 +1718,24 @@ export async function POST(req) {
       // Don't block the feature if analytics fails.
     }
 
+    const offersChecked = offers
+      .map((o) => {
+        let domain = "";
+        try {
+          domain = new URL(o.url).hostname;
+        } catch {
+          domain = "";
+        }
+        const title = normalizeWhitespace(o.originalTitle || o.h1 || "");
+        return {
+          url: o.url,
+          domain,
+          title: title ? title.slice(0, 100) : "",
+          imagesCount: o.imagesCount,
+        };
+      })
+      .slice(0, 6);
+
     return Response.json({
       original: {
         title: normalizeWhitespace(originalTitle || productFromLd.name || ""),
@@ -1354,6 +1761,15 @@ export async function POST(req) {
         imageIssues,
         needsClaude,
         usedClaude,
+        score: overallScore,
+        scoreBefore,
+        titleScoreBefore,
+        descriptionScoreBefore,
+        titleScore,
+        descriptionScore,
+        attributeScore,
+        passedText,
+        optimizationMode: textOptimizationMode,
         offerCount: offers.length,
       },
       ai: usedClaude
@@ -1365,6 +1781,7 @@ export async function POST(req) {
       meta: {
         url,
         minImages,
+        offersChecked,
       },
     });
   } catch (e) {
