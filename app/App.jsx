@@ -3565,9 +3565,6 @@ export default function App() {
     "delivery_time",
     "price",
     "brand",
-    "material",
-    "color",
-    "delivery_includes",
     "washable_cover",
     "mounting_side",
   ]);
@@ -3576,6 +3573,9 @@ export default function App() {
     "ean",
     "seller_offer_id",
     "name",
+    "material",
+    "color",
+    "delivery_includes",
   ]);
 
   const mapping = useMemo(() => {
@@ -3962,7 +3962,7 @@ export default function App() {
     const invalidDeliveryTime = [];
     if (mapping.delivery_time) {
       const col = mapping.delivery_time;
-      const reWithUnit = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage|arbeitstage|wochen)\s*$/i;
+      const reWithUnit = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage?|arbeitstage?|wochen?|woche|wk\.?|wt\.?)\s*$/i;
       const reSimpleNumber = /^\s*\d+(?:\s*-\s*\d+)?\s*$/;
       rows.forEach((r, idx) => {
         const raw = String(r[col] ?? "").trim();
@@ -4431,7 +4431,7 @@ export default function App() {
         ],
         warningRowIdx
       );
-      tips.push("Optionalfelder wie Material, Farbe und Lieferumfang wenn möglich vollständig pflegen.");
+      tips.push("Material, Farbe und Lieferumfang sollten je Artikel vollständig gepflegt sein.");
     }
 
     if (missingPriceCount > 0) {
@@ -4521,7 +4521,7 @@ export default function App() {
         `Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`,
         findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean))
       );
-      tips.push('Lieferzeit bitte im Format z. B. "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" angeben.');
+      tips.push('Lieferzeit bitte im Format z. B. "3-5 Werktage", "2-5 WK", "2-3 Wochen" oder "10 Arbeitstage" angeben.');
       score -= 5;
     }
 
@@ -4724,6 +4724,9 @@ export default function App() {
       ean: "EAN",
       seller_offer_id: "Seller_Offer_ID",
       name: "Name",
+      material: "Material",
+      color: "Farbe",
+      delivery_includes: "Lieferumfang",
     };
 
     const imageZeroSet = new Set(optionalFindings.imageZeroEans || []);
