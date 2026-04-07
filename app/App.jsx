@@ -2716,18 +2716,23 @@ function UnifiedAnalyzerPage({ headers, rows }) {
   const fileRef = useRef(null);
 
   function generateEmail(issues) {
-    const errorCount = issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length;
+    const errorCount = issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length + issues.duplicateOfferId.length;
+    const warningCount = issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length + issues.duplicateEan.length + issues.duplicateName.length + issues.duplicateEanName.length;
 
     let sections = {
       greeting: "Lieber Partner,",
-      intro: `bei der Überprüfung Ihres Angebots-Feeds haben wir ${errorCount} kritische Fehler und ${issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length} Warnungen gefunden. Anbei erhalten Sie eine detaillierte Aufstellung der Probleme, die behoben werden müssen.`,
+      intro: `bei der Überprüfung Ihres Angebots-Feeds haben wir ${errorCount} kritische Fehler und ${warningCount} Warnungen gefunden. Anbei erhalten Sie eine detaillierte Aufstellung der Probleme, die behoben werden müssen.`,
       missingCols: issues.missingCols.length > 0 ? `Fehlende Spalten: Die folgenden erforderlichen Spalten fehlen in Ihrem Feed: ${issues.missingCols.join(", ")}. Bitte ergänzen Sie diese Spalten, um die Anforderungen zu erfüllen.` : "",
       missingEan: issues.missingEan.length > 0 ? `Fehlende EAN-Codes: ${issues.missingEan.length} Artikel haben keine EAN-Angabe. Die EAN ist ein Pflichtfeld und muss für alle Produkte vorhanden sein.` : "",
       invalidPrice: issues.invalidPrice.length > 0 ? `Ungültige Preise: ${issues.invalidPrice.length} Artikel weisen ungültige oder negative Preise auf. Bitte überprüfen Sie diese und korrigieren Sie die Werte.` : "",
       missingImage: issues.missingImage.length > 0 ? `Fehlende Bilder: ${issues.missingImage.length} Artikel haben keine Bild-URL hinterlegt. Hochwertige Produktbilder sind wichtig für die Conversion und müssen vorhanden sein.` : "",
+      duplicateOfferId: issues.duplicateOfferId.length > 0 ? `Doppelte Angebots-IDs: ${issues.duplicateOfferId.reduce((sum, x) => sum + x.count, 0)} Duplikate in der offer_id/seller_offer_id gefunden. Jede Angebots-ID muss eindeutig sein.` : "",
       shortName: issues.shortName.length > 0 ? `Kurze Produktnamen: ${issues.shortName.length} Artikel haben sehr kurze Produktbezeichnungen (weniger als 10 Zeichen). Bitte verwenden Sie aussagekräftige, präzise Produktnamen.` : "",
       shortDesc: issues.shortDesc.length > 0 ? `Kurze Beschreibungen: ${issues.shortDesc.length} Artikel weisen zu kurze Beschreibungen auf (weniger als 30 Zeichen). Eine aussagekräftige Beschreibung ist wichtig für Kunden und Suchmaschinen.` : "",
       emptyRequired: issues.emptyRequired.length > 0 ? `Fehlende Angaben: ${issues.emptyRequired.length} Artikel fehlen wichtige Informationen. Bitte füllen Sie alle erforderlichen Felder aus.` : "",
+      duplicateEan: issues.duplicateEan.length > 0 ? `Doppelte EAN-Codes: ${issues.duplicateEan.reduce((sum, x) => sum + x.count, 0)} EAN-Codes kommen mehrmals vor. Bitte überprüfen Sie, ob diese Produkte wirklich identisch sind.` : "",
+      duplicateName: issues.duplicateName.length > 0 ? `Doppelte Produktnamen: ${issues.duplicateName.reduce((sum, x) => sum + x.count, 0)} Produktnamen kommen mehrmals vor. Bitte überprüfen Sie, ob diese Produkte wirklich identisch sind.` : "",
+      duplicateEanName: issues.duplicateEanName.length > 0 ? `Identische EAN + Name Kombinationen: ${issues.duplicateEanName.reduce((sum, x) => sum + x.count, 0)} identische Produkte (gleiche EAN und Name) gefunden. Diese sind Duplikate und sollten konsolidiert werden.` : "",
       closing: "Wir bitten Sie, diese Fehler schnellstmöglich zu beheben und uns ein korrigiertes Feed-File zuzusenden. Bei Fragen stehen wir Ihnen gerne zur Verfügung.",
       signature: "Beste Grüße,\nIhr CHECK24-Partner-Team"
     };
@@ -2772,7 +2777,11 @@ function UnifiedAnalyzerPage({ headers, rows }) {
     const findCol = (key) => headers.find((h) => h.toLowerCase().trim() === key || h.toLowerCase().includes(key));
     const colEan = findCol("ean"), colName = findCol("name"), colPrice = findCol("price");
     const colDesc = findCol("description") || findCol("desc"), colImage = findCol("image_url") || findCol("image"), colBrand = findCol("brand");
+    const colOfferId = findCol("offer_id") || findCol("seller_offer_id") || findCol("sku");
+
     const missingEan = [], invalidPrice = [], shortName = [], shortDesc = [], missingImage = [], emptyRequired = [];
+    const duplicateEan = {}, duplicateNames = {}, duplicateOfferIds = {}, duplicateEanNameCombos = {};
+
     rows.forEach((row, i) => {
       const rn = i + 1;
       const ean = colEan ? String(row[colEan] ?? "").trim() : "";
@@ -2781,18 +2790,46 @@ function UnifiedAnalyzerPage({ headers, rows }) {
       const desc = colDesc ? String(row[colDesc] ?? "").trim() : "";
       const image = colImage ? String(row[colImage] ?? "").trim() : "";
       const brand = colBrand ? String(row[colBrand] ?? "").trim() : "";
+      const offerId = colOfferId ? String(row[colOfferId] ?? "").trim() : "";
+
       if (colEan && !ean) missingEan.push(rn);
       if (colPrice && price) { const n = parseFloat(price.replace(",", ".")); if (isNaN(n) || n <= 0) invalidPrice.push({ row: rn, ean, value: price }); }
       if (colName && name && name.length < 10) shortName.push({ row: rn, ean, value: name });
       if (colDesc && desc && desc.length < 30) shortDesc.push({ row: rn, ean, value: desc.slice(0, 60) });
       if (colImage && !image) missingImage.push({ row: rn, ean });
       if (colBrand && !brand) emptyRequired.push({ row: rn, ean, field: "brand" });
+
+      // Track duplicates
+      if (ean) {
+        if (!duplicateEan[ean]) duplicateEan[ean] = [];
+        duplicateEan[ean].push(rn);
+      }
+      if (name) {
+        if (!duplicateNames[name]) duplicateNames[name] = [];
+        duplicateNames[name].push(rn);
+      }
+      if (offerId) {
+        if (!duplicateOfferIds[offerId]) duplicateOfferIds[offerId] = [];
+        duplicateOfferIds[offerId].push(rn);
+      }
+      if (ean && name) {
+        const combo = `${ean}|${name}`;
+        if (!duplicateEanNameCombos[combo]) duplicateEanNameCombos[combo] = [];
+        duplicateEanNameCombos[combo].push(rn);
+      }
     });
-    setIssues({ totalRows: rows.length, missingCols, missingEan, invalidPrice, shortName, shortDesc, missingImage, emptyRequired });
+
+    // Filter duplicates (keep only entries with more than 1 occurrence)
+    const duplicateEanList = Object.entries(duplicateEan).filter(([_, rows]) => rows.length > 1).map(([ean, rows]) => ({ ean, rows: rows.slice(0, 8), count: rows.length }));
+    const duplicateNameList = Object.entries(duplicateNames).filter(([_, rows]) => rows.length > 1).map(([name, rows]) => ({ name, rows: rows.slice(0, 8), count: rows.length }));
+    const duplicateOfferIdList = Object.entries(duplicateOfferIds).filter(([_, rows]) => rows.length > 1).map(([offerId, rows]) => ({ offerId, rows: rows.slice(0, 8), count: rows.length }));
+    const duplicateEanNameList = Object.entries(duplicateEanNameCombos).filter(([_, rows]) => rows.length > 1).map(([combo, rows]) => { const [ean, name] = combo.split("|"); return { ean, name, rows: rows.slice(0, 8), count: rows.length }; });
+
+    setIssues({ totalRows: rows.length, missingCols, missingEan, invalidPrice, shortName, shortDesc, missingImage, emptyRequired, duplicateEan: duplicateEanList, duplicateName: duplicateNameList, duplicateOfferId: duplicateOfferIdList, duplicateEanName: duplicateEanNameList });
   }
 
-  const errorCount = issues ? issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length : 0;
-  const warningCount = issues ? issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length : 0;
+  const errorCount = issues ? issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length + issues.duplicateOfferId.length : 0;
+  const warningCount = issues ? issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length + issues.duplicateEan.length + issues.duplicateName.length + issues.duplicateEanName.length : 0;
 
   const effectiveHeaders = headers.length > 0 ? headers : (file ? Object.keys(pageRows[0] || {}) : []);
   const effectiveRows = headers.length > 0 ? rows : pageRows;
@@ -2883,9 +2920,13 @@ function UnifiedAnalyzerPage({ headers, rows }) {
               {issues.missingEan.length > 0 && <McIssueCard title="Fehlende EAN" severity="error" description={`${issues.missingEan.length} Artikel ohne EAN.`} items={issues.missingEan.slice(0,8).map((r) => ({ label: `Zeile ${r}`, hint: "EAN fehlt" }))} more={Math.max(0, issues.missingEan.length - 8)} />}
               {issues.invalidPrice.length > 0 && <McIssueCard title="Ungültiger Preis" severity="error" description={`${issues.invalidPrice.length} Artikel mit ungültigem Preis.`} items={issues.invalidPrice.slice(0,8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.invalidPrice.length - 8)} />}
               {issues.missingImage.length > 0 && <McIssueCard title="Fehlende Bilder" severity="error" description={`${issues.missingImage.length} Artikel ohne Bild-URL.`} items={issues.missingImage.slice(0,8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: "image_url fehlt" }))} more={Math.max(0, issues.missingImage.length - 8)} />}
+              {issues.duplicateOfferId.length > 0 && <McIssueCard title="Doppelte Angebots-IDs" severity="error" description={`${issues.duplicateOfferId.reduce((sum, x) => sum + x.count, 0)} Duplikate in offer_id/seller_offer_id.`} items={issues.duplicateOfferId.slice(0,8).map((x) => ({ label: `ID: ${x.offerId}`, hint: `${x.count}x in Zeilen: ${x.rows.join(", ")}` }))} more={Math.max(0, issues.duplicateOfferId.length - 8)} />}
               {issues.shortName.length > 0 && <McIssueCard title="Produktname zu kurz" severity="warning" description={`${issues.shortName.length} Artikel mit zu kurzem Namen.`} items={issues.shortName.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortName.length - 8)} />}
               {issues.shortDesc.length > 0 && <McIssueCard title="Beschreibung zu kurz" severity="warning" description={`${issues.shortDesc.length} Artikel mit zu kurzer Beschreibung.`} items={issues.shortDesc.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortDesc.length - 8)} />}
               {issues.emptyRequired.length > 0 && <McIssueCard title="Fehlende Angaben" severity="warning" description={`${issues.emptyRequired.length} Artikel mit fehlenden Pflichtangaben.`} items={issues.emptyRequired.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `Feld "${x.field}" fehlt` }))} more={Math.max(0, issues.emptyRequired.length - 8)} />}
+              {issues.duplicateEan.length > 0 && <McIssueCard title="Doppelte EAN-Codes" severity="warning" description={`${issues.duplicateEan.reduce((sum, x) => sum + x.count, 0)} doppelte EAN-Codes gefunden.`} items={issues.duplicateEan.slice(0,8).map((x) => ({ label: `EAN: ${x.ean}`, hint: `${x.count}x in Zeilen: ${x.rows.join(", ")}` }))} more={Math.max(0, issues.duplicateEan.length - 8)} />}
+              {issues.duplicateName.length > 0 && <McIssueCard title="Doppelte Produktnamen" severity="warning" description={`${issues.duplicateName.reduce((sum, x) => sum + x.count, 0)} doppelte Produktnamen gefunden.`} items={issues.duplicateName.slice(0,8).map((x) => ({ label: x.name.substring(0, 50), hint: `${x.count}x in Zeilen: ${x.rows.join(", ")}` }))} more={Math.max(0, issues.duplicateName.length - 8)} />}
+              {issues.duplicateEanName.length > 0 && <McIssueCard title="Doppelte EAN + Name Kombis" severity="warning" description={`${issues.duplicateEanName.reduce((sum, x) => sum + x.count, 0)} identische EAN + Name Kombinationen.`} items={issues.duplicateEanName.slice(0,8).map((x) => ({ label: `EAN ${x.ean} · ${x.name.substring(0, 35)}`, hint: `${x.count}x in Zeilen: ${x.rows.join(", ")}` }))} more={Math.max(0, issues.duplicateEanName.length - 8)} />}
 
               {/* Email Generation */}
               {!generatedEmail && (
