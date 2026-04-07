@@ -1553,6 +1553,7 @@ function QsPage({ headers, rows }) {
   const [imageSampleLimit, setImageSampleLimit] = useState(5);
   const [freistellerChecks, setFreistellerChecks] = useState({});
   const [freistellerLoading, setFreistellerLoading] = useState(false);
+  const [showCriteria, setShowCriteria] = useState(false);
 
   const imageColumns = useMemo(() => {
     if (!headers.length) return [];
@@ -2235,14 +2236,14 @@ function QsPage({ headers, rows }) {
     ];
 
     const criteria = {
-      herstellerfeed: [],
-      titel: ["20 P: Titel fast immer vorhanden, lang genug und ohne viele Dubletten.", "10 P: Titel oft vorhanden, aber teils kurz oder doppelt.", "0 P: Titel fehlen häufig oder sind sehr kurz."],
-      beschreibung: ["10 P: Beschreibungen in den meisten Zeilen, mit vernünftiger Länge.", "5 P: Beschreibungen teils vorhanden, eher kurz.", "0 P: Beschreibungen fehlen oft oder sind extrem kurz."],
-      abmessungen: ["10 P: Verständliche Maße in vielen Produkten (z. B. 90x200 cm).", "5 P: Maße nur teilweise oder unklar vorhanden.", "0 P: Kaum verwertbare Maße."],
-      lieferumfang: ["20 P: Lieferumfang fast immer im Format '1x Produkt' gepflegt.", "10 P: Lieferumfang teils gepflegt und oft im korrekten Format.", "0 P: Lieferumfang selten gepflegt oder unklar."],
-      material: ["10 P: Material für die meisten Produkte sinnvoll gepflegt.", "5 P: Material nur teilweise gepflegt oder uneinheitlich.", "0 P: Material kaum oder gar nicht gepflegt."],
-      farbe: ["10 P: Farben meist vorhanden und sauber benannt.", "5 P: Farben nur teilweise vorhanden oder uneinheitlich.", "0 P: Farbinfos fehlen weitgehend."],
-      shoptexte: ["10 P: Keine bzw. kaum separate shopbezogene Texte im Feed.", "5 P: Nur vereinzelt shopbezogene Texte vorhanden.", "0 P: Viele shopbezogene/marketinglastige Texte im Feed."],
+      herstellerfeed: ["20 P: Brand-Spalte Fill-Rate >= 80%", "0 P: Fill-Rate < 80%"],
+      titel: ["20 P: Fill-Rate >= 90%, Durchschn. Laenge >= 40 Zeichen, Duplikat-Rate <= 8%", "10 P: Fill-Rate >= 80%, Durchschn. Laenge >= 25 Zeichen", "0 P: Schwellenwerte nicht erreicht"],
+      beschreibung: ["10 P: Fill-Rate >= 85%, Durchschn. Laenge >= 80 Zeichen", "5 P: Fill-Rate >= 75%, Durchschn. Laenge >= 40 Zeichen", "0 P: Schwellenwerte nicht erreicht"],
+      abmessungen: ["10 P: Masse-Erkennung (z.B. 90x200 cm) in >= 60% der Zeilen", "5 P: Masse-Erkennung in >= 30% der Zeilen", "0 P: Masse-Erkennung < 30%"],
+      lieferumfang: ["20 P: Fill-Rate >= 70% und Format 'Nx Produkt' in >= 70% der Zeilen", "10 P: Fill-Rate >= 40% und Format-Rate >= 35%", "0 P: Schwellenwerte nicht erreicht"],
+      material: ["10 P: Fill-Rate >= 90%", "5 P: Fill-Rate > 0%", "0 P: Spalte leer oder nicht vorhanden"],
+      farbe: ["10 P: Fill-Rate >= 90%, davon >= 90% gueltige Werte (keine Platzhalter)", "5 P: Fill-Rate >= 60%, davon >= 60% gueltig", "0 P: Schwellenwerte nicht erreicht"],
+      shoptexte: ["10 P: Keine shopbezogenen Texte im Feed (Spalte leer/nicht vorhanden)", "0 P: Shopbezogene Texte vorhanden (wird als negativ gewertet)"],
     };
 
     return base.map((item) => ({
@@ -2297,23 +2298,23 @@ function QsPage({ headers, rows }) {
 
     const crit = {
       bildmatch: [
-        "20 P: Erstes Bild passt konsistent zum Produkt, keine erkennbaren Dubletten.",
-        "0 P: Erstes Bild häufig unpassend oder Dubletten auffällig.",
+        "20 P: Erstes Bild passt zum Produkt, keine Dubletten (manuelle Bewertung)",
+        "0 P: Erstes Bild unpassend oder Dubletten erkennbar",
       ],
       freisteller: [
-        "10 P: Viele Produkte mit gutem Freistellerbild.",
-        "5 P: Nur ein Teil der Produkte mit Freistellerbild.",
-        "0 P: Kaum Freistellerbilder im Feed.",
+        "10 P: >= 70% der Stichprobe mit Freisteller (weisser Hintergrund)",
+        "5 P: >= 30% der Stichprobe mit Freisteller",
+        "0 P: < 30% Freisteller erkannt",
       ],
       millieu: [
-        "10 P: Viele Produkte mit ansprechenden Milieubildern.",
-        "5 P: Nur einige Produkte mit Milieubildern.",
-        "0 P: Fast keine Milieubilder im Feed.",
+        "10 P: Viele Produkte mit Milieubildern (manuelle Bewertung)",
+        "5 P: Nur einige Produkte mit Milieubildern",
+        "0 P: Fast keine Milieubilder",
       ],
       anzahlbilder: [
-        "10 P: Durchschnittlich viele Bilder pro Produkt (z. B. ≥ 5).",
-        "5 P: Mittelmäßige Bildanzahl pro Produkt.",
-        "0 P: Sehr wenige Bilder pro Produkt.",
+        "10 P: Durchschnitt >= 5 Bilder pro Produkt",
+        "5 P: Durchschnitt >= 2 Bilder pro Produkt",
+        "0 P: Durchschnitt < 2 Bilder",
       ],
     };
 
@@ -2430,7 +2431,17 @@ function QsPage({ headers, rows }) {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 18, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          onClick={() => setShowCriteria((v) => !v)}
+          style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: showCriteria ? BRAND_COLOR : "#FFF", color: showCriteria ? "#FFF" : "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+        >
+          {showCriteria ? "Schwellenwerte ausblenden" : "Schwellenwerte anzeigen"}
+        </button>
+      </div>
+
+      <div style={{ marginTop: 8, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
         <SmallText>
           Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen. Herstellerfeed wird
@@ -2483,8 +2494,8 @@ function QsPage({ headers, rows }) {
                 </div>
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
-                {/* Scoring thresholds - always visible */}
-                {item.criteria && item.criteria.length ? (
+                {/* Scoring thresholds */}
+                {showCriteria && item.criteria && item.criteria.length ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
                     {item.criteria.map((line, idx) => {
                       const pts = line.match(/^(\d+)\s*P/);
@@ -2543,8 +2554,8 @@ function QsPage({ headers, rows }) {
                 </div>
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
-                {/* Scoring thresholds - always visible */}
-                {item.criteria && item.criteria.length ? (
+                {/* Scoring thresholds */}
+                {showCriteria && item.criteria && item.criteria.length ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
                     {item.criteria.map((line, idx) => {
                       const pts = line.match(/^(\d+)\s*P/);
