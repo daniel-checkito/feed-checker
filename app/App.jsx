@@ -204,9 +204,9 @@ function buildEmail({ shopName, issues, tips, canStart }) {
   const intro =
     "wir haben Ihren Produktdatenfeed automatisiert geprüft. Unten finden Sie die wichtigsten Punkte, die für eine erfolgreiche automatische Produktanlage angepasst werden sollten.";
 
-  const issueLines = issues.length ? issues.map((x) => `⚠️ ${x}`).join("\n") : "⚠️ Keine kritischen Fehler erkannt.";
+  const issueLines = issues.length ? issues.map((x) => `- ${x}`).join("\n") : "- Keine kritischen Fehler erkannt.";
 
-  const tipLines = tips.length ? tips.map((x) => `💡 ${x}`).join("\n") : "💡 Keine weiteren Verbesserungsvorschläge.";
+  const tipLines = tips.length ? tips.map((x) => `- ${x}`).join("\n") : "- Keine weiteren Verbesserungsvorschläge.";
 
   const decision = canStart
     ? "Wir können mit dem Feed starten."
@@ -1166,7 +1166,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>Regeln</div>
           <div style={{ marginTop: 6, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
-            Global gespeichert. Aenderungen gelten sofort fuer alle.
+            Global gespeichert. Änderungen gelten sofort für alle.
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -2522,7 +2522,7 @@ function QsPage({ headers, rows }) {
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Bildqualität</div>
         <SmallText>
           Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. &bdquo;1. Bild &amp; keine Dopplungen&ldquo;, &bdquo;Freisteller&ldquo; und
-          &bdquo;Millieu&ldquo; muessen manuell ueber das Dropdown bewertet werden.
+          &bdquo;Millieu&ldquo; müssen manuell über das Dropdown bewertet werden.
         </SmallText>
 
         <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
@@ -3179,9 +3179,9 @@ function McAngebotsfeed() {
 
       {/* ── Feed Checker (moved to top) ── */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 4px" }}>Feed-Datei pruefen</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 4px" }}>Feed-Datei prüfen</h3>
         <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px" }}>
-          Laden Sie Ihre CSV-Datei hoch — wir pruefen automatisch auf Fehler, fehlende Pflichtfelder und Duplikate.
+          Laden Sie Ihre CSV-Datei hoch — wir prüfen automatisch auf Fehler, fehlende Pflichtfelder und Duplikate.
         </p>
 
         {!issues ? (
@@ -3251,7 +3251,7 @@ function McAngebotsfeed() {
         >
           <div style={{ fontSize: 22, marginBottom: 6 }}>📊</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedvorlage (Excel)</div>
-          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Muster-CSV mit allen Pflichtfeldern und Beispieldaten als Startvorlage fuer Ihren Feed.</div>
+          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Muster-CSV mit allen Pflichtfeldern und Beispieldaten als Startvorlage für Ihren Feed.</div>
         </button>
         <button
           type="button"
@@ -3260,7 +3260,7 @@ function McAngebotsfeed() {
         >
           <div style={{ fontSize: 22, marginBottom: 6 }}>📖</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedleitfaden (PDF)</div>
-          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Ausfuehrliche Anleitung mit allen Spalten, erlaubten Werten und Formatvorgaben.</div>
+          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Ausführliche Anleitung mit allen Spalten, erlaubten Werten und Formatvorgaben.</div>
         </button>
       </div>
 
@@ -3320,8 +3320,8 @@ function McAngebotsfeed() {
 
       {/* Info hints */}
       {[
-        { title: "Halten Sie Ihren Angebotsfeed immer aktuell", body: "Stellen Sie sicher, dass Aenderungen in Preis, Sortiment oder Verfuegbarkeit in Ihrem Angebotsfeed immer aktuell sind." },
-        { title: "Geben Sie Versandkosten und Versandart an", body: "Stellen Sie sicher, dass Sie fuer jedes Produkt die Versandkosten sowie die Versandart (Paket oder Spedition) angeben." },
+        { title: "Halten Sie Ihren Angebotsfeed immer aktuell", body: "Stellen Sie sicher, dass Änderungen in Preis, Sortiment oder Verfügbarkeit in Ihrem Angebotsfeed immer aktuell sind." },
+        { title: "Geben Sie Versandkosten und Versandart an", body: "Stellen Sie sicher, dass Sie für jedes Produkt die Versandkosten sowie die Versandart (Paket oder Spedition) angeben." },
       ].map((b) => (
         <div key={b.title} style={{ background: "#EEF4FF", borderLeft: "4px solid #1553B6", borderRadius: 6, padding: "12px 16px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: MC_BLUE, marginBottom: 2 }}>{b.title}</div>
@@ -4864,7 +4864,7 @@ export default function App() {
           `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`,
           findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean))
         );
-        addTip("Produktbeschreibungen etwas ausfuehrlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).", findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean)));
+        addTip("Produktbeschreibungen etwas ausführlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).", findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean)));
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.templateLike.length > 0) {
@@ -4885,7 +4885,7 @@ export default function App() {
       if (optionalFindings.invalidShipping.length > 0) {
         addRowsByEanObjects(optionalFindings.invalidShipping, criticalRowIdx);
         addIssue(
-          `shipping_mode ungueltig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`,
+          `shipping_mode ungültig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`,
           findTargetsByEans(optionalFindings.invalidShipping.map((x) => x?.ean))
         );
       }
@@ -4914,7 +4914,7 @@ export default function App() {
       const col = mapping.shipping_mode;
       shippingAllMissing = rows.length > 0 && rows.every((r) => isBlank(r[col]));
       if (shippingAllMissing) {
-        addIssue("shipping_mode ist fuer keinen Artikel befuellt.");
+        addIssue("shipping_mode ist für keinen Artikel befüllt.");
         addAllRows(criticalRowIdx);
         score -= 10;
       }
@@ -4925,7 +4925,7 @@ export default function App() {
       const col = mapping.delivery_includes;
       deliveryAllMissing = rows.length > 0 && rows.every((r) => isBlank(r[col]));
       if (deliveryAllMissing) {
-        addIssue("Lieferumfang ist fuer keinen Artikel befuellt.");
+        addIssue("Lieferumfang ist für keinen Artikel befüllt.");
         addAllRows(criticalRowIdx);
         score -= 10;
       }
@@ -5769,7 +5769,7 @@ export default function App() {
 
                       <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
-                        <SmallText>Diese Felder muessen fuer jeden Artikel erkannt werden.</SmallText>
+                        <SmallText>Diese Felder müssen für jeden Artikel erkannt werden.</SmallText>
                         <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                           {requiredFields.map((f) => {
                             const col = mapping[f];
@@ -6469,7 +6469,7 @@ export default function App() {
                       onClick={() => setEmailContent(generatedEmail)}
                       style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                     >
-                      Zuruecksetzen
+                      Zurücksetzen
                     </button>
                     <button
                       onClick={() => { setGeneratedEmail(null); setEmailContent(""); }}
