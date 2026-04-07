@@ -5217,60 +5217,71 @@ export default function App() {
     );
   }
 
+  const NAV_ITEMS = [
+    { id: "checker",              label: "Feed Checker",       icon: "🔍" },
+    { id: "checker-mc",           label: "Checker MC",         icon: "🏪" },
+    { id: "qs",                   label: "QS / APA",           icon: "📊" },
+    { id: "produkt-optimierung",  label: "Produkt Optimierung",icon: "⚡" },
+    ...(adminToken ? [{ id: "analytics", label: "Analytics", icon: "📈" }] : []),
+  ];
+
   const topNav = (
-    <div style={{ background: "white", borderBottom: "1px solid #E5E7EB", position: "sticky", top: 0, zIndex: 50 }}>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "none",
-          margin: 0,
-          padding: "12px 12px",
-          fontFamily: "ui-sans-serif, system-ui",
-          boxSizing: "border-box",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => { window.location.hash = "#/checker"; }}
-            style={{ border: "none", background: "transparent", padding: 0, margin: 0, cursor: "pointer", display: "flex", alignItems: "center" }}
-            aria-label="Feed Checker Startseite"
-            title="Feed Checker"
-          >
-            <img
-              src="/feedchecker-logo.png"
-              alt="Feed Checker"
-              style={{ height: 44, width: "auto", maxWidth: 340, display: "block" }}
-            />
-          </button>
-          {["checker", "checker-mc", "qs", "produkt-optimierung", ...(adminToken ? ["analytics"] : [])].map((r) => {
-            const labels = { checker: "Checker", "checker-mc": "Checker MC", qs: "QS/APA", analytics: "Analytics" };
-            const labelsWithOptimization = { ...labels, "produkt-optimierung": "Produkt Optimierung" };
-            return (
-              <button
-                key={r}
-                onClick={() => { window.location.hash = r === "checker" ? "#/checker" : `#/${r}`; }}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 999,
-                  border: `1px solid ${BRAND_COLOR}`,
-                  background: route === r ? BRAND_COLOR : "#FFFFFF",
-                  color: route === r ? "#FFFFFF" : BRAND_COLOR,
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 800,
-                }}
-              >
-                {labelsWithOptimization[r]}
-              </button>
-            );
-          })}
+    <div style={{ background: "#1B3461", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
+      {/* Main header row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", height: 52 }}>
+        {/* Logo */}
+        <button
+          type="button"
+          onClick={() => { window.location.hash = "#/checker"; }}
+          style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
+          aria-label="Feed Checker Startseite"
+        >
+          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", fontFamily: "ui-sans-serif, system-ui" }}>CHECK24</span>
+          <span style={{ color: "#A8C4E0", fontStyle: "italic", fontSize: 14, fontWeight: 400 }}>Feed Checker</span>
+        </button>
+
+        {/* Right side */}
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <div style={{ color: "#FFFFFF", fontSize: 12, textAlign: "right", lineHeight: 1.4 }}>
+            <div style={{ fontWeight: 700 }}>089 – 2424 1158 300</div>
+            <div style={{ color: "#A8C4E0", fontSize: 11 }}>Haben Sie Fragen?</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FFFFFF", fontSize: 13, cursor: "pointer" }}>
+            <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#2E5FA3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>👤</span>
+            <span style={{ fontWeight: 500 }}>Mein Account</span>
+          </div>
         </div>
+      </div>
+
+      {/* Nav tab row */}
+      <div style={{ display: "flex", alignItems: "flex-end", padding: "0 16px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+        {NAV_ITEMS.map((item) => {
+          const active = route === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => { window.location.hash = item.id === "checker" ? "#/checker" : `#/${item.id}`; }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "10px 16px",
+                border: "none",
+                borderBottom: active ? "3px solid #FFFFFF" : "3px solid transparent",
+                background: "transparent",
+                color: active ? "#FFFFFF" : "#A8C4E0",
+                fontSize: 13,
+                fontWeight: active ? 700 : 400,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "color 0.15s, border-color 0.15s",
+                letterSpacing: "0.01em",
+              }}
+            >
+              <span style={{ fontSize: 14 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
