@@ -2568,8 +2568,7 @@ function QsPage({ headers, rows }) {
       <div style={{ marginTop: 24, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Bildqualität</div>
         <SmallText>
-          Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. &bdquo;1. Bild &amp; keine Dopplungen&ldquo;, &bdquo;Freisteller&ldquo; und
-          &bdquo;Millieu&ldquo; müssen manuell über das Dropdown bewertet werden.
+          Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. Alle Kriterien werden automatisch erkannt. Werte können manuell angepasst werden.
         </SmallText>
 
         <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
