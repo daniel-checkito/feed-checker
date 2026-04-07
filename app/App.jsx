@@ -3177,111 +3177,11 @@ function McAngebotsfeed() {
     <div style={{ maxWidth: 720, display: "grid", gap: 20 }}>
       <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
-      {/* Info boxes */}
-      {[
-        { title: "Halten Sie Ihren Angebotsfeed immer aktuell", body: "Stellen Sie sicher, dass anfallende Änderungen in Preis, Sortiment oder Verfügbarkeit in Ihrem Angebotsfeed immer aktuell sind." },
-        { title: "Geben Sie Versandkosten und Versandart an", body: "Wenn Sie Ihre Versandkosten über den Angebotsfeed angeben, stellen Sie sicher, dass Sie für jedes Produkt die Versandkosten sowie die Versandart angeben." },
-      ].map((b) => (
-        <div key={b.title} style={{ background: "#EEF4FF", borderLeft: "4px solid #1553B6", borderRadius: 6, padding: "14px 18px" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: MC_BLUE, marginBottom: 4 }}>{b.title}</div>
-          <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.6 }}>{b.body}</div>
-        </div>
-      ))}
-
-      {/* Feed info */}
+      {/* ── Feed Checker (moved to top) ── */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 16px" }}>Informationen zu Ihrem Angebotsfeed</h3>
-        <div style={{ display: "grid", gap: 14 }}>
-          {[
-            { label: "Format", value: "CSV" },
-            { label: "Link zum Angebotsfeed", value: "ftp://partner31679@partnerftp.shopping.check24.de:44021/inbound/offerfeed_MeinShop.csv", mono: true },
-            { label: "Trennzeichen", value: "Komma" },
-            { label: "Umschließungszeichen (falls vorh.)", value: '\"' },
-            { label: "Benutzername", value: "partner31679", copy: true },
-            { label: "Passwort", value: "••••••••", copy: true },
-          ].map((r) => (
-            <div key={r.label} style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 8, alignItems: "center", borderBottom: "1px solid #F3F4F6", paddingBottom: 12 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{r.label}</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 13, color: "#374151", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all" }}>{r.value}</span>
-                {r.copy ? <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 16 }}>⧉</span> : null}
-              </div>
-            </div>
-          ))}
-        </div>
-        <button style={{ marginTop: 20, width: "100%", background: MC_BLUE, color: "#FFF", border: "none", borderRadius: 6, padding: "12px 0", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-          Angebotsfeed bearbeiten
-        </button>
-      </div>
-
-      {/* ── Content Guidelines ── */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 6px" }}>Tipps fuer Ihren Angebotsfeed</h3>
-        <div style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.6, marginBottom: 16 }}>
-          Beachten Sie folgende Empfehlungen, um die Qualitaet Ihres Feeds zu verbessern und eine schnellere Freischaltung zu ermoeglichen.
-        </div>
-
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📝</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Produkttitel</div>
-              <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>
-                Mind. 40 Zeichen. Marke + Produkttyp + wichtigstes Merkmal verwenden.
-                <br /><span style={{ color: "#047857", fontWeight: 600 }}>Gut:</span> IKEA KALLAX Regal 77x147 cm weiss Birke
-                <br /><span style={{ color: "#B91C1C", fontWeight: 600 }}>Schlecht:</span> Regal weiss
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📄</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Beschreibung</div>
-              <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>Mind. 80 Zeichen. Vorteile, Material, Masse und Einsatzbereich beschreiben. Keine externen Links oder Werbung.</div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🖼️</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Bilder</div>
-              <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>Mind. 3 Bilder pro Produkt. Erstes Bild als Freisteller (weisser Hintergrund), dazu Milieu- und Detailbilder. Keine Wasserzeichen.</div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📦</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Lieferumfang &amp; Versand</div>
-              <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>Format: &quot;1x Tisch, 4x Stuhl&quot;. Versandart (Paket/Spedition) und Versandkosten angeben.</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button
-            type="button"
-            onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
-            style={{ flex: 1, padding: "10px 0", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 12, fontWeight: 600, color: "#111827", cursor: "pointer", textAlign: "center" }}
-          >
-            Feedvorlage herunterladen
-          </button>
-          <button
-            type="button"
-            onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedleitfaden_2025.pdf", "_blank", "noopener,noreferrer")}
-            style={{ flex: 1, padding: "10px 0", borderRadius: 6, border: "none", background: MC_BLUE, fontSize: 12, fontWeight: 600, color: "#FFF", cursor: "pointer", textAlign: "center" }}
-          >
-            Feedleitfaden herunterladen
-          </button>
-        </div>
-      </div>
-
-      {/* ── Integrated Feed Checker ── */}
-      <div style={{ borderTop: "2px solid #E5E7EB", paddingTop: 20 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 4px" }}>Feed-Datei pruefen</h3>
         <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px" }}>
-          Laden Sie Ihre aktuelle Feed-Datei hoch, um sie auf Fehler zu pruefen — die Ergebnisse erscheinen direkt hier.
+          Laden Sie Ihre CSV-Datei hoch — wir pruefen automatisch auf Fehler, fehlende Pflichtfelder und Duplikate.
         </p>
 
         {!issues ? (
@@ -3341,6 +3241,93 @@ function McAngebotsfeed() {
           </div>
         )}
       </div>
+
+      {/* ── Downloads ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <button
+          type="button"
+          onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
+          style={{ padding: "16px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}
+        >
+          <div style={{ fontSize: 22, marginBottom: 6 }}>📊</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedvorlage (Excel)</div>
+          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Muster-CSV mit allen Pflichtfeldern und Beispieldaten als Startvorlage fuer Ihren Feed.</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedleitfaden_2025.pdf", "_blank", "noopener,noreferrer")}
+          style={{ padding: "16px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}
+        >
+          <div style={{ fontSize: 22, marginBottom: 6 }}>📖</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedleitfaden (PDF)</div>
+          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Ausfuehrliche Anleitung mit allen Spalten, erlaubten Werten und Formatvorgaben.</div>
+        </button>
+      </div>
+
+      {/* ── Content Tips ── */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 12px" }}>So verbessern Sie Ihren Content</h3>
+        <div style={{ display: "grid", gap: 12 }}>
+          {[
+            { icon: "📝", title: "Produkttitel", desc: "Mind. 40 Zeichen. Marke + Produkttyp + Merkmal.", good: "IKEA KALLAX Regal 77x147 cm weiss", bad: "Regal weiss" },
+            { icon: "📄", title: "Beschreibung", desc: "Mind. 80 Zeichen. Vorteile, Material und Einsatzbereich. Keine Links oder Werbung.", good: null, bad: null },
+            { icon: "🖼️", title: "Bilder", desc: "Mind. 3 pro Produkt. 1. Bild = Freisteller, dazu Milieu- und Detailbilder. Keine Wasserzeichen.", good: null, bad: null },
+            { icon: "📦", title: "Lieferumfang", desc: "Format: 1x Tisch, 4x Stuhl. Versandart (Paket/Spedition) nicht vergessen.", good: null, bad: null },
+          ].map((tip) => (
+            <div key={tip.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{tip.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{tip.title}</div>
+                <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>
+                  {tip.desc}
+                  {tip.good && (<><br /><span style={{ color: "#047857", fontWeight: 600 }}>Gut:</span> {tip.good}</>)}
+                  {tip.bad && (<><br /><span style={{ color: "#B91C1C", fontWeight: 600 }}>Schlecht:</span> {tip.bad}</>)}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Feed Info (collapsible) ── */}
+      <details style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8 }}>
+        <summary style={{ padding: "14px 20px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#111827" }}>
+          Feed-Einstellungen &amp; Zugangsdaten
+        </summary>
+        <div style={{ padding: "0 20px 20px" }}>
+          <div style={{ display: "grid", gap: 12 }}>
+            {[
+              { label: "Format", value: "CSV" },
+              { label: "Link zum Angebotsfeed", value: "ftp://partner31679@partnerftp.shopping.check24.de:44021/inbound/offerfeed_MeinShop.csv", mono: true },
+              { label: "Trennzeichen", value: "Komma" },
+              { label: "Benutzername", value: "partner31679", copy: true },
+              { label: "Passwort", value: "••••••••", copy: true },
+            ].map((r) => (
+              <div key={r.label} style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 8, alignItems: "center", borderBottom: "1px solid #F3F4F6", paddingBottom: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{r.label}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, color: "#374151", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all" }}>{r.value}</span>
+                  {r.copy ? <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 16 }}>⧉</span> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button style={{ marginTop: 16, width: "100%", background: MC_BLUE, color: "#FFF", border: "none", borderRadius: 6, padding: "12px 0", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+            Angebotsfeed bearbeiten
+          </button>
+        </div>
+      </details>
+
+      {/* Info hints */}
+      {[
+        { title: "Halten Sie Ihren Angebotsfeed immer aktuell", body: "Stellen Sie sicher, dass Aenderungen in Preis, Sortiment oder Verfuegbarkeit in Ihrem Angebotsfeed immer aktuell sind." },
+        { title: "Geben Sie Versandkosten und Versandart an", body: "Stellen Sie sicher, dass Sie fuer jedes Produkt die Versandkosten sowie die Versandart (Paket oder Spedition) angeben." },
+      ].map((b) => (
+        <div key={b.title} style={{ background: "#EEF4FF", borderLeft: "4px solid #1553B6", borderRadius: 6, padding: "12px 16px" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: MC_BLUE, marginBottom: 2 }}>{b.title}</div>
+          <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.6 }}>{b.body}</div>
+        </div>
+      ))}
     </div>
   );
 }
