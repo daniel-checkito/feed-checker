@@ -256,41 +256,31 @@ function Pill({ tone, children }) {
 }
 
 function StepCard({ title, status, subtitle, action, children }) {
-  const border =
-    status === "ok" ? "#BBF7D0" : status === "warn" ? "#FDE68A" : status === "bad" ? "#FCA5A5" : "#E5E7EB";
-  const bg =
-    status === "ok" ? "#F0FDF4" : status === "warn" ? "#FFFBEB" : status === "bad" ? "#FEF2F2" : "#FFFFFF";
-  const icon =
-    status === "ok" ? "✅" : status === "warn" ? "⚠️" : status === "bad" ? "⛔" : "⏳";
+  const borderColor =
+    status === "ok" ? "#A7F3D0" : status === "warn" ? "#FCD34D" : status === "bad" ? "#FCA5A5" : "#E5E7EB";
+  const dotColor =
+    status === "ok" ? "#16A34A" : status === "warn" ? "#D97706" : status === "bad" ? "#DC2626" : "#9CA3AF";
 
   return (
     <div
       style={{
-        border: `1px solid ${border}`,
-        borderRadius: 16,
-        padding: 14,
-        background: bg,
-        boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
+        border: `1px solid ${borderColor}`,
+        borderRadius: 8,
+        padding: "14px 16px",
+        background: "#FFFFFF",
+        boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
         boxSizing: "border-box",
         width: "100%",
         overflow: "hidden",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: "1 1 auto" }}>
-          <div style={{ fontSize: 18, flexShrink: 0 }}>{icon}</div>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0, marginTop: 1 }} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#111827" }}>{title}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{title}</div>
             {subtitle ? (
-              <div style={{ marginTop: 4, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>{subtitle}</div>
+              <div style={{ marginTop: 2, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>{subtitle}</div>
             ) : null}
           </div>
         </div>
@@ -311,7 +301,7 @@ function SmallText({ children }) {
 
 function Table({ columns, rows, highlight }) {
   return (
-    <div style={{ overflowX: "auto", width: "100%", border: "1px solid #E5E7EB", borderRadius: 12, boxSizing: "border-box" }}>
+    <div style={{ overflowX: "auto", width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, boxSizing: "border-box" }}>
       <table style={{ borderCollapse: "collapse", fontSize: 13, width: "max-content", minWidth: "100%" }}>
         <thead>
           <tr style={{ background: "#F9FAFB" }}>
@@ -1102,7 +1092,7 @@ function TextInput({ label, value, onChange, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        style={{ flex: "1 1 200px", minWidth: 0, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", boxSizing: "border-box" }}
+        style={{ flex: "1 1 200px", minWidth: 0, padding: "8px 10px", borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, color: "#111827", boxSizing: "border-box" }}
       />
     </div>
   );
@@ -3131,21 +3121,20 @@ function McIcon({ name, active }) {
 const MC_NAV_ITEMS = [
   { id: "dashboard",     label: "Dashboard",      icon: "dashboard" },
   { id: "bestellungen",  label: "Bestellungen",   icon: "bestellungen" },
-  { id: "angebote",      label: "Angebote",        icon: "angebote", children: [
-    { id: "feed-checker",    label: "Feed Checker" },
-    { id: "gelistete",       label: "Gelistete Angebote" },
-    { id: "nicht-gelistet",  label: "Nicht gelistete Angebote" },
-  ]},
+  { id: "angebote",      label: "Angebote",        icon: "angebote" },
   { id: "finanzen",      label: "Finanzen",        icon: "finanzen" },
   { id: "einstellungen", label: "Einstellungen",   icon: "einstellungen", children: [
-    { id: "geschaeftsdaten",   label: "Geschäftsdaten" },
-    { id: "bankdaten",         label: "Bankdaten" },
-    { id: "kommunikation",     label: "Kommunikation" },
-    { id: "logindaten",        label: "Logindaten" },
-    { id: "versand",           label: "Versand" },
-    { id: "ruecksendung",      label: "Rücksendung" },
-    { id: "angebotsfeed",      label: "Angebotsfeed" },
+    { id: "geschaeftsdaten",      label: "Geschäftsdaten" },
+    { id: "bankdaten",            label: "Bankdaten" },
+    { id: "kommunikation",        label: "Kommunikation" },
+    { id: "logindaten",           label: "Logindaten" },
+    { id: "verpackungen",         label: "Verpackungen" },
+    { id: "versand",              label: "Versand" },
+    { id: "ruecksendung",         label: "Rücksendung" },
+    { id: "preisnachlassregeln",  label: "Preisnachlassregeln" },
+    { id: "angebotsfeed",         label: "Angebotsfeed" },
     { id: "bestelluebermittlung", label: "Bestellübermittlung" },
+    { id: "produktsicherheit",    label: "Produktsicherheit (GPSR)" },
   ]},
   { id: "shop-pause",    label: "Shop pausieren",  icon: "pause" },
   { id: "faq",           label: "FAQ",             icon: "faq" },
@@ -3480,110 +3469,8 @@ function McDashboard() {
 }
 
 function CheckerMCPage() {
-  const [mcFile, setMcFile] = useState(null);
-  const [mcRows, setMcRows] = useState([]);
-  const [mcHeaders, setMcHeaders] = useState([]);
-  const [mcIssues, setMcIssues] = useState(null);
-  const [mcDragging, setMcDragging] = useState(false);
-  const [mcActiveNav, setMcActiveNav] = useState("dashboard");
-  const mcFileRef = useRef(null);
-
-  function parseMcFile(file) {
-    if (!file) return;
-    setMcFile(file);
-    setMcIssues(null);
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => {
-        const rows = Array.isArray(res.data) ? res.data : [];
-        const headers = res.meta?.fields || Object.keys(rows[0] || {});
-        setMcRows(rows);
-        setMcHeaders(headers);
-        analyzeMcFile(rows, headers);
-      },
-    });
-  }
-
-  function analyzeMcFile(rows, headers) {
-    const headersLower = headers.map((h) => h.toLowerCase().trim());
-
-    // --- Missing required columns ---
-    const missingCols = MC_REQUIRED_COLS.filter(
-      (col) => !headersLower.some((h) => h === col || h.includes(col))
-    );
-
-    // --- Per-row issues ---
-    const emptyRequired = [];
-    const missingEan = [];
-    const invalidPrice = [];
-    const shortName = [];
-    const shortDesc = [];
-    const missingImage = [];
-
-    // Map actual column names to our expected keys
-    function findCol(key) {
-      return headers.find((h) => h.toLowerCase().trim() === key || h.toLowerCase().includes(key));
-    }
-    const colEan = findCol("ean");
-    const colName = findCol("name");
-    const colPrice = findCol("price");
-    const colDesc = findCol("description") || findCol("desc");
-    const colImage = findCol("image_url") || findCol("image");
-    const colBrand = findCol("brand");
-
-    rows.forEach((row, i) => {
-      const rowNum = i + 1;
-      const ean = colEan ? String(row[colEan] ?? "").trim() : "";
-      const name = colName ? String(row[colName] ?? "").trim() : "";
-      const price = colPrice ? String(row[colPrice] ?? "").trim() : "";
-      const desc = colDesc ? String(row[colDesc] ?? "").trim() : "";
-      const image = colImage ? String(row[colImage] ?? "").trim() : "";
-      const brand = colBrand ? String(row[colBrand] ?? "").trim() : "";
-
-      if (colEan && !ean) missingEan.push(rowNum);
-      if (colPrice && price) {
-        const num = parseFloat(price.replace(",", "."));
-        if (isNaN(num) || num <= 0) invalidPrice.push({ row: rowNum, ean, value: price });
-      }
-      if (colName && name && name.length < 10) shortName.push({ row: rowNum, ean, value: name });
-      if (colDesc && desc && desc.length < 30) shortDesc.push({ row: rowNum, ean, value: desc.slice(0, 60) });
-      if (colImage && !image) missingImage.push({ row: rowNum, ean });
-      if (colBrand && !brand) emptyRequired.push({ row: rowNum, ean, field: "brand" });
-    });
-
-    setMcIssues({
-      totalRows: rows.length,
-      missingCols,
-      missingEan,
-      invalidPrice,
-      shortName,
-      shortDesc,
-      missingImage,
-      emptyRequired,
-    });
-  }
-
-  function onDrop(e) {
-    e.preventDefault();
-    setMcDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) parseMcFile(file);
-  }
-
-  const errorCount = mcIssues
-    ? mcIssues.missingCols.length +
-      mcIssues.missingEan.length +
-      mcIssues.invalidPrice.length +
-      mcIssues.missingImage.length
-    : 0;
-  const warningCount = mcIssues
-    ? mcIssues.shortName.length +
-      mcIssues.shortDesc.length +
-      mcIssues.emptyRequired.length
-    : 0;
-
-  const [mcOpenGroups, setMcOpenGroups] = useState(new Set(["angebote"]));
+  const [mcActiveNav, setMcActiveNav] = useState("angebotsfeed");
+  const [mcOpenGroups, setMcOpenGroups] = useState(new Set(["einstellungen"]));
   const toggleGroup = (id) => setMcOpenGroups((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
   return (
@@ -3703,184 +3590,8 @@ function CheckerMCPage() {
             <McAngebotsfeed />
           ) : null}
 
-          {/* ── FEED CHECKER ── */}
-          {mcActiveNav === "feed-checker" ? (<>
-          <div style={{ marginBottom: 20 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: MC_BLUE, margin: 0 }}>Feed Checker</h1>
-            <p style={{ fontSize: 13, color: "#6B7280", margin: "4px 0 0" }}>
-              Laden Sie Ihre Feed-Datei hoch und prüfen Sie, ob alles korrekt ist.
-            </p>
-          </div>
-
-          {/* Upload area */}
-          {!mcIssues ? (
-            <div
-              onDragOver={(e) => { e.preventDefault(); setMcDragging(true); }}
-              onDragLeave={() => setMcDragging(false)}
-              onDrop={onDrop}
-              onClick={() => mcFileRef.current?.click()}
-              style={{
-                background: mcDragging ? "#EBF4FD" : "#FFFFFF",
-                border: `2px dashed ${mcDragging ? MC_BLUE : "#CBD5E1"}`,
-                borderRadius: 10,
-                padding: "48px 24px",
-                textAlign: "center",
-                cursor: "pointer",
-                transition: "all 0.15s",
-                marginBottom: 24,
-              }}
-            >
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 6 }}>
-                CSV-Datei hier ablegen oder klicken zum Auswählen
-              </div>
-              <div style={{ fontSize: 13, color: "#6B7280" }}>
-                Unterstützt: .csv (Semikolon- oder Komma-getrennt)
-              </div>
-              <input
-                ref={mcFileRef}
-                type="file"
-                accept=".csv,text/csv"
-                style={{ display: "none" }}
-                onChange={(e) => parseMcFile(e.target.files?.[0] || null)}
-              />
-            </div>
-          ) : null}
-
-          {/* Results */}
-          {mcIssues ? (
-            <div style={{ display: "grid", gap: 16 }}>
-
-              {/* Summary cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-                <div style={{ background: "#FFFFFF", borderRadius: 8, padding: 16, border: "1px solid #E5E7EB" }}>
-                  <div style={{ fontSize: 12, color: "#6B7280", fontWeight: 500, marginBottom: 4 }}>Artikel gesamt</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: "#111827" }}>{mcIssues.totalRows}</div>
-                </div>
-                <div style={{ background: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", borderRadius: 8, padding: 16, border: `1px solid ${errorCount > 0 ? "#FECACA" : "#BBF7D0"}` }}>
-                  <div style={{ fontSize: 12, color: errorCount > 0 ? "#B91C1C" : "#166534", fontWeight: 500, marginBottom: 4 }}>Fehler</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: errorCount > 0 ? "#B91C1C" : "#166534" }}>{errorCount}</div>
-                </div>
-                <div style={{ background: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", borderRadius: 8, padding: 16, border: `1px solid ${warningCount > 0 ? "#FCD34D" : "#BBF7D0"}` }}>
-                  <div style={{ fontSize: 12, color: warningCount > 0 ? "#92400E" : "#166534", fontWeight: 500, marginBottom: 4 }}>Warnungen</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: warningCount > 0 ? "#92400E" : "#166534" }}>{warningCount}</div>
-                </div>
-              </div>
-
-              {/* Overall status */}
-              {errorCount === 0 && warningCount === 0 ? (
-                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>✅</span>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#166534" }}>Ihr Feed ist in Ordnung!</div>
-                    <div style={{ fontSize: 12, color: "#15803D" }}>Keine Probleme gefunden. Die Datei kann hochgeladen werden.</div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>⚠️</span>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#B91C1C" }}>Es wurden Probleme gefunden</div>
-                    <div style={{ fontSize: 12, color: "#DC2626" }}>Bitte korrigieren Sie die Fehler, bevor Sie den Feed einreichen.</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Missing columns */}
-              {mcIssues.missingCols.length > 0 ? (
-                <McIssueCard
-                  title="Fehlende Pflichtfelder"
-                  severity="error"
-                  description="Diese Spalten fehlen in Ihrer Datei:"
-                  items={mcIssues.missingCols.map((c) => ({ label: c, hint: "Spalte fehlt komplett im Feed" }))}
-                />
-              ) : null}
-
-              {/* Missing EAN */}
-              {mcIssues.missingEan.length > 0 ? (
-                <McIssueCard
-                  title="Fehlende EAN"
-                  severity="error"
-                  description={`Bei ${mcIssues.missingEan.length} Artikeln fehlt die EAN (Pflichtfeld).`}
-                  items={mcIssues.missingEan.slice(0, 8).map((r) => ({ label: `Zeile ${r}`, hint: "EAN fehlt" }))}
-                  more={mcIssues.missingEan.length > 8 ? mcIssues.missingEan.length - 8 : 0}
-                />
-              ) : null}
-
-              {/* Invalid price */}
-              {mcIssues.invalidPrice.length > 0 ? (
-                <McIssueCard
-                  title="Ungültiger Preis"
-                  severity="error"
-                  description={`Bei ${mcIssues.invalidPrice.length} Artikeln ist der Preis ungültig (muss eine positive Zahl sein).`}
-                  items={mcIssues.invalidPrice.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `Wert: "${x.value}"` }))}
-                  more={mcIssues.invalidPrice.length > 8 ? mcIssues.invalidPrice.length - 8 : 0}
-                />
-              ) : null}
-
-              {/* Missing images */}
-              {mcIssues.missingImage.length > 0 ? (
-                <McIssueCard
-                  title="Fehlende Bilder"
-                  severity="error"
-                  description={`Bei ${mcIssues.missingImage.length} Artikeln fehlt die Bild-URL (Pflichtfeld).`}
-                  items={mcIssues.missingImage.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: "image_url fehlt" }))}
-                  more={mcIssues.missingImage.length > 8 ? mcIssues.missingImage.length - 8 : 0}
-                />
-              ) : null}
-
-              {/* Short name */}
-              {mcIssues.shortName.length > 0 ? (
-                <McIssueCard
-                  title="Produktname zu kurz"
-                  severity="warning"
-                  description={`Bei ${mcIssues.shortName.length} Artikeln ist der Name kürzer als 10 Zeichen.`}
-                  items={mcIssues.shortName.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `"${x.value}"` }))}
-                  more={mcIssues.shortName.length > 8 ? mcIssues.shortName.length - 8 : 0}
-                />
-              ) : null}
-
-              {/* Short description */}
-              {mcIssues.shortDesc.length > 0 ? (
-                <McIssueCard
-                  title="Beschreibung zu kurz"
-                  severity="warning"
-                  description={`Bei ${mcIssues.shortDesc.length} Artikeln ist die Beschreibung kürzer als 30 Zeichen.`}
-                  items={mcIssues.shortDesc.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `"${x.value}"` }))}
-                  more={mcIssues.shortDesc.length > 8 ? mcIssues.shortDesc.length - 8 : 0}
-                />
-              ) : null}
-
-              {/* Empty brand */}
-              {mcIssues.emptyRequired.length > 0 ? (
-                <McIssueCard
-                  title="Fehlende Pflichtangaben"
-                  severity="warning"
-                  description={`Bei ${mcIssues.emptyRequired.length} Artikeln fehlen Pflichtangaben.`}
-                  items={mcIssues.emptyRequired.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `Feld "${x.field}" fehlt` }))}
-                  more={mcIssues.emptyRequired.length > 8 ? mcIssues.emptyRequired.length - 8 : 0}
-                />
-              ) : null}
-
-              {/* Reset button */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => { setMcFile(null); setMcRows([]); setMcHeaders([]); setMcIssues(null); }}
-                  style={{
-                    padding: "9px 20px", borderRadius: 6, border: `1px solid ${MC_BLUE}`,
-                    background: "#FFFFFF", color: MC_BLUE, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  Neue Datei prüfen
-                </button>
-              </div>
-            </div>
-          ) : null}
-          </>) : null}
-
           {/* ── OTHER PAGES placeholder ── */}
-          {mcActiveNav !== "dashboard" && mcActiveNav !== "feed-checker" && mcActiveNav !== "angebotsfeed" ? (
+          {mcActiveNav !== "dashboard" && mcActiveNav !== "angebotsfeed" ? (
             <div style={{ color: "#6B7280", fontSize: 14, marginTop: 40, textAlign: "center" }}>
               Diese Seite ist noch nicht verfügbar.
             </div>
