@@ -4011,16 +4011,16 @@ export default function App() {
       }
 
   const [route, setRoute] = useState(() => {
-    if (typeof window === "undefined") return "checker";
+    if (typeof window === "undefined") return "feed-analyse";
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
-    if (hash === "#/qs" || hash === "#/feed-checker") return hash === "#/qs" ? "qs" : "feed-checker";
+    if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") return "feed-analyse";
     if (hash === "#/produkt-optimierung") return "produkt-optimierung";
     if (hash === "#/analytics") return "analytics";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
     if (hash === "#/checker-mc") return "checker-mc";
-    return "checker";
+    return "feed-analyse";
   });
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -4036,14 +4036,13 @@ export default function App() {
     const onHash = () => {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
-      else if (hash === "#/qs") setRoute("qs");
-      else if (hash === "#/feed-checker") setRoute("feed-checker");
+      else if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") setRoute("feed-analyse");
       else if (hash === "#/produkt-optimierung") setRoute("produkt-optimierung");
       else if (hash === "#/analytics") setRoute("analytics");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
       else if (hash === "#/checker-mc") setRoute("checker-mc");
-      else setRoute("checker");
+      else setRoute("feed-analyse");
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -4184,6 +4183,7 @@ export default function App() {
   const eanSearchBeforeIssueOnlyRef = useRef("");
   const [activeStep, setActiveStep] = useState(1);
   const [showAllChecks, setShowAllChecks] = useState(false);
+  const [pageMode, setPageMode] = useState("feed-checker");
 
   const [imageMin, setImageMin] = useState(DEFAULT_RULES.image_min_per_product);
   const [imageSampleLimitStep5, setImageSampleLimitStep5] = useState(5);
@@ -5705,9 +5705,8 @@ export default function App() {
   }
 
   const NAV_ITEMS = [
-    { id: "checker",              label: "Feed Checker",       icon: "🔍" },
+    { id: "feed-analyse",         label: "Feed Analyse",       icon: "🔍" },
     { id: "checker-mc",           label: "Checker MC",         icon: "🏪" },
-    { id: "qs",                   label: "QS / APA",           icon: "📊" },
     { id: "produkt-optimierung",  label: "Produkt Optimierung",icon: "⚡" },
     ...(adminToken ? [{ id: "analytics", label: "Analytics", icon: "📈" }] : []),
   ];
@@ -5737,7 +5736,7 @@ export default function App() {
             <button
               key={item.id}
               type="button"
-              onClick={() => { window.location.hash = item.id === "checker" ? "#/checker" : `#/${item.id}`; }}
+              onClick={() => { window.location.hash = `#/${item.id}`; }}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "10px 16px",
@@ -5839,8 +5838,39 @@ export default function App() {
               {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
             </StepCard>
 
-
+            {/* Mode Toggle */}
             {headers.length ? (
+              <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: "1px solid #D1D5DB" }}>
+                <button
+                  onClick={() => setPageMode("feed-checker")}
+                  style={{
+                    flex: 1, padding: "9px 0", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    background: pageMode === "feed-checker" ? BRAND_COLOR : "#FFF",
+                    color: pageMode === "feed-checker" ? "#FFF" : "#374151",
+                  }}
+                >
+                  🔍 Feed Checker
+                </button>
+                <button
+                  onClick={() => setPageMode("qs-apa")}
+                  style={{
+                    flex: 1, padding: "9px 0", border: "none", borderLeft: "1px solid #D1D5DB", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    background: pageMode === "qs-apa" ? BRAND_COLOR : "#FFF",
+                    color: pageMode === "qs-apa" ? "#FFF" : "#374151",
+                  }}
+                >
+                  📊 QS / APA
+                </button>
+              </div>
+            ) : null}
+
+            {/* QS/APA Mode */}
+            {pageMode === "qs-apa" && headers.length ? (
+              <QsPage headers={headers} rows={rows} />
+            ) : null}
+
+            {/* Feed Checker Mode */}
+            {pageMode === "feed-checker" && headers.length ? (
               <>
             {/* SUMMARY */}
             <div ref={step6Ref}>
@@ -6702,7 +6732,7 @@ export default function App() {
             ) : null}
 
             {/* TOGGLE VISIBLE CHECKS */}
-            {headers.length ? (
+            {pageMode === "feed-checker" && headers.length ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                 <button
                   type="button"
@@ -6899,27 +6929,6 @@ export default function App() {
               ) : null}
             </div>
           </StepCard>
-        </div>
-      </div>
-    );
-  }
-
-  if (route === "qs" || route === "feed-checker") {
-    return (
-      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
-        {topNav}
-        <div
-          style={{
-            minHeight: "100vh",
-            padding: "24px",
-            display: "flex",
-            justifyContent: "center",
-            fontFamily: "ui-sans-serif, system-ui",
-            boxSizing: "border-box",
-            background: "#F3F4F6",
-          }}
-        >
-          <UnifiedAnalyzerPage headers={headers} rows={rows} />
         </div>
       </div>
     );
