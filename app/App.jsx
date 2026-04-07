@@ -3967,7 +3967,7 @@ export default function App() {
     if (!headers.length) return {};
     const candidates = {
       ean: ["ean", "gtin", "gtin14", "ean13", "barcode"],
-      seller_offer_id: ["seller_offer_id", "seller offer id", "offer_id", "offer id", "sku", "merchant_sku"],
+      seller_offer_id: ["seller_offer_id", "seller offer id", "offer_id", "offer id", "sku", "merchant_sku", "eindeutige id", "eindeutige_id", "unique_id"],
       name: ["name", "product_name", "title", "produktname", "produkt titel"],
       category_path: ["category_path", "category", "kategorie", "kategoriepfad"],
       description: ["description", "beschreibung", "desc"],
@@ -5334,8 +5334,7 @@ export default function App() {
           style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
           aria-label="Feed Checker Startseite"
         >
-          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", fontFamily: "ui-sans-serif, system-ui" }}>CHECK24</span>
-          <span style={{ color: "#A8C4E0", fontStyle: "italic", fontSize: 14, fontWeight: 400 }}>Feed Checker</span>
+          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", fontFamily: "ui-sans-serif, system-ui" }}>FEED CHECKER</span>
         </button>
 
       </div>
