@@ -199,7 +199,7 @@ function normalizePreviewText(value) {
 
 function buildEmail({ shopName, issues, tips, canStart }) {
   const subject = "CHECK24 Produktdatenfeed Prüfung – Ergebnisse und nächste Schritte";
-  const greeting = shopName ? `Hallo ${shopName},` : "Hallo,";
+  const greeting = "Guten Tag,";
 
   const intro =
     "wir haben Ihren Produktdatenfeed automatisiert geprüft. Unten finden Sie die wichtigsten Punkte, die für eine erfolgreiche automatische Produktanlage angepasst werden sollten.";
@@ -212,9 +212,7 @@ function buildEmail({ shopName, issues, tips, canStart }) {
     ? "Wir können mit dem Feed starten."
     : "Bitte passen Sie die Punkte oben an. Erst danach können wir mit dem Feed starten.";
 
-  const closing = "Viele Grüße\nCHECK24 Shopping\n\nHinweis Dies ist eine automatisch erstellte Nachricht.";
-
-  return [`Betreff: ${subject}`, "", greeting, "", intro, "", issueLines, "", tipLines, "", decision, "", closing].join("\n");
+  return [`Betreff: ${subject}`, "", greeting, "", intro, "", issueLines, "", tipLines, "", decision].join("\n");
 }
 
 function Pill({ tone, children }) {
@@ -6506,75 +6504,42 @@ export default function App() {
                   setGeneratedEmail(email);
                   setEmailContent(email);
                 }}
-                style={{ padding: "12px 20px", borderRadius: 8, border: "none", background: BRAND_COLOR, color: "#FFF", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}
+                style={{ padding: "12px 20px", marginBottom: 40, borderRadius: 8, border: "none", background: BRAND_COLOR, color: "#FFF", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}
               >
                 E-Mail generieren
               </button>
             )}
 
             {generatedEmail && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 10, padding: "16px 20px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>Generierte E-Mail</div>
+              <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 10, padding: "16px 20px", marginBottom: 40 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>E-Mail</div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    {!editingEmail && (
-                      <>
-                        <button
-                          onClick={() => { navigator.clipboard.writeText(emailContent).catch(() => {}); }}
-                          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                        >
-                          Kopieren
-                        </button>
-                        <button
-                          onClick={() => setEditingEmail(true)}
-                          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                        >
-                          Bearbeiten
-                        </button>
-                      </>
-                    )}
                     <button
-                      onClick={() => { setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }}
+                      onClick={() => { navigator.clipboard.writeText(emailContent).catch(() => {}); }}
+                      style={{ padding: "6px 12px", borderRadius: 6, background: "#10B981", color: "#FFF", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Kopieren
+                    </button>
+                    <button
+                      onClick={() => setEmailContent(generatedEmail)}
+                      style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Zuruecksetzen
+                    </button>
+                    <button
+                      onClick={() => { setGeneratedEmail(null); setEmailContent(""); }}
                       style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                     >
                       Schliessen
                     </button>
                   </div>
                 </div>
-
-                {editingEmail ? (
-                  <div>
-                    <textarea
-                      value={emailContent}
-                      onChange={(e) => setEmailContent(e.target.value)}
-                      style={{ width: "100%", minHeight: 280, padding: 12, borderRadius: 8, border: "1px solid #D1D5DB", fontFamily: "ui-sans-serif, system-ui", fontSize: 13, color: "#111827", boxSizing: "border-box", lineHeight: "20px" }}
-                    />
-                    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                      <button
-                        onClick={() => setEditingEmail(false)}
-                        style={{ padding: "8px 14px", borderRadius: 6, background: BRAND_COLOR, color: "#FFF", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                      >
-                        Fertig
-                      </button>
-                      <button
-                        onClick={() => { setEmailContent(generatedEmail); setEditingEmail(false); }}
-                        style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                      >
-                        Zuruecksetzen
-                      </button>
-                      <button
-                        onClick={() => { navigator.clipboard.writeText(emailContent).catch(() => {}); }}
-                        style={{ padding: "8px 14px", borderRadius: 6, background: "#10B981", color: "#FFF", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                      >
-                        Kopieren
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ background: "#F9FAFB", padding: 14, borderRadius: 8, fontSize: 13, color: "#374151", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                    {emailContent}
-                  </div>
-                )}
+                <textarea
+                  value={emailContent}
+                  onChange={(e) => setEmailContent(e.target.value)}
+                  style={{ width: "100%", minHeight: 300, padding: 12, borderRadius: 8, border: "1px solid #D1D5DB", fontFamily: "ui-sans-serif, system-ui", fontSize: 13, color: "#111827", boxSizing: "border-box", lineHeight: "20px", resize: "vertical" }}
+                />
               </div>
             )}
 
