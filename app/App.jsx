@@ -4565,6 +4565,11 @@ export default function App() {
     const issues = [];
     const issueTargets = [];
     const tips = [];
+    const tipTargets = [];
+    const addTip = (message, target = null) => {
+      addTip(message);
+      tipTargets.push(target);
+    };
 
     // Track which rows are affected by critical issues vs warnings.
     // This enables the summary UI to show "X von Y Zeilen" consistently.
@@ -4643,30 +4648,31 @@ export default function App() {
 
     if (requiredPresence.missing.length) {
       addIssue(`Pflichtfelder fehlen oder wurden nicht erkannt: ${requiredPresence.missing.join(", ")}`);
-      tips.push("Bitte prüfen Sie die Spaltennamen oder liefern Sie die fehlenden Pflichtfelder nach.");
+      addTip("Bitte prüfen Sie die Spaltennamen oder liefern Sie die fehlenden Pflichtfelder nach.");
     }
 
     if (eanColumn) {
-      const missingEAN = rows.filter((r) => isBlank(r[eanColumn])).length;
-      if (missingEAN > 0) {
-        rows.forEach((r, idx) => {
-          if (isBlank(r[eanColumn])) criticalRowIdx.add(idx);
-        });
+      const missingEanIndices = [];
+      rows.forEach((r, idx) => {
+        if (isBlank(r[eanColumn])) { criticalRowIdx.add(idx); missingEanIndices.push(idx); }
+      });
+      if (missingEanIndices.length > 0) {
         addIssue(
-          `EAN fehlt in ${missingEAN} Artikeln.`,
-          findTargetByRowIndex(rows.findIndex((r) => isBlank(r[eanColumn])))
+          `EAN fehlt in ${missingEanIndices.length} Artikeln.`,
+          { rowIndices: missingEanIndices, rowIndex: missingEanIndices[0], ean: null }
         );
       }
     } else {
       addIssue("EAN-Spalte fehlt. Ohne EAN ist eine Verarbeitung nicht möglich.");
-      tips.push("Bitte liefern Sie eine EAN- oder GTIN-Spalte. Falls die Werte in Excel im E-Format stehen, bitte als Text formatieren.");
+      addTip("Bitte liefern Sie eine EAN- oder GTIN-Spalte. Falls die Werte in Excel im E-Format stehen, bitte als Text formatieren.");
     }
 
     if (eanColumn) {
       if (duplicates.eanDup.size > 0) {
         duplicates.eanDup.forEach((idx) => criticalRowIdx.add(idx));
-        const firstDupIndex = Array.from(duplicates.eanDup)[0];
-        addIssue(`Doppelte EAN erkannt in ${duplicates.eanDup.size} Zeilen.`, findTargetByRowIndex(firstDupIndex));
+        const dupIndices = Array.from(duplicates.eanDup).sort((a, b) => a - b);
+        const dupEans = dupIndices.map((idx) => String(rows[idx]?.[eanColumn] ?? "").trim()).filter(Boolean);
+        addIssue(`Doppelte EAN erkannt in ${duplicates.eanDup.size} Zeilen.`, { rowIndices: dupIndices, rowIndex: dupIndices[0], eans: [...new Set(dupEans)], ean: dupEans[0] || null });
       }
 
       if (optionalFindings.scientificEans.length > 0) {
@@ -4675,14 +4681,15 @@ export default function App() {
           `EAN Darstellungsproblem erkannt in ${optionalFindings.scientificEans.length} Artikeln. Werte wirken wie wissenschaftliche Schreibweise.`,
           findTargetsByEans(optionalFindings.scientificEans)
         );
-        tips.push("Bitte EAN Spalte als Text formatieren, damit die komplette GTIN erhalten bleibt.");
+        addTip("Bitte EAN Spalte als Text formatieren, damit die komplette GTIN erhalten bleibt.");
       }
     }
 
     if (titleColumn && duplicates.titleDup.size > 0) {
       duplicates.titleDup.forEach((idx) => criticalRowIdx.add(idx));
-      const firstTitleDupIndex = Array.from(duplicates.titleDup)[0];
-      addIssue(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`, findTargetByRowIndex(firstTitleDupIndex));
+      const titleDupIndices = Array.from(duplicates.titleDup).sort((a, b) => a - b);
+      const titleDupEans = titleDupIndices.map((idx) => eanColumn ? String(rows[idx]?.[eanColumn] ?? "").trim() : "").filter(Boolean);
+      addIssue(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`, { rowIndices: titleDupIndices, rowIndex: titleDupIndices[0], eans: [...new Set(titleDupEans)], ean: titleDupEans[0] || null });
     }
 
     const optionalMissingCount =
@@ -4712,7 +4719,11 @@ export default function App() {
         ],
         warningRowIdx
       );
-      tips.push("Material, Farbe und Lieferumfang sollten je Artikel vollständig gepflegt sein.");
+      addTip("Material, Farbe und Lieferumfang sollten je Artikel vollständig gepflegt sein.", findTargetsByEans([
+        ...optionalFindings.missingEansByField.material,
+        ...optionalFindings.missingEansByField.color,
+        ...optionalFindings.missingEansByField.delivery_includes,
+      ]));
     }
 
     if (missingPriceCount > 0) {
@@ -4721,15 +4732,16 @@ export default function App() {
     }
     if (missingHsCodeCount > 0) {
       addRowsByEans(optionalFindings.missingEansByField.hs_code, warningRowIdx);
-      tips.push(`HS‑Code fehlt bei ${missingHsCodeCount} Artikeln.`);
+      addTip(`HS‑Code fehlt bei ${missingHsCodeCount} Artikeln.`, findTargetsByEans(optionalFindings.missingEansByField.hs_code));
     }
     if (missingManufacturerNameCount > 0 || missingManufacturerCountryCount > 0) {
       addRowsByEans(optionalFindings.missingEansByField.manufacturer_name, warningRowIdx);
       addRowsByEans(optionalFindings.missingEansByField.manufacturer_country, warningRowIdx);
-      tips.push(
+      addTip(
         `Herstellerangaben fehlen bei ${
           missingManufacturerNameCount + missingManufacturerCountryCount
-        } Artikeln (Name/Land).`
+        } Artikeln (Name/Land).`,
+        findTargetsByEans([...optionalFindings.missingEansByField.manufacturer_name, ...optionalFindings.missingEansByField.manufacturer_country])
       );
     }
 
@@ -4753,11 +4765,11 @@ export default function App() {
       }
       if (optionalFindings.imageOneEans.length > 0) {
         addRowsByEans(optionalFindings.imageOneEans, warningRowIdx);
-        tips.push(`Nur ein Bild bei ${optionalFindings.imageOneEans.length} Artikeln. Empfohlen sind mindestens ${imageMin}.`);
+        addTip(`Nur ein Bild bei ${optionalFindings.imageOneEans.length} Artikeln. Empfohlen sind mindestens ${imageMin}.`, findTargetsByEans(optionalFindings.imageOneEans));
       }
       if (optionalFindings.imageLowEans.length > 0) {
         addRowsByEans(optionalFindings.imageLowEans, warningRowIdx);
-        tips.push(`Bitte pro Produkt mindestens ${imageMin} Bildlinks liefern.`);
+        addTip(`Bitte pro Produkt mindestens ${imageMin} Bildlinks liefern.`, findTargetsByEans(optionalFindings.imageLowEans));
       }
       if (brokenImageIds.length > 0) {
         addRowsByEans(brokenImageIds, criticalRowIdx);
@@ -4791,7 +4803,7 @@ export default function App() {
         `Lieferumfang-Format ungültig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`,
         findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean))
       );
-      tips.push("Lieferumfang bitte im Format Anzahl x Produkt angeben, z. B. 1x Tisch, 4x Stuhl.");
+      addTip("Lieferumfang bitte im Format Anzahl x Produkt angeben, z. B. 1x Tisch, 4x Stuhl.", findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean)));
       score -= 5;
     }
 
@@ -4802,7 +4814,7 @@ export default function App() {
         `Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`,
         findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean))
       );
-      tips.push('Lieferzeit bitte im Format z. B. "3-5 Werktage", "2-5 WK", "2-3 Wochen" oder "10 Arbeitstage" angeben.');
+      addTip('Lieferzeit bitte im Format z. B. "3-5 Werktage", "2-5 WK", "2-3 Wochen" oder "10 Arbeitstage" angeben.', findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean)));
       score -= 5;
     }
 
@@ -4814,12 +4826,12 @@ export default function App() {
           `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`,
           findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean))
         );
-        tips.push("Produktbeschreibungen etwas ausfuehrlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).");
+        addTip("Produktbeschreibungen etwas ausfuehrlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).", findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean)));
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.templateLike.length > 0) {
         addRowsByEans(optionalFindings.descriptionIssues.templateLike, warningRowIdx);
-        tips.push("Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden.");
+        addTip("Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden.", findTargetsByEans(optionalFindings.descriptionIssues.templateLike));
         score -= 3;
       }
     }
@@ -4847,12 +4859,12 @@ export default function App() {
         `Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`,
         findTargetsByEans(optionalFindings.descriptionIssues.externalLinks.map((x) => x?.ean))
       );
-      tips.push("Bitte in der Beschreibung keine externen Links oder Werbung auf andere Seiten einfuegen.");
+      addTip("Bitte in der Beschreibung keine externen Links oder Werbung auf andere Seiten einfuegen.");
       score -= 3;
     }
 
     if (!mapping.size) {
-      tips.push(
+      addTip(
         "Bitte Maße (z. B. Höhe/Breite/Tiefe) je Produkt klar angeben – idealerweise in separaten Spalten oder im Titel/Beschreibung."
       );
     }
@@ -4904,6 +4916,7 @@ export default function App() {
       issues,
       tips,
       issueTargets,
+      tipTargets,
       criticalRowsCount: criticalRowIdx.size,
       criticalRowsPct,
       warningRowsCount: warningRowIdx.size,
@@ -5596,9 +5609,34 @@ export default function App() {
                           Betroffene Zeilen: {summary.warningRowsCount ?? 0} von {rows.length} ({summary.warningRowsPct ?? 0}%)
                         </div>
                         <ul style={{ marginTop: 2, paddingLeft: 16, fontSize: 12, color: "#111827", lineHeight: "18px" }}>
-                          {(summary.tips.length ? summary.tips : ["Keine weiteren Empfehlungen."]).map((x, idx) => (
-                            <li key={idx}>{x}</li>
-                          ))}
+                          {(summary.tips.length ? summary.tips : ["Keine weiteren Empfehlungen."]).map((x, idx) => {
+                            const tipTarget = summary.tipTargets?.[idx];
+                            return (
+                              <li key={idx}>
+                                {tipTarget ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => jumpToIssueTarget(tipTarget)}
+                                    style={{
+                                      border: "none",
+                                      background: "transparent",
+                                      padding: 0,
+                                      margin: 0,
+                                      color: "#111827",
+                                      textDecoration: "underline",
+                                      cursor: "pointer",
+                                      fontSize: 12,
+                                      textAlign: "left",
+                                    }}
+                                  >
+                                    {x}
+                                  </button>
+                                ) : (
+                                  x
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     </div>
