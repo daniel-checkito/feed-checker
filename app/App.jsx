@@ -4605,7 +4605,7 @@ export default function App() {
     const tips = [];
     const tipTargets = [];
     const addTip = (message, target = null) => {
-      addTip(message);
+      tips.push(message);
       tipTargets.push(target);
     };
 
@@ -5218,7 +5218,7 @@ export default function App() {
         const text = evt.target?.result;
         if (typeof text !== "string") return;
         // Detect garbled German umlauts (UTF-8 misread of Windows-1252)
-        if (encoding === "UTF-8" && /Ã¤|Ã¶|Ã¼|Ã\x84|Ã\x96|Ã\x9C|Ã\x9F|ï»¿|Â§|Â°/.test(text)) {
+        if (encoding === "UTF-8" && /\u00c3\u00a4|\u00c3\u00b6|\u00c3\u00bc|\u00c3\u0084|\u00c3\u0096|\u00c3\u009c|\u00c3\u009f|\u00c3\u00a9/.test(text)) {
           tryParse("windows-1252");
           return;
         }
