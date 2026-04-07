@@ -3226,30 +3226,69 @@ function McAngebotsfeed() {
   const errorCount = issues ? issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length : 0;
   const warningCount = issues ? issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length : 0;
 
+  const [uploadMethod, setUploadMethod] = useState("upload");
+
   return (
     <div style={{ maxWidth: 720, display: "grid", gap: 20 }}>
       <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
-      {/* ── Feed Checker (moved to top) ── */}
+      {/* ── Upload Method Toggle ── */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 4px" }}>Feed-Datei prüfen</h3>
-        <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px" }}>
-          Laden Sie Ihre CSV-Datei hoch — wir prüfen automatisch auf Fehler, fehlende Pflichtfelder und Duplikate.
-        </p>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 6px" }}>Wie möchten Sie Ihren Angebotsfeed übermitteln?</h3>
+        <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginBottom: 14 }}>
+          Wählen Sie &quot;Eigener Server&quot;, um Ihren Feed per FTP bereitzustellen, oder &quot;Bei CHECK24 hochladen&quot;, um eine CSV-Datei direkt hochzuladen und prüfen zu lassen.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
+          <button onClick={() => setUploadMethod("server")}
+            style={{ padding: "10px 0", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: uploadMethod === "server" ? MC_BLUE : "#FFF", color: uploadMethod === "server" ? "#FFF" : "#374151", borderRight: "1px solid #E5E7EB" }}>
+            Eigener Server
+          </button>
+          <button onClick={() => setUploadMethod("upload")}
+            style={{ padding: "10px 0", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: uploadMethod === "upload" ? MC_BLUE : "#FFF", color: uploadMethod === "upload" ? "#FFF" : "#374151" }}>
+            Bei CHECK24 hochladen
+          </button>
+        </div>
 
-        {!issues ? (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) parseFile(f); }}
-            onClick={() => fileRef.current?.click()}
-            style={{ background: dragging ? "#EEF4FF" : "#F9FAFB", border: `2px dashed ${dragging ? MC_BLUE : "#D1D5DB"}`, borderRadius: 8, padding: "36px 24px", textAlign: "center", cursor: "pointer" }}
-          >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>CSV-Datei ablegen oder klicken zum Auswählen</div>
-            <div style={{ fontSize: 12, color: "#6B7280" }}>Unterstützt: .csv (Semikolon- oder Komma-getrennt)</div>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => parseFile(e.target.files?.[0] || null)} />
+        {uploadMethod === "server" && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 8 }}>FTP-Zugangsdaten</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {[
+                { label: "FTP-Link", value: "ftp://partner31679@partnerftp.shopping.check24.de:44021/inbound/offerfeed_MeinShop.csv", mono: true },
+                { label: "Benutzername", value: "partner31679", copy: true },
+                { label: "Passwort", value: "••••••••", copy: true },
+              ].map((r) => (
+                <div key={r.label} style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280" }}>{r.label}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                    <span style={{ fontSize: 12, color: "#111827", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all", flex: 1 }}>{r.value}</span>
+                    {r.copy && <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 14 }}>⧉</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 12, fontSize: 12, color: "#6B7280", lineHeight: "18px" }}>
+              Laden Sie Ihren Feed regelmäßig auf den FTP-Server hoch. Änderungen werden automatisch übernommen.
+            </div>
           </div>
+        )}
+
+        {uploadMethod === "upload" && (
+          <div style={{ marginTop: 16 }}>
+            {file && !issues && <div style={{ marginBottom: 10, padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 12, color: "#111827" }}>{file.name} | {(file.size / 1024).toFixed(1)} KB</div>}
+
+            {!issues ? (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) parseFile(f); }}
+                onClick={() => fileRef.current?.click()}
+                style={{ background: dragging ? "#EEF4FF" : "#F9FAFB", border: `2px dashed ${dragging ? MC_BLUE : "#D1D5DB"}`, borderRadius: 8, padding: "28px 24px", textAlign: "center", cursor: "pointer" }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 4 }}>Datei hierher ziehen oder anklicken um Angebotsfeed zu aktualisieren</div>
+                <div style={{ fontSize: 11, color: "#6B7280" }}>Dateigröße maximal 64 MB</div>
+                <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => parseFile(e.target.files?.[0] || null)} />
+              </div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
             {/* Summary */}
@@ -3299,83 +3338,90 @@ function McAngebotsfeed() {
             </button>
           </div>
         )}
+        )}
       </div>
+
+      {/* ── Feed Format Settings ── */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 6px" }}>Wie ist Ihr Angebotsfeed formatiert?</h3>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 14 }}>Damit die Daten an CHECK24 übermittelt werden können, benötigen wir ein paar Informationen zu Ihrem Angebotsfeed.</div>
+        <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, color: "#111827" }}>CSV</span>
+            <span style={{ fontSize: 11, color: "#9CA3AF" }}>Format</span>
+          </div>
+          <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, color: "#111827" }}>Semikolon</span>
+            <span style={{ fontSize: 11, color: "#9CA3AF" }}>Trennzeichen</span>
+          </div>
+          <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #E5E7EB" }}>
+            <span style={{ fontSize: 12, color: "#9CA3AF" }}>Umschließungszeichen (falls vorh.)</span>
+          </div>
+        </div>
+        <button style={{ marginTop: 14, width: "100%", background: MC_BLUE, color: "#FFF", border: "none", borderRadius: 6, padding: "12px 0", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+          Jetzt Angebotsfeed aktualisieren
+        </button>
+      </div>
+
+      {/* ── Feed Settings & Credentials ── */}
+      <details style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8 }}>
+        <summary style={{ padding: "14px 20px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#111827" }}>
+          Feed-Einstellungen &amp; Zugangsdaten
+        </summary>
+        <div style={{ padding: "0 20px 20px" }}>
+          <div style={{ display: "grid", gap: 10 }}>
+            {[
+              { label: "Format", value: "CSV" },
+              { label: "FTP-Link", value: "ftp://partner31679@partnerftp.shopping.check24.de:44021/inbound/offerfeed_MeinShop.csv", mono: true },
+              { label: "Trennzeichen", value: "Semikolon" },
+              { label: "Benutzername", value: "partner31679", copy: true },
+              { label: "Passwort", value: "••••••••", copy: true },
+            ].map((r) => (
+              <div key={r.label} style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280" }}>{r.label}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                  <span style={{ fontSize: 12, color: "#111827", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all", flex: 1 }}>{r.value}</span>
+                  {r.copy && <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 14 }}>⧉</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </details>
 
       {/* ── Downloads ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <button
-          type="button"
+        <button type="button"
           onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
-          style={{ padding: "16px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}
-        >
-          <div style={{ fontSize: 22, marginBottom: 6 }}>📊</div>
+          style={{ padding: "14px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedvorlage (Excel)</div>
-          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Muster-CSV mit allen Pflichtfeldern und Beispieldaten als Startvorlage für Ihren Feed.</div>
+          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Muster-CSV mit Pflichtfeldern und Beispieldaten.</div>
         </button>
-        <button
-          type="button"
+        <button type="button"
           onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedleitfaden_2025.pdf", "_blank", "noopener,noreferrer")}
-          style={{ padding: "16px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}
-        >
-          <div style={{ fontSize: 22, marginBottom: 6 }}>📖</div>
+          style={{ padding: "14px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedleitfaden (PDF)</div>
-          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Ausführliche Anleitung mit allen Spalten, erlaubten Werten und Formatvorgaben.</div>
+          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Anleitung mit Spalten, Werten und Formatvorgaben.</div>
         </button>
       </div>
 
       {/* ── Content Tips ── */}
       <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 12px" }}>So verbessern Sie Ihren Content</h3>
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 10 }}>
           {[
-            { icon: "📝", title: "Produkttitel", desc: "Mind. 40 Zeichen. Marke + Produkttyp + Merkmal.", good: "IKEA KALLAX Regal 77x147 cm weiß", bad: "Regal weiß" },
-            { icon: "📄", title: "Beschreibung", desc: "Mind. 80 Zeichen. Vorteile, Material und Einsatzbereich. Keine Links oder Werbung.", good: null, bad: null },
-            { icon: "🖼️", title: "Bilder", desc: "Mind. 3 pro Produkt. Erstes Bild als Freisteller, dazu Milieu- und Detailbilder. Keine Wasserzeichen.", good: null, bad: null },
-            { icon: "📦", title: "Lieferumfang", desc: "Format: 1x Tisch, 4x Stuhl. Versandart (Paket/Spedition) nicht vergessen.", good: null, bad: null },
+            { title: "Produkttitel", desc: "Mind. 40 Zeichen. Marke + Produkttyp + wichtigstes Merkmal verwenden." },
+            { title: "Beschreibung", desc: "Mind. 80 Zeichen. Vorteile, Material und Einsatzbereich beschreiben. Keine externen Links." },
+            { title: "Bilder", desc: "Mind. 3 Bilder pro Produkt. Erstes Bild als Freisteller (weißer Hintergrund), dazu Milieu- und Detailbilder." },
+            { title: "Lieferumfang", desc: "Im Format \"1x Tisch, 4x Stuhl\" angeben. Versandart (Paket/Spedition) nicht vergessen." },
           ].map((tip) => (
-            <div key={tip.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF4FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{tip.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{tip.title}</div>
-                <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>
-                  {tip.desc}
-                  {tip.good && (<><br /><span style={{ color: "#047857", fontWeight: 600 }}>Gut:</span> {tip.good}</>)}
-                  {tip.bad && (<><br /><span style={{ color: "#B91C1C", fontWeight: 600 }}>Schlecht:</span> {tip.bad}</>)}
-                </div>
-              </div>
+            <div key={tip.title} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #F3F4F6" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", width: 100, flexShrink: 0 }}>{tip.title}</div>
+              <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px" }}>{tip.desc}</div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* ── Feed Info (collapsible) ── */}
-      <details style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8 }}>
-        <summary style={{ padding: "14px 20px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#111827" }}>
-          Feed-Einstellungen &amp; Zugangsdaten
-        </summary>
-        <div style={{ padding: "0 20px 20px" }}>
-          <div style={{ display: "grid", gap: 12 }}>
-            {[
-              { label: "Format", value: "CSV" },
-              { label: "Link zum Angebotsfeed", value: "ftp://partner31679@partnerftp.shopping.check24.de:44021/inbound/offerfeed_MeinShop.csv", mono: true },
-              { label: "Trennzeichen", value: "Komma" },
-              { label: "Benutzername", value: "partner31679", copy: true },
-              { label: "Passwort", value: "••••••••", copy: true },
-            ].map((r) => (
-              <div key={r.label} style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 8, alignItems: "center", borderBottom: "1px solid #F3F4F6", paddingBottom: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{r.label}</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 13, color: "#374151", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all" }}>{r.value}</span>
-                  {r.copy ? <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 16 }}>⧉</span> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-          <button style={{ marginTop: 16, width: "100%", background: MC_BLUE, color: "#FFF", border: "none", borderRadius: 6, padding: "12px 0", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-            Angebotsfeed bearbeiten
-          </button>
-        </div>
-      </details>
     </div>
   );
 }
