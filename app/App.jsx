@@ -1008,39 +1008,20 @@ function CollapsibleList({ title, items, tone, hint, onAddValue, onItemClick }) 
           <span style={{ fontSize: 12, color: "#6B7280" }}></span>
         )}
       </summary>
-      <div
-        style={{
-          marginTop: 10,
-          display: "flex",
-          flexDirection: hasLong ? "column" : "row",
-          flexWrap: hasLong ? "nowrap" : "wrap",
-          gap: hasLong ? 0 : 8,
-        }}
-      >
-        {parsed.map((item, idx) => {
-          if (item.isLong || item.isValueWithEans) {
+      <div style={{ marginTop: 10 }}>
+        {hasLong ? (
+          parsed.map((item, idx) => {
             const canAdd = !!onAddValue && item.isValueWithEans && item.valuePart;
             const canJump = !!onItemClick && !!item.firstEan;
-            const handleRowClick = () => {
-              if (canJump) onItemClick(item.firstEan);
-            };
             return (
               <div
                 key={`${item.text}-${idx}`}
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  width: "100%",
-                  padding: "6px 4px",
-                  borderBottom: "1px solid #F3F4F6",
-                  fontSize: 12,
-                  lineHeight: "18px",
-                  color: "#111827",
-                  wordBreak: "break-word",
-                  cursor: canJump ? "pointer" : "default",
+                  display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%",
+                  padding: "6px 4px", borderBottom: "1px solid #F3F4F6", fontSize: 12, lineHeight: "18px",
+                  color: "#111827", wordBreak: "break-word", cursor: canJump ? "pointer" : "default",
                 }}
-                onClick={handleRowClick}
+                onClick={() => { if (canJump) onItemClick(item.firstEan); }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {item.isValueWithEans && item.valuePart && item.restPart ? (
@@ -1048,61 +1029,33 @@ function CollapsibleList({ title, items, tone, hint, onAddValue, onItemClick }) 
                       <div style={{ fontWeight: 600 }}>{item.valuePart}</div>
                       <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{item.restPart}</div>
                     </>
-                  ) : (
-                    item.text
-                  )}
+                  ) : item.text}
                 </div>
                 {canAdd ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddValue(item.valuePart);
-                    }}
-                    style={{
-                      marginLeft: 8,
-                      padding: "4px 6px",
-                      borderRadius: 999,
-                      border: "1px solid #D1D5DB",
-                      background: "#FFFFFF",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      lineHeight: "12px",
-                      color: "#111827",
-                      flexShrink: 0,
-                    }}
-                    title="Diesen Wert als erlaubt speichern"
-                  >
-                    +
-                  </button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onAddValue(item.valuePart); }}
+                    style={{ marginLeft: 8, padding: "4px 6px", borderRadius: 999, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 12, lineHeight: "12px", color: "#111827", flexShrink: 0 }}
+                    title="Diesen Wert als erlaubt speichern">+</button>
                 ) : null}
               </div>
             );
-          }
-
-          const canJumpPill = !!onItemClick && !!item.firstEan;
-          return (
-            <span
-              key={`${item.text}-${idx}`}
-              onClick={() => {
-                if (canJumpPill) onItemClick(item.firstEan);
-              }}
-              style={{
-                fontSize: 12,
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid #E5E7EB",
-                background: "#F9FAFB",
-                color: "#111827",
-                wordBreak: "break-all",
-                cursor: canJumpPill ? "pointer" : "default",
-              }}
-              title={canJumpPill ? "Zum Datensatz springen" : ""}
-            >
-              {item.text}
-            </span>
-          );
-        })}
+          })
+        ) : (
+          <div style={{ fontSize: 12, color: "#111827", lineHeight: "22px", wordBreak: "break-all" }}>
+            {parsed.map((item, idx) => {
+              const canJump = !!onItemClick && !!item.firstEan;
+              return (
+                <span key={`${item.text}-${idx}`}>
+                  {idx > 0 && <span style={{ color: "#9CA3AF" }}>, </span>}
+                  <span
+                    onClick={() => { if (canJump) onItemClick(item.firstEan); }}
+                    style={{ cursor: canJump ? "pointer" : "default", textDecoration: canJump ? "underline" : "none", textDecorationColor: "#D1D5DB" }}
+                    title={canJump ? "Zum Datensatz springen" : ""}
+                  >{item.text}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
       {items.length > 500 ? <SmallText>Es werden nur die ersten 500 Werte angezeigt, damit die Ansicht schnell bleibt.</SmallText> : null}
     </details>
@@ -6033,7 +5986,7 @@ export default function App() {
                             title="Material fehlt"
                             items={optionalFindings.missingEansByField.material
                               .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => ({ value: "leer", eans: [ean] }))}
+                              .map((ean) => String(ean))}
                             tone="warn"
                             onItemClick={(ean) =>
                               jumpToIssueTarget({
@@ -6277,7 +6230,7 @@ export default function App() {
                             title="shipping_mode fehlt"
                             items={optionalFindings.missingShipping
                               .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((x) => `${x}: None`)}
+                              .map((x) => String(x))}
                             tone="warn"
                             hint="Felder ohne Versandart"
                           />
