@@ -3082,20 +3082,233 @@ function ProduktOptimierungPage() {
 
 // ─── CHECK24 Merchant Center style Feed Checker ──────────────────────────────
 
+const MC_BLUE = "#1553B6";
+
+function McIcon({ name, active }) {
+  const color = active ? MC_BLUE : "#6B7280";
+  const s = { width: 18, height: 18, flexShrink: 0 };
+  if (name === "dashboard") return (
+    <svg style={s} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
+      <rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/>
+      <rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/>
+    </svg>
+  );
+  if (name === "bestellungen") return (
+    <svg style={s} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
+      <path d="M3 6l7-3 7 3v8l-7 3-7-3V6z"/><path d="M10 3v14M3 6l7 3 7-3"/>
+    </svg>
+  );
+  if (name === "angebote") return (
+    <svg style={s} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
+      <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+    </svg>
+  );
+  if (name === "finanzen") return (
+    <svg style={s} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
+      <circle cx="10" cy="10" r="8"/><path d="M10 5v1m0 8v1M7.5 8.5a2.5 2 0 015 0c0 1.5-2.5 2-2.5 3.5m0 0a2.5 2 0 005 0"/>
+    </svg>
+  );
+  if (name === "einstellungen") return (
+    <svg style={s} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
+      <circle cx="10" cy="10" r="2.5"/>
+      <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4"/>
+    </svg>
+  );
+  if (name === "pause") return (
+    <svg style={s} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
+      <rect x="5" y="3" width="3" height="14" rx="1"/><rect x="12" y="3" width="3" height="14" rx="1"/>
+    </svg>
+  );
+  if (name === "faq") return (
+    <svg style={s} viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
+      <circle cx="10" cy="10" r="8"/>
+      <path d="M7.5 7.5a2.5 2.5 0 015 .8c0 1.7-2.5 2-2.5 3.7"/><circle cx="10" cy="15" r=".6" fill={color} stroke="none"/>
+    </svg>
+  );
+  return null;
+}
+
 const MC_NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: "⊞" },
-  { id: "bestellungen", label: "Bestellungen", icon: "📦" },
-  { id: "angebote", label: "Angebote", icon: "≡", children: [
-    { id: "feed-checker", label: "Feed Checker" },
-    { id: "gelistete", label: "Gelistete Angebote" },
-    { id: "nicht-gelistet", label: "Nicht gelistete Angebote" },
+  { id: "dashboard",     label: "Dashboard",      icon: "dashboard" },
+  { id: "bestellungen",  label: "Bestellungen",   icon: "bestellungen" },
+  { id: "angebote",      label: "Angebote",        icon: "angebote", children: [
+    { id: "feed-checker",    label: "Feed Checker" },
+    { id: "gelistete",       label: "Gelistete Angebote" },
+    { id: "nicht-gelistet",  label: "Nicht gelistete Angebote" },
   ]},
-  { id: "finanzen", label: "Finanzen", icon: "€" },
-  { id: "einstellungen", label: "Einstellungen", icon: "⚙" },
-  { id: "faq", label: "FAQ", icon: "?" },
+  { id: "finanzen",      label: "Finanzen",        icon: "finanzen" },
+  { id: "einstellungen", label: "Einstellungen",   icon: "einstellungen" },
+  { id: "shop-pause",    label: "Shop pausieren",  icon: "pause" },
+  { id: "faq",           label: "FAQ",             icon: "faq" },
 ];
 
 const MC_REQUIRED_COLS = ["ean", "name", "price", "brand", "description", "image_url"];
+
+// Tiny SVG sparkline helper
+function Sparkline({ values, color = "#1553B6" }) {
+  const w = 120, h = 36, pad = 2;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - pad * 2);
+    const y = pad + (1 - (v - min) / range) * (h - pad * 2);
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg width={w} height={h} style={{ display: "block" }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function McDashboard() {
+  const kpis = [
+    {
+      label: "Stornoquote", value: "0,0", unit: "%", ziel: "≤ 2,5 %",
+      color: "#16A34A", good: true,
+      spark: [1.2, 0.8, 0.5, 0.3, 0.2, 0.0, 0.0, 0.0],
+    },
+    {
+      label: "Liefertermintreue", value: "100,0", unit: "%", ziel: "≥ 94 %",
+      color: "#1553B6", good: true,
+      spark: [92, 95, 97, 99, 100, 100, 100, 100],
+    },
+    {
+      label: "Trackingquote", value: "100,0", unit: "%", ziel: "≥ 92 %",
+      color: "#1553B6", good: true,
+      spark: [88, 91, 94, 97, 100, 100, 100, 100],
+    },
+    {
+      label: "Preisparität", value: "98,3", unit: "%", ziel: "≥ 95 %",
+      color: "#1553B6", good: true,
+      spark: [94, 95, 96, 97, 97, 98, 98, 98.3],
+    },
+    {
+      label: "Content Score", value: "74", unit: "/ 100", ziel: "≥ 80",
+      color: "#D97706", good: false,
+      spark: [60, 62, 65, 68, 70, 71, 73, 74],
+      highlight: true,
+    },
+  ];
+
+  const actions = [
+    { icon: "🛒", label: "Neue Bestellungen akzeptieren", badge: null },
+    { icon: "↩️", label: "Stornoanfragen prüfen", badge: 3 },
+    { icon: "📦", label: "Rücksendeanfragen prüfen", badge: 217 },
+    { icon: "🔧", label: "Ersatzteilanfragen prüfen", badge: 26 },
+    { icon: "💳", label: "Zahlungen", badge: null },
+  ];
+
+  return (
+    <div style={{ maxWidth: 860, display: "grid", gap: 28 }}>
+
+      {/* KPI section */}
+      <div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#111827", marginBottom: 14 }}>
+          Aktuelle Performance Ihres Shops (67AX)
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+          {kpis.map((k) => (
+            <div key={k.label} style={{
+              background: "#FFFFFF",
+              border: k.highlight ? "1.5px solid #FCD34D" : "1px solid #E5E7EB",
+              borderRadius: 8,
+              padding: "14px 14px 10px",
+              display: "flex", flexDirection: "column", gap: 2,
+              boxShadow: k.highlight ? "0 0 0 3px rgba(251,191,36,0.12)" : "none",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>{k.label}</span>
+                {k.highlight ? (
+                  <span style={{ fontSize: 10, background: "#FEF3C7", color: "#92400E", padding: "1px 6px", borderRadius: 999, fontWeight: 600 }}>NEU</span>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#9CA3AF" strokeWidth="1.5"><circle cx="8" cy="8" r="7"/><line x1="8" y1="5" x2="8" y2="8"/><circle cx="8" cy="11" r=".6" fill="#9CA3AF"/></svg>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginTop: 4 }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: k.color, lineHeight: 1 }}>{k.value}</span>
+                <span style={{ fontSize: 13, color: k.color, fontWeight: 600 }}>{k.unit}</span>
+                <span style={{ fontSize: 10, color: "#9CA3AF", marginLeft: "auto", whiteSpace: "nowrap" }}>
+                  <span style={{ fontWeight: 600, display: "block", textAlign: "right", lineHeight: 1.1 }}>ZIELWERT</span>
+                  {k.ziel}
+                </span>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <Sparkline values={k.spark} color={k.color} />
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: MC_BLUE, cursor: "pointer" }}>Empfehlungen ansehen</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Kontostand & Auszahlungen */}
+      <div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#111827", marginBottom: 12 }}>
+          Kontostand &amp; Auszahlungen
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {[
+            { value: "188.136,56 €", label: "Umsatz aus versendeten Bestellungen\nin diesem Kalendermonat" },
+            { value: "2.467", label: "Versendete Bestellungen\nin diesem Kalendermonat" },
+            { value: "385.061,87 €", label: "Aktueller Kontostand" },
+            { value: "13.04.2026", label: "Nächste Auszahlung" },
+          ].map((c) => (
+            <div key={c.label} style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "18px 20px", textAlign: "center" }}>
+              <div style={{ fontSize: 20, fontWeight: 600, color: "#111827" }}>{c.value}</div>
+              <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4, whiteSpace: "pre-line", lineHeight: 1.5 }}>{c.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Action rows */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
+        {actions.map((a, i) => (
+          <div key={a.label} style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "16px 20px",
+            borderTop: i > 0 ? "1px solid #F3F4F6" : "none",
+            cursor: "pointer",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <span style={{ fontSize: 20 }}>{a.icon}</span>
+              <span style={{ fontSize: 14, color: "#111827" }}>{a.label}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {a.badge ? (
+                <span style={{ background: MC_BLUE, color: "#FFFFFF", fontSize: 12, fontWeight: 700, padding: "2px 9px", borderRadius: 999, minWidth: 28, textAlign: "center" }}>
+                  {a.badge}
+                </span>
+              ) : null}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#9CA3AF" strokeWidth="2">
+                <path d="M6 3l5 5-5 5"/>
+              </svg>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Contact box */}
+      <div style={{ background: "#F0F4FF", border: "1px solid #C7D8F8", borderRadius: 8, padding: "20px 28px", textAlign: "center" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 10 }}>Haben Sie Fragen? Wir helfen gerne!</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 32, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "#374151" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1553B6" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.22 1.18 2 2 0 012.22 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.18 6.18l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+            089 - 2424 1158 300
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "#374151" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1553B6" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            partner-moebel@check24.de
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
 
 function CheckerMCPage() {
   const [mcFile, setMcFile] = useState(null);
@@ -3103,7 +3316,7 @@ function CheckerMCPage() {
   const [mcHeaders, setMcHeaders] = useState([]);
   const [mcIssues, setMcIssues] = useState(null);
   const [mcDragging, setMcDragging] = useState(false);
-  const [mcActiveNav, setMcActiveNav] = useState("feed-checker");
+  const [mcActiveNav, setMcActiveNav] = useState("dashboard");
   const mcFileRef = useRef(null);
 
   function parseMcFile(file) {
@@ -3201,74 +3414,122 @@ function CheckerMCPage() {
       mcIssues.emptyRequired.length
     : 0;
 
-  const MC_BLUE = "#0066B3";
-  const MC_SIDEBAR_W = 210;
+  const [mcOpenGroup, setMcOpenGroup] = useState("angebote");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100%", fontFamily: "ui-sans-serif, system-ui, sans-serif", background: "#F2F4F7" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100%", fontFamily: "ui-sans-serif, system-ui, sans-serif", background: "#F5F6FA" }}>
 
-      {/* MC mock sub-header */}
-      <div style={{ background: "#1B3461", height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 17, letterSpacing: "-0.5px" }}>CHECK24</span>
-          <span style={{ color: "#A8C4E0", fontStyle: "italic", fontSize: 13, fontWeight: 400 }}>Partnerportal</span>
+      {/* MC mock sub-header — matches the screenshot exactly */}
+      <div style={{ background: "#1B3461", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", flexShrink: 0 }}>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", fontFamily: "Arial, sans-serif" }}>CHECK24</span>
+          <span style={{ color: "#8AAFD4", fontSize: 14, fontWeight: 400 }}>Partnerportal</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <span style={{ color: "#A8C4E0", fontSize: 13 }}>🔔</span>
-          <span style={{ color: "#A8C4E0", fontSize: 12 }}>📅 Termin buchen</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FFFFFF", fontSize: 12 }}>
-            <span style={{ width: 24, height: 24, borderRadius: "50%", background: "#2E5FA3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>👤</span>
-            <span>Daniel Haag</span>
+        {/* Right items */}
+        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FFFFFF", fontSize: 13, cursor: "pointer" }}>
+            <span style={{ fontSize: 16 }}>🇩🇪</span>
+            <span>Deutsch</span>
+            <span style={{ fontSize: 10, color: "#8AAFD4" }}>▾</span>
+          </div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8AAFD4" strokeWidth="2" style={{ cursor: "pointer" }}>
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#FFFFFF", borderLeft: "1px solid rgba(255,255,255,0.15)", paddingLeft: 28 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8AAFD4" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.22 1.18 2 2 0 012.22 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.18 6.18l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+            <div style={{ lineHeight: 1.3 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>089 - 2424 1158 300</div>
+              <div style={{ color: "#8AAFD4", fontSize: 11 }}>Haben Sie Fragen?</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, color: "#FFFFFF", borderLeft: "1px solid rgba(255,255,255,0.15)", paddingLeft: 28, cursor: "pointer" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8AAFD4" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>Termin buchen</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, color: "#FFFFFF", borderLeft: "1px solid rgba(255,255,255,0.15)", paddingLeft: 28, cursor: "pointer" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8AAFD4" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>Daniel Haag</span>
           </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", flex: 1 }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
 
-        {/* LEFT SIDEBAR */}
-        <div style={{ width: MC_SIDEBAR_W, background: "#FFFFFF", borderRight: "1px solid #E2E8EF", flexShrink: 0, paddingTop: 8 }}>
-          {MC_NAV_ITEMS.map((item) => (
-            <div key={item.id}>
-              <div
-                onClick={() => item.children ? null : setMcActiveNav(item.id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 16px",
-                  cursor: item.children ? "default" : "pointer",
-                  fontSize: 13,
-                  color: !item.children && mcActiveNav === item.id ? MC_BLUE : "#374151",
-                  fontWeight: !item.children && mcActiveNav === item.id ? 600 : 400,
-                  background: !item.children && mcActiveNav === item.id ? "#EBF4FD" : "transparent",
-                }}
-              >
-                <span style={{ fontSize: 14, color: "#9CA3AF", width: 18, textAlign: "center" }}>{item.icon}</span>
-                {item.label}
-              </div>
-              {item.children ? item.children.map((child) => (
+        {/* LEFT SIDEBAR — matches screenshot */}
+        <div style={{ width: 200, background: "#FFFFFF", borderRight: "1px solid #E5E7EB", flexShrink: 0, paddingTop: 6, overflowY: "auto" }}>
+          {MC_NAV_ITEMS.map((item) => {
+            const isGroupOpen = item.children && mcOpenGroup === item.id;
+            const isParentActive = item.children && item.children.some((c) => c.id === mcActiveNav);
+            const isItemActive = !item.children && mcActiveNav === item.id;
+            return (
+              <div key={item.id}>
                 <div
-                  key={child.id}
-                  onClick={() => setMcActiveNav(child.id)}
+                  onClick={() => {
+                    if (item.children) {
+                      setMcOpenGroup(isGroupOpen ? null : item.id);
+                    } else {
+                      setMcActiveNav(item.id);
+                    }
+                  }}
                   style={{
-                    padding: "8px 16px 8px 44px",
-                    fontSize: 13,
+                    display: "flex", alignItems: "center", gap: 11,
+                    padding: "11px 18px",
                     cursor: "pointer",
-                    color: mcActiveNav === child.id ? MC_BLUE : "#4B5563",
-                    fontWeight: mcActiveNav === child.id ? 600 : 400,
-                    background: mcActiveNav === child.id ? "#EBF4FD" : "transparent",
-                    borderLeft: mcActiveNav === child.id ? `3px solid ${MC_BLUE}` : "3px solid transparent",
+                    fontSize: 14,
+                    color: (isItemActive || isParentActive) ? MC_BLUE : "#374151",
+                    fontWeight: (isItemActive || isParentActive) ? 600 : 400,
+                    userSelect: "none",
                   }}
                 >
-                  {child.label}
+                  <McIcon name={item.icon} active={isItemActive || isParentActive} />
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.children ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#9CA3AF" strokeWidth="1.8"
+                      style={{ transform: isGroupOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                      <path d="M2 4l4 4 4-4"/>
+                    </svg>
+                  ) : null}
                 </div>
-              )) : null}
-            </div>
-          ))}
+                {item.children && isGroupOpen ? (
+                  <div style={{ background: "#F9FAFB", borderTop: "1px solid #F3F4F6", borderBottom: "1px solid #F3F4F6" }}>
+                    {item.children.map((child) => {
+                      const childActive = mcActiveNav === child.id;
+                      return (
+                        <div
+                          key={child.id}
+                          onClick={() => setMcActiveNav(child.id)}
+                          style={{
+                            padding: "9px 18px 9px 47px",
+                            fontSize: 13,
+                            cursor: "pointer",
+                            color: childActive ? MC_BLUE : "#4B5563",
+                            fontWeight: childActive ? 600 : 400,
+                            borderLeft: childActive ? `3px solid ${MC_BLUE}` : "3px solid transparent",
+                            background: childActive ? "#EEF3FC" : "transparent",
+                          }}
+                        >
+                          {child.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
 
         {/* MAIN CONTENT */}
-        <div style={{ flex: 1, padding: "24px 32px", overflowY: "auto" }}>
+        <div style={{ flex: 1, padding: "28px 36px", overflowY: "auto" }}>
 
-          {/* Page title */}
+          {/* ── DASHBOARD ── */}
+          {mcActiveNav === "dashboard" ? (
+            <McDashboard />
+          ) : null}
+
+          {/* ── FEED CHECKER ── */}
+          {mcActiveNav === "feed-checker" ? (<>
           <div style={{ marginBottom: 20 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: MC_BLUE, margin: 0 }}>Feed Checker</h1>
             <p style={{ fontSize: 13, color: "#6B7280", margin: "4px 0 0" }}>
@@ -3439,6 +3700,14 @@ function CheckerMCPage() {
                   Neue Datei prüfen
                 </button>
               </div>
+            </div>
+          ) : null}
+          </>) : null}
+
+          {/* ── OTHER PAGES placeholder ── */}
+          {mcActiveNav !== "dashboard" && mcActiveNav !== "feed-checker" ? (
+            <div style={{ color: "#6B7280", fontSize: 14, marginTop: 40, textAlign: "center" }}>
+              Diese Seite ist noch nicht verfügbar.
             </div>
           ) : null}
         </div>
