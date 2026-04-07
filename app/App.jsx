@@ -3855,7 +3855,6 @@ export default function App() {
           variants: [],
           contactHint: [],
           templateLike: [],
-          usedOrBware: [],
         },
         invalidWashableCover: [],
         invalidMountingSide: [],
@@ -4074,7 +4073,6 @@ export default function App() {
       variants: [],
       contactHint: [],
       templateLike: [],
-      usedOrBware: [],
     };
     if (mapping.description) {
       const minDesc = Number(rules?.description_min_length ?? DEFAULT_RULES.description_min_length);
@@ -4090,14 +4088,6 @@ export default function App() {
         const titleVal = mapping.name ? String(r[mapping.name] ?? "").trim() : "";
         const descLower = desc.toLowerCase();
         const titleLower = titleVal.toLowerCase();
-
-        if (
-          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(descLower) ||
-          /b-ware\b|b ware\b|bware\b|gebraucht\b|refurbished\b|generalüberholt\b|generalueberholt\b|rückläufer\b|ruecklaeufer\b|vorführgerät\b|vorfuehrgeraet\b|used\b/i.test(titleLower)
-        ) {
-          descriptionIssues.usedOrBware.push(eanId);
-          return;
-        }
 
         if (desc && titleVal && descLower === titleLower) {
           descriptionIssues.templateLike.push(eanId);
@@ -4541,16 +4531,6 @@ export default function App() {
         tips.push("Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden.");
         score -= 3;
       }
-      if (optionalFindings.descriptionIssues.usedOrBware.length > 0) {
-        addRowsByEans(optionalFindings.descriptionIssues.usedOrBware, criticalRowIdx);
-        addRowsByEans(optionalFindings.descriptionIssues.usedOrBware, warningRowIdx);
-        addIssue(
-          `Hinweise auf B-Ware / gebrauchte Ware in ${optionalFindings.descriptionIssues.usedOrBware.length} Artikeln.`,
-          findTargetsByEans(optionalFindings.descriptionIssues.usedOrBware.map((x) => x?.ean))
-        );
-        tips.push("Wir können keine gebrauchten oder als B-Ware gekennzeichneten Produkte akzeptieren.");
-        score -= 15;
-      }
     }
 
     if (mapping.shipping_mode) {
@@ -4745,7 +4725,6 @@ export default function App() {
       (optionalFindings.invalidDeliveryTime || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean)
     );
     const tooShortSet = new Set((optionalFindings.descriptionIssues?.tooShort || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
-    const usedOrBwareSet = new Set((optionalFindings.descriptionIssues?.usedOrBware || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
     const externalLinksSet = new Set((optionalFindings.descriptionIssues?.externalLinks || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
 
     for (const idx of criticalIdxs) {
@@ -4774,7 +4753,6 @@ export default function App() {
         if (invalidDeliveryIncludesSet.has(ean)) messages.push("Lieferumfang-Format ungültig");
         if (invalidDeliveryTimeSet.has(ean)) messages.push("Lieferzeit ungültig");
         if (tooShortSet.has(ean)) messages.push("Beschreibung zu kurz");
-        if (usedOrBwareSet.has(ean)) messages.push("Hinweis auf B-Ware/gebrauchte Ware");
         if (externalLinksSet.has(ean)) messages.push("Externe Links in der Beschreibung");
       }
 
