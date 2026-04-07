@@ -3444,7 +3444,7 @@ function McDashboard() {
                 <Sparkline values={k.spark} color={k.color} />
               </div>
               <div style={{ marginTop: 6 }}>
-                <span style={{ fontSize: 12, color: MC_BLUE, cursor: "pointer" }}>Empfehlungen ansehen</span>
+                <span onClick={() => setMcActiveNav("angebotsfeed")} style={{ fontSize: 12, color: MC_BLUE, cursor: "pointer", textDecoration: "underline" }}>Empfehlungen ansehen</span>
               </div>
             </div>
           ))}
