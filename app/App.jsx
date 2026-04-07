@@ -1660,6 +1660,8 @@ function QsPage({ headers, rows }) {
 
       // Returns white-border ratio for an image (0-1)
       async function getWhiteRatio(url) {
+        // Proxy external images to avoid CORS issues with canvas
+        const proxyUrl = /^https?:\/\//i.test(url) ? `/api/image-proxy?url=${encodeURIComponent(url)}` : url;
         return new Promise((resolve) => {
           try {
             const img = new Image();
@@ -1694,7 +1696,7 @@ function QsPage({ headers, rows }) {
               } catch (e) { resolve(null); }
             };
             img.onerror = () => resolve(null);
-            img.src = url;
+            img.src = proxyUrl;
           } catch (e) { resolve(null); }
         });
       }
@@ -2484,32 +2486,6 @@ function QsPage({ headers, rows }) {
         </button>
       </div>
 
-      {showCriteria && qsImageSamples.length > 0 && Object.keys(freistellerChecks || {}).length > 0 && (() => {
-        const samples = qsImageSamples.slice(0, 20);
-        let checked = 0, frei = 0, mil = 0;
-        samples.forEach((s) => {
-          const r = freistellerChecks[s.id];
-          if (!r || !r.checkedCount) return;
-          checked += 1;
-          if (r.hasFreisteller) frei += 1;
-          if (r.hasMilieu) mil += 1;
-        });
-        const firstUrls = qsImageSamples.map((s) => (s.urls && s.urls[0]) || "").filter(Boolean);
-        const urlCounts = {};
-        firstUrls.forEach((u) => { urlCounts[u] = (urlCounts[u] || 0) + 1; });
-        const uniqueFirst = Object.keys(urlCounts).length;
-        const dupFirst = Object.values(urlCounts).filter((c) => c > 1).reduce((sum, c) => sum + c, 0);
-        return (
-          <div style={{ marginTop: 8, padding: "12px 16px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 12, color: "#374151", lineHeight: "20px" }}>
-            <div style={{ fontWeight: 700, color: "#111827", marginBottom: 6 }}>Bildanalyse (Stichprobe: {checked} Produkte)</div>
-            <div>Freisteller erkannt: {frei} von {checked} ({checked ? Math.round(frei / checked * 100) : 0}%) — Schwelle: 70% = 10P, 30% = 5P</div>
-            <div>Milieu-Bilder erkannt: {mil} von {checked} ({checked ? Math.round(mil / checked * 100) : 0}%) — Schwelle: 60% = 10P, 25% = 5P</div>
-            <div>Erstbilder: {uniqueFirst} einzigartig, {dupFirst} doppelt von {firstUrls.length} — Schwelle: &gt;15% Duplikate = 0P</div>
-            <div>Durchschn. Bilder/Produkt: {avgImageCount.toFixed(1)} — Schwelle: 5+ = 10P, 2+ = 5P</div>
-          </div>
-        );
-      })()}
-
       <div style={{ marginTop: 8, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
         <SmallText>
@@ -2647,6 +2623,33 @@ function QsPage({ headers, rows }) {
             );
           })}
         </div>
+
+        {/* Bildanalyse Details */}
+        {qsImageSamples.length > 0 && Object.keys(freistellerChecks || {}).length > 0 && (() => {
+          const samples = qsImageSamples.slice(0, 20);
+          let checked = 0, frei = 0, mil = 0;
+          samples.forEach((s) => {
+            const r = freistellerChecks[s.id];
+            if (!r || !r.checkedCount) return;
+            checked += 1;
+            if (r.hasFreisteller) frei += 1;
+            if (r.hasMilieu) mil += 1;
+          });
+          const firstUrls = qsImageSamples.map((s) => (s.urls && s.urls[0]) || "").filter(Boolean);
+          const urlCounts = {};
+          firstUrls.forEach((u) => { urlCounts[u] = (urlCounts[u] || 0) + 1; });
+          const uniqueFirst = Object.keys(urlCounts).length;
+          const dupFirst = Object.values(urlCounts).filter((c) => c > 1).reduce((sum, c) => sum + c, 0);
+          if (!checked && !firstUrls.length) return null;
+          return (
+            <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "#F9FAFB", border: "1px solid #E5E7EB", fontSize: 11, color: "#6B7280", lineHeight: "18px" }}>
+              <div style={{ fontWeight: 700, color: "#111827", fontSize: 12, marginBottom: 4 }}>Automatische Bildanalyse ({checked} Produkte geprüft)</div>
+              {checked > 0 && <div>Freisteller: {frei}/{checked} ({Math.round(frei / checked * 100)}%) | Milieu: {mil}/{checked} ({Math.round(mil / checked * 100)}%)</div>}
+              <div>Erstbilder: {uniqueFirst} einzigartig, {dupFirst} doppelt | Durchschn. {avgImageCount.toFixed(1)} Bilder/Produkt</div>
+              {freistellerLoading && <div style={{ color: BRAND_COLOR, fontWeight: 600 }}>Analyse läuft...</div>}
+            </div>
+          );
+        })()}
 
         {qsImageSamples.length ? (
           <div style={{ marginTop: 12, padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
