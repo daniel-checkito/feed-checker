@@ -6166,104 +6166,6 @@ export default function App() {
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                     <Pill tone={imageColumns.length ? "ok" : "warn"}>{imageColumns.length ? `Bildspalten ${imageColumns.length}` : "Keine Bildspalten erkannt"}</Pill>
                   </div>
-              
-                  {eanColumn ? (
-                    <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Bilder nach EAN</div>
-                        {eanImageViewerOpen ? (
-                          <button
-                            type="button"
-                            onClick={() => setEanImageViewerOpen(false)}
-                            style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
-                          >
-                            Schliessen
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                        <input
-                          value={eanImageViewerInput}
-                          onChange={(e) => setEanImageViewerInput(e.target.value)}
-                          placeholder="EAN eingeben"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") openEanImageViewer(eanImageViewerInput);
-                          }}
-                          style={{ flex: "1 1 220px", minWidth: 0, padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 13, color: "#111827", boxSizing: "border-box" }}
-                        />
-                        <button
-                          type="button"
-                          disabled={!eanImageViewerInput.trim()}
-                          onClick={() => openEanImageViewer(eanImageViewerInput)}
-                          style={{ padding: "10px 16px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, color: "#FFFFFF", fontSize: 12, fontWeight: 800, cursor: eanImageViewerInput.trim() ? "pointer" : "not-allowed" }}
-                        >
-                          Bilder laden
-                        </button>
-                      </div>
-
-                      {eanImageViewerOpen ? (
-                        <div style={{ marginTop: 10 }}>
-                          <SmallText>EAN: {eanImageViewerEan || "-"}</SmallText>
-
-                          {eanImageViewerUrls.length ? (
-                            <>
-                              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                {eanImageViewerUrls.slice(0, eanImageViewerLimit).map((u) => (
-                                  <a
-                                    key={u}
-                                    href={u}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    title={u}
-                                    style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}
-                                  >
-                                    <img
-                                      src={u}
-                                      alt="Bild"
-                                      loading="lazy"
-                                      style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB", display: "block" }}
-                                      onError={(e) => {
-                                        e.currentTarget.style.display = "none";
-                                      }}
-                                    />
-                                  </a>
-                                ))}
-                              </div>
-
-                              <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (!navigator?.clipboard?.writeText) return;
-                                    const txt = eanImageViewerUrls.join("\n");
-                                    navigator.clipboard.writeText(txt).catch(() => {});
-                                  }}
-                                  style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
-                                >
-                                  Links kopieren
-                                </button>
-
-                                {eanImageViewerUrls.length > eanImageViewerLimit ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setEanImageViewerLimit((n) => Math.min(eanImageViewerUrls.length, n + 12))}
-                                    style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
-                                  >
-                                    Mehr ({eanImageViewerUrls.length})
-                                  </button>
-                                ) : null}
-                              </div>
-                            </>
-                          ) : (
-                            <div style={{ marginTop: 8 }}>
-                              <SmallText>Keine Bilder für diese EAN gefunden.</SmallText>
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
 
                   {/* Image count summary */}
                   {(() => {
@@ -6326,6 +6228,50 @@ export default function App() {
                       </div>
                     );
                   })()}
+
+                  {/* Bilder nach EAN — search tool */}
+                  {eanColumn ? (
+                    <div style={{ marginTop: 12, padding: 12, borderRadius: 10, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Bilder nach EAN suchen</div>
+                        {eanImageViewerOpen ? (
+                          <button type="button" onClick={() => setEanImageViewerOpen(false)}
+                            style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 10, fontWeight: 600 }}>Schliessen</button>
+                        ) : null}
+                      </div>
+                      <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                        <input value={eanImageViewerInput} onChange={(e) => setEanImageViewerInput(e.target.value)} placeholder="EAN eingeben"
+                          onKeyDown={(e) => { if (e.key === "Enter") openEanImageViewer(eanImageViewerInput); }}
+                          style={{ flex: 1, minWidth: 0, padding: "7px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 12, color: "#111827", boxSizing: "border-box" }} />
+                        <button type="button" disabled={!eanImageViewerInput.trim()} onClick={() => openEanImageViewer(eanImageViewerInput)}
+                          style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: BRAND_COLOR, color: "#FFF", fontSize: 12, fontWeight: 600, cursor: eanImageViewerInput.trim() ? "pointer" : "not-allowed" }}>Suchen</button>
+                      </div>
+                      {eanImageViewerOpen ? (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 11, color: "#6B7280" }}>EAN: {eanImageViewerEan || "-"}</div>
+                          {eanImageViewerUrls.length ? (
+                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {eanImageViewerUrls.slice(0, eanImageViewerLimit).map((u) => (
+                                <a key={u} href={u} target="_blank" rel="noreferrer" title={u}>
+                                  <img src={u} alt="" loading="lazy"
+                                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, border: "1px solid #E5E7EB", background: "#FFF", display: "block" }}
+                                    onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                </a>
+                              ))}
+                              {eanImageViewerUrls.length > eanImageViewerLimit && (
+                                <button type="button" onClick={() => setEanImageViewerLimit((n) => Math.min(eanImageViewerUrls.length, n + 12))}
+                                  style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 10, fontWeight: 600, alignSelf: "center" }}>
+                                  +{eanImageViewerUrls.length - eanImageViewerLimit} mehr
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280" }}>Keine Bilder gefunden.</div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </>
               )}
             </StepCard>
