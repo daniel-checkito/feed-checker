@@ -199,56 +199,83 @@ function normalizePreviewText(value) {
 
 function buildEmail({ shopName, issues, tips, canStart }) {
   const subject = "CHECK24 Produktdatenfeed – Ergebnisse und nächste Schritte";
-  const greeting = "Guten Tag,";
 
-  const intro =
-    "wir haben Ihren Produktdatenfeed geprüft. Damit wir Ihre Produkte schnellstmöglich anlegen können, bitten wir Sie, die folgenden Punkte zu überprüfen und anzupassen.";
+  // Clean issue/tip text: remove counts, deduplicate
+  const cleanText = (s) => s
+    .replace(/\s*in \d+ Artikeln[^.]*\.?/g, ".")
+    .replace(/\s*in \d+ Zeilen\.?/g, ".")
+    .replace(/\s*bei \d+ Artikeln[^.]*\.?/g, ".")
+    .replace(/\.\./g, ".")
+    .trim();
 
-  // Categorize issues into clear sections
-  const hasIssues = issues.length > 0;
-  const hasTips = tips.length > 0;
+  const cleanIssues = issues.map(cleanText);
+  const cleanTips = tips.map(cleanText);
 
-  let body = "";
+  // Deduplicate and merge similar items
+  const seen = new Set();
+  const dedup = (items) => items.filter((item) => {
+    const key = item.toLowerCase().replace(/[^a-z]/g, "").slice(0, 40);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const uniqueIssues = dedup(cleanIssues);
+  const uniqueTips = dedup(cleanTips);
 
-  if (hasIssues) {
-    body += "\n--- Kritische Punkte ---\n\n";
-    body += "Folgende Punkte müssen korrigiert werden, bevor wir mit der Produktanlage starten können:\n\n";
-    // Clean up issue text: remove exact counts, make more readable
-    issues.forEach((issue) => {
-      let clean = issue
-        .replace(/\s*in \d+ Artikeln\.?/g, ".")
-        .replace(/\s*in \d+ Zeilen\.?/g, ".")
-        .replace(/\s*bei \d+ Artikeln[^.]*\.?/g, ".")
-        .replace(/\.\./g, ".")
-        .trim();
-      body += `- ${clean}\n`;
+  // Group into categories
+  const categorize = (items) => {
+    const cats = { titel: [], beschreibung: [], bilder: [], versand: [], sonstiges: [] };
+    items.forEach((item) => {
+      const l = item.toLowerCase();
+      if (l.includes("titel") || l.includes("produktname") || l.includes("doppelte produkttitel")) cats.titel.push(item);
+      else if (l.includes("beschreibung") || l.includes("extern") || l.includes("platzhalter")) cats.beschreibung.push(item);
+      else if (l.includes("bild") || l.includes("image")) cats.bilder.push(item);
+      else if (l.includes("shipping") || l.includes("versand") || l.includes("lieferumfang") || l.includes("lieferzeit")) cats.versand.push(item);
+      else cats.sonstiges.push(item);
     });
+    return cats;
+  };
+
+  const allItems = [...uniqueIssues, ...uniqueTips];
+  const cats = categorize(allItems);
+
+  let body = "Guten Tag,\n\n";
+  body += "wir haben Ihren Feed geprüft. Bitte passen Sie folgende Punkte an:\n";
+
+  if (cats.titel.length) {
+    body += "\n**Titel**\n";
+    cats.titel.forEach((item) => { body += `- ${item}\n`; });
+    body += "- Tipp: Marke + Produkttyp + Merkmal verwenden, z.B. \"IKEA KALLAX Regal 77x147 cm weiss\"\n";
   }
 
-  if (hasTips) {
-    body += "\n--- Empfehlungen ---\n\n";
-    body += "Diese Punkte sind nicht zwingend, verbessern aber die Qualität Ihrer Produktdaten:\n\n";
-    tips.forEach((tip) => {
-      let clean = tip
-        .replace(/\s*in \d+ Artikeln[^.]*\.?/g, ".")
-        .replace(/\s*bei \d+ Artikeln[^.]*\.?/g, ".")
-        .replace(/\.\./g, ".")
-        .trim();
-      body += `- ${clean}\n`;
-    });
+  if (cats.beschreibung.length) {
+    body += "\n**Beschreibung**\n";
+    cats.beschreibung.forEach((item) => { body += `- ${item}\n`; });
+    body += "- Tipp: Mind. 80 Zeichen, Vorteile und Material beschreiben, keine externen Links\n";
   }
 
-  body += "\n--- Allgemeine Tipps für bessere Produktdaten ---\n\n";
-  body += "- Produkttitel: Verwenden Sie aussagekräftige Titel mit Marke, Produkttyp und wichtigsten Merkmalen (z.B. Farbe, Masse). Beispiel: \"IKEA KALLAX Regal 77x147 cm weiss\" statt \"Regal weiss\".\n";
-  body += "- Beschreibungen: Beschreiben Sie Vorteile, Material und Einsatzbereich. Mindestens 80 Zeichen, keine externen Links.\n";
-  body += "- Bilder: Mindestens 3 Bilder pro Produkt. Das erste Bild sollte ein Freisteller sein (weisser Hintergrund), ergänzt durch Milieu- und Detailbilder.\n";
-  body += "- Lieferumfang: Bitte im Format \"1x Tisch, 4x Stuhl\" angeben. Versandart (Paket/Spedition) nicht vergessen.\n";
+  if (cats.bilder.length) {
+    body += "\n**Bilder**\n";
+    cats.bilder.forEach((item) => { body += `- ${item}\n`; });
+    body += "- Tipp: Mind. 3 Bilder, 1. Bild = Freisteller (weisser Hintergrund), dazu Milieu-Bilder\n";
+  }
 
-  const decision = canStart
+  if (cats.versand.length) {
+    body += "\n**Versand & Lieferumfang**\n";
+    cats.versand.forEach((item) => { body += `- ${item}\n`; });
+    body += "- Tipp: Lieferumfang im Format \"1x Tisch, 4x Stuhl\", Versandart = Paket oder Spedition\n";
+  }
+
+  if (cats.sonstiges.length) {
+    body += "\n**Sonstiges**\n";
+    cats.sonstiges.forEach((item) => { body += `- ${item}\n`; });
+  }
+
+  body += canStart
     ? "\nWir können mit dem Feed starten. Vielen Dank!"
-    : "\nBitte passen Sie die genannten Punkte an und senden uns den korrigierten Feed zu. Bei Fragen stehen wir Ihnen gerne zur Verfügung.";
+    : "\nBitte senden Sie uns den korrigierten Feed zu. Bei Fragen stehen wir gerne zur Verfügung.";
 
-  return [`Betreff: ${subject}`, "", greeting, "", intro, body, decision].join("\n");
+  return `Betreff: ${subject}\n\n${body}`;
 }
 
 function Pill({ tone, children }) {
