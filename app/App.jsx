@@ -5259,8 +5259,11 @@ export default function App() {
 
     previewTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    // Scroll to specific column if target has one
+    // Auto-filter columns to show EAN + name + the problem column
     if (target.column) {
+      const cols = [eanColumn, titleColumn, target.column].filter(Boolean);
+      const unique = [...new Set(cols)];
+      setVisibleColumns(unique);
       setTimeout(() => {
         const th = previewTableRef.current?.querySelector(`th[data-col="${CSS.escape(target.column)}"]`);
         if (th) th.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
@@ -5356,6 +5359,15 @@ export default function App() {
         >
           Spalten {Array.isArray(visibleColumns) ? `(${visibleColumns.length}/${headers.length})` : `(${headers.length})`}
         </button>
+        {Array.isArray(visibleColumns) && visibleColumns.length < headers.length && (
+          <button
+            type="button"
+            onClick={() => setVisibleColumns(null)}
+            style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 11, fontWeight: 600, cursor: "pointer", color: "#374151", whiteSpace: "nowrap" }}
+          >
+            Alle Spalten
+          </button>
+        )}
         <button
           type="button"
           onClick={toggleIssueRowsOnly}
