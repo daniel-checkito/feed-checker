@@ -1011,7 +1011,7 @@ function firstImageUrls(rows, imageCols, limit) {
   return uniqueNonEmpty(urls).slice(0, limit);
 }
 
-function CollapsibleList({ title, items, tone, hint, onAddValue, onItemClick }) {
+function CollapsibleList({ title, items, tone, hint, onItemClick }) {
   const count = items.length;
   const shownItems = items.slice(0, 500);
   const parsed = shownItems.map((raw) => {
@@ -1068,13 +1068,12 @@ function CollapsibleList({ title, items, tone, hint, onAddValue, onItemClick }) 
       <div style={{ marginTop: 10 }}>
         {hasLong ? (
           parsed.map((item, idx) => {
-            const canAdd = !!onAddValue && item.isValueWithEans && item.valuePart;
             const canJump = !!onItemClick && !!item.firstEan;
             return (
               <div
                 key={`${item.text}-${idx}`}
                 style={{
-                  display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%",
+                  display: "flex", alignItems: "flex-start", width: "100%",
                   padding: "6px 4px", borderBottom: "1px solid #F3F4F6", fontSize: 12, lineHeight: "18px",
                   color: "#111827", wordBreak: "break-word", cursor: canJump ? "pointer" : "default",
                 }}
@@ -1088,11 +1087,6 @@ function CollapsibleList({ title, items, tone, hint, onAddValue, onItemClick }) 
                     </>
                   ) : item.text}
                 </div>
-                {canAdd ? (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); onAddValue(item.valuePart); }}
-                    style={{ marginLeft: 8, padding: "4px 6px", borderRadius: 999, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 12, lineHeight: "12px", color: "#111827", flexShrink: 0 }}
-                    title="Diesen Wert als erlaubt speichern">+</button>
-                ) : null}
               </div>
             );
           })
@@ -3837,46 +3831,6 @@ export default function App() {
     }
   }
 
-  function addAllowedRuleValue(kind, value) {
-    const raw = String(value ?? "").trim();
-    if (!raw) return;
-    if (typeof window !== "undefined") {
-      const msg =
-        kind === "material"
-          ? `Diesen Material-Wert als erlaubt speichern?\n\n${raw}`
-          : kind === "color"
-          ? `Diesen Farb-Wert als erlaubt speichern?\n\n${raw}`
-          : kind === "shipping_mode"
-          ? `Diesen shipping_mode-Wert als erlaubt speichern?\n\n${raw}`
-          : `Diesen Lieferumfang-Wert als erlaubt speichern?\n\n${raw}`;
-      if (!window.confirm(msg)) return;
-    }
-    setRules((prev) => {
-      const next = { ...prev };
-      if (kind === "material") {
-        const prevArr = Array.isArray(next.allowed_material) ? next.allowed_material : [];
-        const lower = raw.toLowerCase();
-        const exists = prevArr.some((x) => String(x).toLowerCase().trim() === lower);
-        if (!exists) next.allowed_material = [...prevArr, raw];
-      } else if (kind === "color") {
-        const prevArr = Array.isArray(next.allowed_color) ? next.allowed_color : [];
-        const lower = raw.toLowerCase();
-        const exists = prevArr.some((x) => String(x).toLowerCase().trim() === lower);
-        if (!exists) next.allowed_color = [...prevArr, raw];
-      } else if (kind === "shipping_mode") {
-        const prevArr = Array.isArray(next.allowed_shipping_mode) ? next.allowed_shipping_mode : [];
-        const exists = prevArr.some((x) => String(x).trim() === raw);
-        if (!exists) next.allowed_shipping_mode = [...prevArr, raw];
-      } else if (kind === "delivery_includes") {
-        const prevArr = Array.isArray(next.delivery_includes_allowlist) ? next.delivery_includes_allowlist : [];
-        const exists = prevArr.some((x) => String(x).trim() === raw);
-        if (!exists) next.delivery_includes_allowlist = [...prevArr, raw];
-      }
-      saveRules(next);
-      return next;
-    });
-  }
-
   const [fileName, setFileName] = useState("");
   const [rawRows, setRawRows] = useState([]);
   const [headers, setHeaders] = useState([]);
@@ -5891,7 +5845,7 @@ export default function App() {
                             )}
                             tone="warn"
                             hint="Werte, die nicht in der Material-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-                            onAddValue={(value) => addAllowedRuleValue("material", value)}
+
                             onItemClick={(ean) =>
                               jumpToIssueTarget({
                                 ean,
@@ -5899,16 +5853,6 @@ export default function App() {
                               })
                             }
                           />
-                        ) : null}
-                        {optionalFindings.invalidMaterial?.length ? (
-                          <div>
-                            <SmallText>Einzelne Material-Werte als erlaubt markieren:</SmallText>
-                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {uniqueNonEmpty(optionalFindings.invalidMaterial.map((x) => x.value)).map((val) => (
-                                <button key={val} onClick={() => addAllowedRuleValue("material", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
-                              ))}
-                            </div>
-                          </div>
                         ) : null}
                       </div>
                     </div>
@@ -5943,7 +5887,7 @@ export default function App() {
                               )}
                               tone="warn"
                               hint="Werte, die nicht in der Farb-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-                              onAddValue={(value) => addAllowedRuleValue("color", value)}
+
                               onItemClick={(ean) =>
                                 jumpToIssueTarget({
                                   ean,
@@ -5951,14 +5895,6 @@ export default function App() {
                                 })
                               }
                             />
-                            <div>
-                              <SmallText>Einzelne Farb-Werte als erlaubt markieren:</SmallText>
-                              <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                {uniqueNonEmpty(optionalFindings.invalidColor.map((x) => x.value)).map((val) => (
-                                  <button key={val} onClick={() => addAllowedRuleValue("color", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
-                                ))}
-                              </div>
-                            </div>
                           </>
                         ) : null}
                       </div>
@@ -5993,7 +5929,7 @@ export default function App() {
                             )}
                             tone="warn"
                             hint=""
-                            onAddValue={(value) => addAllowedRuleValue("delivery_includes", value)}
+
                             onItemClick={(ean) =>
                               jumpToIssueTarget({
                                 ean,
@@ -6118,18 +6054,8 @@ export default function App() {
                               .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
                             tone="warn"
                             hint="Werte, die nicht in der shipping_mode-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-                            onAddValue={(value) => addAllowedRuleValue("shipping_mode", value)}
+
                           />
-                        ) : null}
-                        {optionalFindings.invalidShipping.length ? (
-                          <div>
-                            <SmallText>Einzelne Versandarten als erlaubt markieren:</SmallText>
-                            <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {uniqueNonEmpty(optionalFindings.invalidShipping.map((x) => x.value)).map((val) => (
-                                <button key={val} onClick={() => addAllowedRuleValue("shipping_mode", val)} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer", color: "#111827" }}>{val} als erlaubt speichern</button>
-                              ))}
-                            </div>
-                          </div>
                         ) : null}
                       </div>
                     </div>
