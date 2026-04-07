@@ -6271,7 +6271,6 @@ export default function App() {
 
                   {mapping.shipping_mode && (optionalFindings.missingShipping.length > 0 || optionalFindings.invalidShipping.length > 0) ? (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>shipping_mode</div>
                       <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
                         {optionalFindings.missingShipping.length > 0 ? (
                           <CollapsibleList
