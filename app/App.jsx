@@ -222,13 +222,13 @@ function buildEmail({ shopName, issues, tips, canStart }) {
   body += "wir haben Ihren Feed geprüft. Bitte passen Sie folgende Punkte an:\n";
 
   if (hasTitel) {
-    body += "\n**Titel**\n";
+    body += "\nTITEL\n";
     body += "- Einige Produkttitel sind doppelt oder zu kurz.\n";
     body += "- Bitte verwenden Sie Marke + Produkttyp + Merkmal, z.B. \"IKEA KALLAX Regal 77x147 cm weiss\" statt \"Regal weiss\".\n";
   }
 
   if (hasDesc) {
-    body += "\n**Beschreibung**\n";
+    body += "\nBESCHREIBUNG\n";
     if (has("zu kurz") || has("platzhalter") || has("ausführlicher")) {
       body += "- Beschreibungen sind zu kurz oder wirken wie Platzhalter. Bitte mind. 80 Zeichen mit Vorteilen, Material und Einsatzbereich.\n";
     }
@@ -238,12 +238,12 @@ function buildEmail({ shopName, issues, tips, canStart }) {
   }
 
   if (hasBilder) {
-    body += "\n**Bilder**\n";
+    body += "\nBILDER\n";
     body += "- Bitte mind. 3 Bilder pro Produkt liefern. 1. Bild = Freisteller (weisser Hintergrund), dazu Milieu- und Detailbilder.\n";
   }
 
   if (hasVersand) {
-    body += "\n**Versand & Lieferumfang**\n";
+    body += "\nVERSAND & LIEFERUMFANG\n";
     if (has("lieferumfang")) {
       body += "- Lieferumfang bitte im Format \"1x Tisch, 4x Stuhl\" angeben.\n";
     }
@@ -256,7 +256,7 @@ function buildEmail({ shopName, issues, tips, canStart }) {
   }
 
   if (hasMaterial || hasHersteller) {
-    body += "\n**Weitere Angaben**\n";
+    body += "\nWEITERE ANGABEN\n";
     if (hasMaterial) body += "- Material und Farbe sollten je Artikel vollständig gepflegt sein.\n";
     if (hasHersteller) body += "- Herstellerangaben bitte ergänzen.\n";
   }
