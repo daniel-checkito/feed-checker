@@ -5396,7 +5396,7 @@ export default function App() {
           style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
           aria-label="Feed Checker Startseite"
         >
-          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", fontFamily: "ui-sans-serif, system-ui" }}>FEED CHECKER</span>
+          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px", fontFamily: "ui-sans-serif, system-ui", fontStyle: "italic" }}>FEED CHECKER</span>
         </button>
 
       </div>
