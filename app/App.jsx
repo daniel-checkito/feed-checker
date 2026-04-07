@@ -3287,16 +3287,22 @@ function McAngebotsfeed() {
               ))}
             </div>
 
-            {/* Status banner */}
-            {errorCount === 0 && warningCount === 0 ? (
-              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                <span>✅</span>
-                <div><div style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>Feed ist in Ordnung</div><div style={{ fontSize: 12, color: "#15803D" }}>Keine Probleme gefunden.</div></div>
+            {/* Startklar status */}
+            {errorCount === 0 ? (
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 18, flexShrink: 0 }}>✓</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#166534" }}>Feed ist startklar</div>
+                  <div style={{ fontSize: 12, color: "#15803D" }}>Keine kritischen Fehler gefunden. Wir können mit der Produktanlage starten.</div>
+                </div>
               </div>
             ) : (
-              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                <span>⚠️</span>
-                <div><div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C" }}>Probleme gefunden</div><div style={{ fontSize: 12, color: "#DC2626" }}>Bitte korrigieren Sie die Fehler.</div></div>
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 18, flexShrink: 0 }}>!</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#B91C1C" }}>Noch nicht startklar</div>
+                  <div style={{ fontSize: 12, color: "#DC2626" }}>{errorCount} Fehler und {warningCount} Warnungen gefunden. Bitte korrigieren Sie die Probleme unten.</div>
+                </div>
               </div>
             )}
 
@@ -4997,14 +5003,7 @@ export default function App() {
     const canStart =
       score >= 50 &&
       requiredPresence.missing.length === 0 &&
-      !!eanColumn &&
-      rows.every((r) => !isBlank(r[eanColumn])) &&
-      duplicates.titleDup.size === 0 &&
-      (mapping.shipping_mode ? rows.every((r) => !isBlank(r[mapping.shipping_mode])) : true) &&
-      !shippingAllMissing &&
-      !deliveryAllMissing &&
-      (optionalFindings.lightingEnergyMissing?.length || 0) === 0 &&
-      brokenImageIds.length === 0;
+      !!eanColumn;
 
     const criticalRowsCount = criticalRowIdx.size;
     const warningRowsCount = warningRowIdx.size;
