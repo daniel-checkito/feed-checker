@@ -358,11 +358,14 @@ function ResizableTable({
   highlightedRowKey,
   onTargetHandled,
 }) {
+  const isNameColumn = (key) => {
+    const k = String(key).toLowerCase();
+    return k === "name" || k === "title" || k === "titel" || k === "product_name" || k === "produktname";
+  };
   const computeInitialWidth = (col) => {
     const label = String(col.label || col.key || "");
-    if (String(col.key).toLowerCase() === "name") {
-      const approxName = label.length * 8 + 60;
-      return Math.max(140, approxName);
+    if (isNameColumn(col.key)) {
+      return Math.max(220, label.length * 8 + 60);
     }
     const approx = label.length * 7 + 24;
     return Math.max(90, approx);
@@ -684,8 +687,30 @@ function ResizableTable({
                         </div>
                       )
                     ) : (
-                      <div style={{ height: rowHeight, maxHeight: rowHeight, display: "flex", alignItems: "center", overflow: "hidden" }}>
-                        {displayValue}
+                      <div
+                        style={{
+                          height: rowHeight, maxHeight: rowHeight, display: "flex", alignItems: "center", overflow: "hidden",
+                          cursor: displayValue && displayValue.length > 30 ? "pointer" : "default",
+                        }}
+                        onClick={() => {
+                          if (displayValue && displayValue.length > 30) {
+                            setDescriptionModal({ title: c.label || c.key, text: rawValue || displayValue });
+                          }
+                        }}
+                      >
+                        <span style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: isNameColumn(c.key) ? "normal" : "nowrap",
+                          lineHeight: isNameColumn(c.key) ? "14px" : "inherit",
+                          maxHeight: rowHeight - 4,
+                          wordBreak: isNameColumn(c.key) ? "break-word" : "normal",
+                          display: "-webkit-box",
+                          WebkitLineClamp: isNameColumn(c.key) ? 2 : 1,
+                          WebkitBoxOrient: "vertical",
+                        }}>
+                          {displayValue}
+                        </span>
                       </div>
                     )}
                   </td>
@@ -3148,16 +3173,29 @@ function McAngebotsfeed() {
     if (!f) return;
     setFile(f);
     setIssues(null);
-    Papa.parse(f, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => {
-        const r = Array.isArray(res.data) ? res.data : [];
-        const h = res.meta?.fields || Object.keys(r[0] || {});
-        setRows(r);
-        analyzeFile(r, h);
-      },
-    });
+    const tryParseMc = (encoding) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const text = evt.target?.result;
+        if (typeof text !== "string") return;
+        if (encoding === "UTF-8" && /Ã¤|Ã¶|Ã¼|Ã\x84|Ã\x96|Ã\x9C|Ã\x9F/.test(text)) {
+          tryParseMc("windows-1252");
+          return;
+        }
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (res) => {
+            const r = Array.isArray(res.data) ? res.data : [];
+            const h = res.meta?.fields || Object.keys(r[0] || {});
+            setRows(r);
+            analyzeFile(r, h);
+          },
+        });
+      };
+      reader.readAsText(f, encoding);
+    };
+    tryParseMc("UTF-8");
   }
 
   function analyzeFile(rows, headers) {
@@ -5173,21 +5211,36 @@ export default function App() {
 
     if (!file) return;
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: false,
-      complete: (res) => {
-        const errs = res.errors || [];
-        if (errs.length) setParseError(errs[0]?.message || "CSV parsing error");
-
-        const data = Array.isArray(res.data) ? res.data : [];
-        const h = res.meta?.fields || Object.keys(data[0] || {});
-        setHeaders(h);
-        setRawRows(data);
-      },
-      error: (err) => setParseError(String(err || "CSV parsing error")),
-    });
+    // Try reading with UTF-8 first; if garbled German chars detected, retry with Windows-1252
+    const tryParse = (encoding) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const text = evt.target?.result;
+        if (typeof text !== "string") return;
+        // Detect garbled German umlauts (UTF-8 misread of Windows-1252)
+        if (encoding === "UTF-8" && /Ã¤|Ã¶|Ã¼|Ã\x84|Ã\x96|Ã\x9C|Ã\x9F|ï»¿|Â§|Â°/.test(text)) {
+          tryParse("windows-1252");
+          return;
+        }
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: false,
+          complete: (res) => {
+            const errs = res.errors || [];
+            if (errs.length) setParseError(errs[0]?.message || "CSV parsing error");
+            const data = Array.isArray(res.data) ? res.data : [];
+            const h = res.meta?.fields || Object.keys(data[0] || {});
+            setHeaders(h);
+            setRawRows(data);
+          },
+          error: (err) => setParseError(String(err || "CSV parsing error")),
+        });
+      };
+      reader.onerror = () => setParseError("Datei konnte nicht gelesen werden.");
+      reader.readAsText(file, encoding);
+    };
+    tryParse("UTF-8");
   }
 
   // ── Step 7 preview JSX (shared between inline and fullscreen) ──────────────
