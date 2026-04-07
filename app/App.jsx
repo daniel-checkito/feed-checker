@@ -3338,7 +3338,6 @@ function McAngebotsfeed() {
             </button>
           </div>
         )}
-        )}
       </div>
 
       {/* ── Feed Format Settings ── */}
