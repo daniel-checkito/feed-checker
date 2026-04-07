@@ -203,15 +203,64 @@ function parseCSVFile(
 
 export function FeedChecker() {
     const [issues, setIssues] = useState<AnalysisIssues | null>(null);
+    const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
     const [dragging, setDragging] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const handleFile = (f: File | null | undefined) => {
         if (!f) return;
         setIssues(null);
+        setParsedRows([]);
         parseCSVFile(f, (rows, headers) => {
+            setParsedRows(rows);
             setIssues(analyzeFile(rows, headers));
         });
+    };
+
+    const downloadCSV = () => {
+        if (!issues || !parsedRows.length) return;
+        const headers = Object.keys(parsedRows[0] || {});
+        const findCol = (key: string) => headers.find((h) => h.toLowerCase().includes(key)) || '';
+        const colEan = findCol('ean');
+        const colName = findCol('name');
+        const colOfferId = findCol('offer_id') || findCol('seller_offer_id') || findCol('eindeutige') || findCol('sku');
+
+        const missingEanSet = new Set(issues.missingEan);
+        const invalidPriceSet = new Set(issues.invalidPrice.map((x) => x.row));
+        const shortNameSet = new Set(issues.shortName.map((x) => x.row));
+        const shortDescSet = new Set(issues.shortDesc.map((x) => x.row));
+        const missingImageSet = new Set(issues.missingImage.map((x) => x.row));
+        const emptyReqSet = new Set(issues.emptyRequired.map((x) => x.row));
+
+        const csvRows: { ean: string; offerId: string; name: string; reasons: string }[] = [];
+        parsedRows.forEach((r, i) => {
+            const rn = i + 1;
+            const reasons: string[] = [];
+            if (missingEanSet.has(rn)) reasons.push('EAN fehlt');
+            if (invalidPriceSet.has(rn)) reasons.push('Ungültiger Preis');
+            if (shortNameSet.has(rn)) reasons.push('Produktname zu kurz');
+            if (shortDescSet.has(rn)) reasons.push('Beschreibung zu kurz');
+            if (missingImageSet.has(rn)) reasons.push('Bild fehlt');
+            if (emptyReqSet.has(rn)) reasons.push('Pflichtfeld fehlt');
+            if (!reasons.length) return;
+            const ean = colEan ? String(r[colEan] ?? '').trim() : '';
+            const name = colName ? String(r[colName] ?? '').trim() : '';
+            const offerId = colOfferId ? String(r[colOfferId] ?? '').trim() : '';
+            csvRows.push({ ean, offerId, name, reasons: reasons.join('; ') });
+        });
+
+        const header = 'EAN;Offer_ID;Name;Grund';
+        const lines = csvRows.map(
+            (r) => `"${r.ean}";"${r.offerId}";"${r.name.replace(/"/g, '""')}";"${r.reasons}"`,
+        );
+        const csv = [header, ...lines].join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `feed-ergebnisse-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     const errorCount = issues
@@ -471,8 +520,49 @@ export function FeedChecker() {
                             />
                         )}
 
+                        {/* CSV Download */}
+                        <div
+                            style={{
+                                padding: '12px 14px',
+                                borderRadius: 8,
+                                border: '1px solid #E5E7EB',
+                                background: '#FFF',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                                    Ergebnisse exportieren
+                                </div>
+                                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                                    Alle Zeilen mit Fehlern als CSV herunterladen.
+                                </div>
+                            </div>
+                            <button
+                                onClick={downloadCSV}
+                                style={{
+                                    padding: '10px 20px',
+                                    borderRadius: 6,
+                                    border: 'none',
+                                    background: '#16A34A',
+                                    color: '#FFF',
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                CSV herunterladen
+                            </button>
+                        </div>
+
                         <button
-                            onClick={() => setIssues(null)}
+                            onClick={() => {
+                                setIssues(null);
+                                setParsedRows([]);
+                            }}
                             style={{
                                 padding: '9px 20px',
                                 borderRadius: 6,
