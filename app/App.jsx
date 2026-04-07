@@ -5330,22 +5330,23 @@ export default function App() {
           type="button"
           onClick={() => setColumnFilterOpen((v) => !v)}
           aria-label="Spalten wählen"
-          title="Spalten wählen"
+          title="Spalten ein-/ausblenden"
           style={{
-            padding: "6px 8px",
-            borderRadius: 999,
-            border: "1px solid #E5E7EB",
-            background: "#FFFFFF",
-            fontSize: 14,
+            padding: "5px 10px",
+            borderRadius: 6,
+            border: columnFilterOpen ? `1px solid ${BRAND_COLOR}` : "1px solid #D1D5DB",
+            background: columnFilterOpen ? BRAND_COLOR : "#FFF",
+            fontSize: 11,
+            fontWeight: 600,
             cursor: "pointer",
-            color: "#111827",
+            color: columnFilterOpen ? "#FFF" : "#374151",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            minWidth: 32,
+            gap: 4,
+            whiteSpace: "nowrap",
           }}
         >
-          ⚙
+          Spalten {Array.isArray(visibleColumns) ? `(${visibleColumns.length}/${headers.length})` : `(${headers.length})`}
         </button>
         <button
           type="button"
@@ -5384,42 +5385,46 @@ export default function App() {
         </button>
       </div>
       {columnFilterOpen && headers.length > 0 ? (
-        <div style={{ marginTop: 8, padding: 8, borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF", maxHeight: 180, overflow: "auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <SmallText>Spalten anzeigen/verstecken</SmallText>
+        <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Sichtbare Spalten</div>
             <button
               type="button"
               onClick={() => {
                 setVisibleColumns((prev) => {
-                  const allKeys = headers;
-                  const allSelected = !Array.isArray(prev) || prev.length === allKeys.length;
+                  const allSelected = !Array.isArray(prev) || prev.length === headers.length;
                   return allSelected ? [] : null;
                 });
               }}
-              style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#111827" }}
+              style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 10, fontWeight: 600, cursor: "pointer", color: "#374151" }}
             >
-              {(!Array.isArray(visibleColumns) || visibleColumns.length === headers.length) ? "Alle abwählen" : "Alle auswählen"}
+              {(!Array.isArray(visibleColumns) || visibleColumns.length === headers.length) ? "Keine" : "Alle"}
             </button>
           </div>
-          <div style={{ marginTop: 2, display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxHeight: 160, overflow: "auto" }}>
             {headers.map((h) => {
               const isActive = !Array.isArray(visibleColumns) || visibleColumns.includes(h);
               return (
-                <label key={h} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#111827" }}>
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => {
-                      setVisibleColumns((prev) => {
-                        const current = Array.isArray(prev) ? new Set(prev) : new Set(headers);
-                        if (e.target.checked) { current.add(h); } else { current.delete(h); }
-                        const next = Array.from(current);
-                        return next.length === headers.length ? null : next;
-                      });
-                    }}
-                  />
-                  <span>{String(h)}</span>
-                </label>
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => {
+                    setVisibleColumns((prev) => {
+                      const current = Array.isArray(prev) ? new Set(prev) : new Set(headers);
+                      if (isActive) { current.delete(h); } else { current.add(h); }
+                      const next = Array.from(current);
+                      return next.length === headers.length ? null : next;
+                    });
+                  }}
+                  style={{
+                    padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: "pointer",
+                    border: isActive ? `1px solid ${BRAND_COLOR}` : "1px solid #E5E7EB",
+                    background: isActive ? "#EEF4FF" : "#F9FAFB",
+                    color: isActive ? BRAND_COLOR : "#9CA3AF",
+                  }}
+                >
+                  {String(h)}
+                </button>
               );
             })}
           </div>
