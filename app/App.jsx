@@ -122,10 +122,15 @@ function extractImageUrlsFromCell(cellValue) {
   const raw = String(cellValue ?? "").trim();
   if (!raw) return [];
 
-  // Split on common separators. This assumes image refs are either URLs or simple local paths.
-  // (If your CSV contains multiple images per cell, they should typically be separated by
-  // `;`, `|`, or whitespace.)
-  const tokens = raw.split(/[;\n\r|,]+/).map((t) => t.trim()).filter(Boolean);
+  // Split on separators, but don't split commas inside URLs (http/https)
+  // First try semicolon/pipe/newline (safe separators), fall back to comma only if no URLs with commas
+  let tokens;
+  if (/https?:\/\//.test(raw) && raw.includes(",")) {
+    // Has URLs — split on semicolon, pipe, newline only (not comma, which may be in URLs)
+    tokens = raw.split(/[;\n\r|]+/).map((t) => t.trim()).filter(Boolean);
+  } else {
+    tokens = raw.split(/[;\n\r|,]+/).map((t) => t.trim()).filter(Boolean);
+  }
   const out = [];
 
   const stripPunctuation = (s) => String(s ?? "").trim().replace(/^[<\s(]+|[>\s),.;:]+$/g, "");
@@ -6407,7 +6412,9 @@ export default function App() {
                   </div>
 
                   {imageSamples.length ? (
-                    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Bild-Vorschau ({imageSamples.length} Produkte mit Bildern)</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {imageSamples
                         .filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t)))
                         .slice(0, imageSampleLimitStep5)
@@ -6498,6 +6505,7 @@ export default function App() {
                           Bitte prüfen, ob die Bild-Links für diese EANs funktionieren: {brokenImageIds.slice(0, 10).join(", ")}{brokenImageIds.length > 10 ? " …" : ""}
                         </div>
                       ) : null}
+                      </div>
                     </div>
                   ) : (
                     <div style={{ marginTop: 12 }}>
