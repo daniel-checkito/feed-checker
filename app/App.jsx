@@ -5794,7 +5794,7 @@ export default function App() {
           {/* ── Two-column layout once a file is loaded ── */}
           <div
             style={{
-              marginTop: 0,
+              marginTop: 18,
               display: headers.length ? "flex" : "block",
               gap: headers.length ? 16 : 14,
               alignItems: "flex-start",
