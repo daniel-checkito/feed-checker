@@ -191,7 +191,7 @@ function normalizePreviewText(value) {
     // Replace Unicode replacement chars (�) by a neutral quote
     .replace(/\uFFFD/g, '"')
     // Normalize common smart quotes to straight equivalents
-    .replace(/[„“”]/g, '"')
+    .replace(/["""]/g, '"')
     .replace(/[‚‘’]/g, "'")
     // Optionally collapse weird double quotes patterns like ""Text""
     .replace(/"{2,}([^"]*?)"{2,}/g, '"$1"');
@@ -2572,52 +2572,52 @@ function QsPage({ headers, rows }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 24, padding: 16, borderRadius: 12, border: “1px solid #E5E7EB”, background: “#FFFFFF” }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: “#111827” }}>Bildqualität</div>
+      <div style={{ marginTop: 24, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Bildqualität</div>
         <SmallText>
-          Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. „1. Bild &amp; keine Dopplungen”, „Freisteller” und
-          „Millieu” muessen manuell ueber das Dropdown bewertet werden.
+          Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. &bdquo;1. Bild &amp; keine Dopplungen&ldquo;, &bdquo;Freisteller&ldquo; und
+          &bdquo;Millieu&ldquo; muessen manuell ueber das Dropdown bewertet werden.
         </SmallText>
 
-        <div style={{ marginTop: 12, display: “grid”, gridTemplateColumns: “1fr”, gap: 8 }}>
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
           {imageItems.map((item) => {
-            const toneColor = item.status === “ok” ? “#16A34A” : item.status === “bad” ? “#DC2626” : “#F59E0B”;
-            const toneBg = item.status === “ok” ? “#F0FDF4” : item.status === “bad” ? “#FEF2F2” : “#FFFBEB”;
+            const toneColor = item.status === "ok" ? "#16A34A" : item.status === "bad" ? "#DC2626" : "#F59E0B";
+            const toneBg = item.status === "ok" ? "#F0FDF4" : item.status === "bad" ? "#FEF2F2" : "#FFFBEB";
             const maxPts = Math.max(...item.options);
             return (
-              <div key={item.id} style={{ display: “flex”, flexDirection: “column”, padding: “10px 14px”, borderRadius: 10, border: “1px solid #E5E7EB”, background: “#FAFAFA”, gap: 6 }}>
+              <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#FAFAFA", gap: 6 }}>
                 {/* Header row */}
-                <div style={{ display: “flex”, alignItems: “center”, justifyContent: “space-between”, gap: 8 }}>
-                  <div style={{ display: “flex”, alignItems: “center”, gap: 10, minWidth: 0, flex: 1 }}>
-                    <div style={{ padding: “4px 10px”, borderRadius: 6, background: toneBg, border: `1px solid ${toneColor}33`, fontSize: 13, fontWeight: 800, color: toneColor, minWidth: 52, textAlign: “center” }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                    <div style={{ padding: "4px 10px", borderRadius: 6, background: toneBg, border: `1px solid ${toneColor}33`, fontSize: 13, fontWeight: 800, color: toneColor, minWidth: 52, textAlign: "center" }}>
                       {item.value}/{maxPts}
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: “#111827” }}>{item.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{item.label}</div>
                   </div>
                   <div style={{ flexShrink: 0 }}>
                     {item.editable ? (
-                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: “4px 8px”, borderRadius: 6, border: “1px solid #D1D5DB”, fontSize: 12, background: “#FFF”, cursor: “pointer” }}>
+                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 12, background: "#FFF", cursor: "pointer" }}>
                         {item.options.map((opt) => (<option key={opt} value={opt}>{opt} P</option>))}
                       </select>
                     ) : (
-                      <span style={{ padding: “3px 8px”, borderRadius: 6, background: “#EFF6FF”, color: “#1D4ED8”, fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
+                      <span style={{ padding: "3px 8px", borderRadius: 6, background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
                     )}
                   </div>
                 </div>
                 {/* Description */}
-                {item.description ? <div style={{ fontSize: 11, color: “#4B5563”, lineHeight: “16px” }}>{item.description}</div> : null}
+                {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
                 {/* Scoring thresholds - always visible */}
                 {item.criteria && item.criteria.length ? (
-                  <div style={{ display: “flex”, flexWrap: “wrap”, gap: 4, marginTop: 2 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
                     {item.criteria.map((line, idx) => {
                       const pts = line.match(/^(\d+)\s*P/);
                       const isActive = pts && Number(pts[1]) === item.value;
                       return (
                         <div key={idx} style={{
-                          fontSize: 10, lineHeight: “14px”, padding: “3px 8px”, borderRadius: 6,
-                          background: isActive ? toneBg : “#F3F4F6”,
-                          border: isActive ? `1px solid ${toneColor}44` : “1px solid #E5E7EB”,
-                          color: isActive ? toneColor : “#6B7280”,
+                          fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                          background: isActive ? toneBg : "#F3F4F6",
+                          border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                          color: isActive ? toneColor : "#6B7280",
                           fontWeight: isActive ? 600 : 400,
                         }}>
                           {line}
