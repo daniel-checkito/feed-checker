@@ -5,7 +5,7 @@ import Onboarding from "./onboarding";
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabaseClient";
    
 
-const BRAND_COLOR = "rgb(4,16,103)";
+const BRAND_COLOR = "#1553B6";
 
 const DEFAULT_RULES = {
   allowed_shipping_mode: ["Paket", "Spedition"],
@@ -5221,7 +5221,7 @@ export default function App() {
   ];
 
   const topNav = (
-    <div style={{ background: "#1B3461", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
+    <div style={{ background: "#1553B6", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}>
       {/* Main header row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", height: 52 }}>
         {/* Logo */}
