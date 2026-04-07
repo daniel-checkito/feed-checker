@@ -3398,17 +3398,6 @@ function McAngebotsfeed() {
           </button>
         </div>
       </details>
-
-      {/* Info hints */}
-      {[
-        { title: "Halten Sie Ihren Angebotsfeed immer aktuell", body: "Stellen Sie sicher, dass Änderungen in Preis, Sortiment oder Verfügbarkeit in Ihrem Angebotsfeed immer aktuell sind." },
-        { title: "Geben Sie Versandkosten und Versandart an", body: "Stellen Sie sicher, dass Sie für jedes Produkt die Versandkosten sowie die Versandart (Paket oder Spedition) angeben." },
-      ].map((b) => (
-        <div key={b.title} style={{ background: "#EEF4FF", borderLeft: "4px solid #1553B6", borderRadius: 6, padding: "12px 16px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: MC_BLUE, marginBottom: 2 }}>{b.title}</div>
-          <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.6 }}>{b.body}</div>
-        </div>
-      ))}
     </div>
   );
 }
