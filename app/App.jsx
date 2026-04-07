@@ -554,6 +554,7 @@ function ResizableTable({
               return (
                 <th
                   key={c.key}
+                  data-col={c.key}
                   style={{
                     position: "sticky",
                     top: 0,
@@ -4831,11 +4832,11 @@ export default function App() {
         ],
         warningRowIdx
       );
-      addTip("Material, Farbe und Lieferumfang sollten je Artikel vollständig gepflegt sein.", findTargetsByEans([
+      addTip("Material, Farbe oder Lieferumfang fehlt.", { ...findTargetsByEans([
         ...optionalFindings.missingEansByField.material,
         ...optionalFindings.missingEansByField.color,
         ...optionalFindings.missingEansByField.delivery_includes,
-      ]));
+      ]), column: mapping.material || mapping.color || mapping.delivery_includes });
     }
 
     if (missingPriceCount > 0) {
@@ -4844,17 +4845,12 @@ export default function App() {
     }
     if (missingHsCodeCount > 0) {
       addRowsByEans(optionalFindings.missingEansByField.hs_code, warningRowIdx);
-      addTip(`HS‑Code fehlt bei ${missingHsCodeCount} Artikeln.`, findTargetsByEans(optionalFindings.missingEansByField.hs_code));
+      addTip("HS-Code fehlt.", { ...findTargetsByEans(optionalFindings.missingEansByField.hs_code), column: mapping.hs_code });
     }
     if (missingManufacturerNameCount > 0 || missingManufacturerCountryCount > 0) {
       addRowsByEans(optionalFindings.missingEansByField.manufacturer_name, warningRowIdx);
       addRowsByEans(optionalFindings.missingEansByField.manufacturer_country, warningRowIdx);
-      addTip(
-        `Herstellerangaben fehlen bei ${
-          missingManufacturerNameCount + missingManufacturerCountryCount
-        } Artikeln (Name/Land).`,
-        findTargetsByEans([...optionalFindings.missingEansByField.manufacturer_name, ...optionalFindings.missingEansByField.manufacturer_country])
-      );
+      addTip("Herstellerangaben fehlen.", { ...findTargetsByEans([...optionalFindings.missingEansByField.manufacturer_name, ...optionalFindings.missingEansByField.manufacturer_country]), column: mapping.manufacturer_name || mapping.manufacturer_country });
     }
 
     if (lightingEnergyMissingCount > 0) {
@@ -4875,13 +4871,10 @@ export default function App() {
           findTargetsByEans(optionalFindings.imageZeroEans)
         );
       }
-      if (optionalFindings.imageOneEans.length > 0) {
-        addRowsByEans(optionalFindings.imageOneEans, warningRowIdx);
-        addTip(`Nur ein Bild bei ${optionalFindings.imageOneEans.length} Artikeln. Empfohlen sind mindestens ${imageMin}.`, findTargetsByEans(optionalFindings.imageOneEans));
-      }
-      if (optionalFindings.imageLowEans.length > 0) {
-        addRowsByEans(optionalFindings.imageLowEans, warningRowIdx);
-        addTip(`Bitte pro Produkt mindestens ${imageMin} Bildlinks liefern.`, findTargetsByEans(optionalFindings.imageLowEans));
+      const lowImageEans = [...new Set([...optionalFindings.imageOneEans, ...optionalFindings.imageLowEans])];
+      if (lowImageEans.length > 0) {
+        addRowsByEans(lowImageEans, warningRowIdx);
+        addTip(`Zu wenige Bilder (mind. ${imageMin} empfohlen).`, { ...findTargetsByEans(lowImageEans), column: imageColumns[0] });
       }
       if (brokenImageIds.length > 0) {
         addRowsByEans(brokenImageIds, criticalRowIdx);
@@ -4915,7 +4908,7 @@ export default function App() {
         `Lieferumfang-Format ungültig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`,
         findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean))
       );
-      addTip("Lieferumfang bitte im Format Anzahl x Produkt angeben, z. B. 1x Tisch, 4x Stuhl.", findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean)));
+      addTip("Lieferumfang-Format ungültig.", { ...findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean)), column: mapping.delivery_includes });
       score -= 5;
     }
 
@@ -4926,7 +4919,7 @@ export default function App() {
         `Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`,
         findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean))
       );
-      addTip('Lieferzeit bitte im Format z. B. "3-5 Werktage", "2-5 WK", "2-3 Wochen" oder "10 Arbeitstage" angeben.', findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean)));
+      addTip("Lieferzeit-Format ungültig.", { ...findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean)), column: mapping.delivery_time });
       score -= 5;
     }
 
@@ -4938,12 +4931,12 @@ export default function App() {
           `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`,
           findTargetsByEans(optionalFindings.descriptionIssues.tooShort)
         );
-        addTip("Produktbeschreibungen etwas ausführlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).", findTargetsByEans(optionalFindings.descriptionIssues.tooShort));
+        const descIssueEans = [...new Set([...optionalFindings.descriptionIssues.tooShort, ...(optionalFindings.descriptionIssues.templateLike || [])])];
+        addTip("Beschreibungen zu kurz oder unvollständig.", { ...findTargetsByEans(descIssueEans), column: mapping.description });
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.templateLike.length > 0) {
         addRowsByEans(optionalFindings.descriptionIssues.templateLike, warningRowIdx);
-        addTip("Viele Beschreibungen wirken wie Platzhalter oder sehr kurz – bitte inhaltlich anpassen und auf das konkrete Produkt zuschneiden.", findTargetsByEans(optionalFindings.descriptionIssues.templateLike));
         score -= 3;
       }
     }
@@ -4971,7 +4964,7 @@ export default function App() {
         `Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`,
         findTargetsByEans(optionalFindings.descriptionIssues.externalLinks)
       );
-      addTip("Bitte in der Beschreibung keine externen Links oder Werbung auf andere Seiten einfuegen.");
+      addTip("Externe Links in Beschreibungen.", { ...findTargetsByEans(optionalFindings.descriptionIssues.externalLinks), column: mapping.description });
       score -= 3;
     }
 
@@ -5265,6 +5258,14 @@ export default function App() {
     }
 
     previewTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // Scroll to specific column if target has one
+    if (target.column) {
+      setTimeout(() => {
+        const th = previewTableRef.current?.querySelector(`th[data-col="${CSS.escape(target.column)}"]`);
+        if (th) th.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }, 300);
+    }
   };
 
   function onPickFile(file) {
@@ -5768,6 +5769,37 @@ export default function App() {
                         </ul>
                       </div>
                     </div>
+
+                    {/* Email button inside Zusammenfassung */}
+                    {!generatedEmail && (
+                      <button
+                        onClick={() => {
+                          const email = buildEmail({ shopName: "", issues: summary.issues, tips: summary.tips, canStart: summary.canStart });
+                          setGeneratedEmail(email);
+                          setEmailContent(email);
+                        }}
+                        style={{ marginTop: 12, padding: "10px 16px", borderRadius: 6, border: `1px solid ${BRAND_COLOR}`, background: "#FFF", color: BRAND_COLOR, fontSize: 13, fontWeight: 600, cursor: "pointer", width: "100%" }}
+                      >
+                        E-Mail generieren
+                      </button>
+                    )}
+                    {generatedEmail && (
+                      <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>E-Mail</div>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button onClick={() => { navigator.clipboard.writeText(emailContent).catch(() => {}); }}
+                              style={{ padding: "4px 10px", borderRadius: 6, background: "#10B981", color: "#FFF", border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Kopieren</button>
+                            <button onClick={() => setEmailContent(generatedEmail)}
+                              style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Zurücksetzen</button>
+                            <button onClick={() => { setGeneratedEmail(null); setEmailContent(""); }}
+                              style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Schliessen</button>
+                          </div>
+                        </div>
+                        <textarea value={emailContent} onChange={(e) => setEmailContent(e.target.value)}
+                          style={{ width: "100%", minHeight: 260, padding: 10, borderRadius: 6, border: "1px solid #D1D5DB", fontFamily: "ui-sans-serif, system-ui", fontSize: 12, color: "#111827", boxSizing: "border-box", lineHeight: "18px", resize: "vertical" }} />
+                      </div>
+                    )}
 
                   </>
                 ) : null}
@@ -6515,53 +6547,6 @@ export default function App() {
                 </>
               )}
             </StepCard>
-
-            {/* EMAIL GENERATION */}
-            {!generatedEmail && (
-              <button
-                onClick={() => {
-                  const email = buildEmail({ shopName: "", issues: summary.issues, tips: summary.tips, canStart: summary.canStart });
-                  setGeneratedEmail(email);
-                  setEmailContent(email);
-                }}
-                style={{ padding: "12px 20px", marginBottom: 40, borderRadius: 8, border: "none", background: BRAND_COLOR, color: "#FFF", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}
-              >
-                E-Mail generieren
-              </button>
-            )}
-
-            {generatedEmail && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 10, padding: "16px 20px", marginBottom: 40 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>E-Mail</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(emailContent).catch(() => {}); }}
-                      style={{ padding: "6px 12px", borderRadius: 6, background: "#10B981", color: "#FFF", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                    >
-                      Kopieren
-                    </button>
-                    <button
-                      onClick={() => setEmailContent(generatedEmail)}
-                      style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                    >
-                      Zurücksetzen
-                    </button>
-                    <button
-                      onClick={() => { setGeneratedEmail(null); setEmailContent(""); }}
-                      style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                    >
-                      Schliessen
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={emailContent}
-                  onChange={(e) => setEmailContent(e.target.value)}
-                  style={{ width: "100%", minHeight: 300, padding: 12, borderRadius: 8, border: "1px solid #D1D5DB", fontFamily: "ui-sans-serif, system-ui", fontSize: 13, color: "#111827", boxSizing: "border-box", lineHeight: "20px", resize: "vertical" }}
-                />
-              </div>
-            )}
 
               </>
             ) : null}
