@@ -1707,23 +1707,23 @@ function QsPage({ headers, rows }) {
         });
       }
 
-      for (const sample of samples) {
+      // Process samples in parallel batches of 5 for speed
+      for (let b = 0; b < samples.length; b += 5) {
         if (cancelled) break;
-        const urls = Array.isArray(sample.urls) ? sample.urls.slice(0, 5) : [];
-        let hasFreisteller = false;
-        let hasMilieu = false;
-        let checkedCount = 0;
-
-        for (let i = 0; i < urls.length; i++) {
-          if (cancelled) break;
-          const ratio = await getWhiteRatio(urls[i]);
-          if (ratio === null) continue;
-          checkedCount += 1;
-          if (i === 0 && ratio >= 0.5) hasFreisteller = true;
-          // Non-first images with low white ratio = likely milieu (colorful background)
-          if (i > 0 && ratio < 0.30) hasMilieu = true;
-        }
-        result[sample.id] = { hasFreisteller, hasMilieu, checkedCount };
+        const batch = samples.slice(b, b + 5);
+        await Promise.all(batch.map(async (sample) => {
+          if (cancelled) return;
+          const urls = Array.isArray(sample.urls) ? sample.urls.slice(0, 3) : [];
+          let hasFreisteller = false, hasMilieu = false, checkedCount = 0;
+          const ratios = await Promise.all(urls.map((u) => getWhiteRatio(u)));
+          ratios.forEach((ratio, i) => {
+            if (ratio === null) return;
+            checkedCount += 1;
+            if (i === 0 && ratio >= 0.5) hasFreisteller = true;
+            if (i > 0 && ratio < 0.30) hasMilieu = true;
+          });
+          result[sample.id] = { hasFreisteller, hasMilieu, checkedCount };
+        }));
       }
 
       if (!cancelled) {
@@ -4268,293 +4268,119 @@ export default function App() {
       };
     }
 
+    // --- SINGLE-PASS row iteration for all validations ---
     const eans = rows.map((r, idx) => {
       const v = eanColumn ? String(r[eanColumn] ?? "").trim() : "";
       return v || `ROW_${idx + 1}`;
     });
 
     const missingEANs = [];
-    if (eanColumn) {
-      rows.forEach((r, idx) => {
-        if (isBlank(r[eanColumn])) missingEANs.push(`ROW_${idx + 1}`);
-      });
+    const missingEansByField = { material: [], color: [], delivery_includes: [], delivery_time: [], price: [], hs_code: [], manufacturer_name: [], manufacturer_country: [] };
+    const invalidDeliveryIncludes = [], invalidWashableCover = [], invalidMountingSide = [], invalidDeliveryTime = [];
+    const imageZero = [], imageOne = [], imageLow = [], scientificEans = [];
+    const invalidShipping = [], missingShipping = [], invalidMaterial = [], invalidColor = [];
+    const titleIssues = { tooShort: [], seeAbove: [], missingAttributes: [] };
+    const descriptionIssues = { tooShort: [], advertising: [], externalLinks: [], variants: [], contactHint: [], templateLike: [] };
+    const templateValueHits = [], lightingEnergyMissing = [];
+
+    // Precompute configs once
+    const missingFieldCols = {};
+    const allMissingFields = [...new Set([...optionalFields, "material", "color", "delivery_includes", "price", "hs_code", "manufacturer_name", "manufacturer_country"])];
+    for (const f of allMissingFields) { if (mapping[f]) missingFieldCols[f] = mapping[f]; }
+
+    let deliveryRe = null;
+    let deliveryAllowList = [];
+    if (mapping.delivery_includes) {
+      try { deliveryRe = new RegExp(String(rules?.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern), "i"); } catch (e) { deliveryRe = null; }
+      deliveryAllowList = (rules?.delivery_includes_allowlist || DEFAULT_RULES.delivery_includes_allowlist || []).map((x) => String(x).trim());
+    }
+    const dtReUnit = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage?|arbeitstage?|wochen?|woche|wk\.?|wt\.?)\s*$/i;
+    const dtReNum = /^\s*\d+(?:\s*-\s*\d+)?\s*$/;
+    const shippingAllowed = mapping.shipping_mode ? (rules?.allowed_shipping_mode || DEFAULT_RULES.allowed_shipping_mode).map((x) => String(x).toLowerCase()) : [];
+    const matAllowedBase = mapping.material ? (rules?.allowed_material || DEFAULT_RULES.allowed_material).map((x) => String(x).toLowerCase().trim()) : [];
+    const matBlacklist = ["keine angabe"];
+    const matAllowed = matAllowedBase.filter((t) => t && !matBlacklist.includes(t));
+    const colorAllowed = mapping.color ? (rules?.allowed_color || DEFAULT_RULES.allowed_color).map((x) => String(x).toLowerCase().trim()) : [];
+    const minTitle = Number(rules?.title_min_length ?? DEFAULT_RULES.title_min_length);
+    const minDesc = Number(rules?.description_min_length ?? DEFAULT_RULES.description_min_length);
+    const lampTokens = ["lampe", "leuchte", "leuchten", "licht", "beleuchtung", "led"];
+    const energyCol = mapping.energy_efficiency_label, lightingInclCol = mapping.lighting_included, eprelCol = mapping.eprel_registration_number;
+    const hasEnergyCols = energyCol || lightingInclCol || eprelCol;
+    const templateColumnsMap = {};
+    for (const field of Object.keys(EXAMPLE_TEMPLATE_VALUES)) {
+      const ex = (EXAMPLE_TEMPLATE_VALUES[field] || []).map((v) => String(v).trim().toLowerCase()).filter(Boolean);
+      if (ex.length && mapping[field]) templateColumnsMap[field] = { col: mapping[field], examples: new Set(ex) };
     }
 
-    const missingEansByField = {
-      material: [],
-      color: [],
-      delivery_includes: [],
-      delivery_time: [],
-      price: [],
-      hs_code: [],
-      manufacturer_name: [],
-      manufacturer_country: [],
-    };
-    const fieldsForMissing = [
-      ...optionalFields,
-      "material",
-      "color",
-      "delivery_includes",
-      "price",
-      "hs_code",
-      "manufacturer_name",
-      "manufacturer_country",
-    ];
-    for (const f of fieldsForMissing) {
-      const col = mapping[f];
-      if (!col) continue;
-      if (!missingEansByField[f]) missingEansByField[f] = [];
-      rows.forEach((r, idx) => {
-        if (isBlank(r[col])) missingEansByField[f].push(eans[idx]);
-      });
-      missingEansByField[f] = uniqueNonEmpty(missingEansByField[f]).sort();
+    // SINGLE PASS over all rows
+    for (let idx = 0; idx < rows.length; idx++) {
+      const r = rows[idx];
+      const ean = eans[idx];
+
+      // Missing EAN
+      if (eanColumn && isBlank(r[eanColumn])) missingEANs.push(`ROW_${idx + 1}`);
+      // Scientific EAN
+      if (eanColumn && looksLikeScientificEAN(r[eanColumn])) scientificEans.push(ean);
+
+      // Missing fields
+      for (const f in missingFieldCols) { if (isBlank(r[missingFieldCols[f]])) { if (!missingEansByField[f]) missingEansByField[f] = []; missingEansByField[f].push(ean); } }
+
+      // Delivery includes
+      if (mapping.delivery_includes) {
+        const vRaw = String(r[mapping.delivery_includes] ?? "").trim();
+        if (vRaw && !deliveryAllowList.includes(vRaw)) {
+          const ok = deliveryRe ? deliveryRe.test(vRaw) : /(^|\s)(\d+)\s*[xX×]\s*\S+/i.test(vRaw);
+          if (!ok) invalidDeliveryIncludes.push({ ean, value: vRaw });
+        }
+      }
+      // Washable cover
+      if (mapping.washable_cover) { const v = String(r[mapping.washable_cover] ?? "").trim().toLowerCase(); if (v && v !== "ja" && v !== "nein") invalidWashableCover.push({ ean, value: v }); }
+      // Mounting side
+      if (mapping.mounting_side) { const v = String(r[mapping.mounting_side] ?? "").trim().toLowerCase(); if (v && v !== "links" && v !== "rechts" && v !== "beidseitig") invalidMountingSide.push({ ean, value: v }); }
+      // Delivery time
+      if (mapping.delivery_time) { const v = String(r[mapping.delivery_time] ?? "").trim(); if (!v || (!dtReUnit.test(v) && !dtReNum.test(v))) invalidDeliveryTime.push({ ean, value: v }); }
+      // Images
+      const imgCount = countNonEmptyImageLinks(r, imageColumns);
+      if (imgCount === 0) imageZero.push(ean);
+      if (imgCount === 1) imageOne.push(ean);
+      if (imgCount < imageMin) imageLow.push(ean);
+      // Shipping
+      if (mapping.shipping_mode) { const v = String(r[mapping.shipping_mode] ?? "").trim(); if (!v) missingShipping.push(ean); else if (!shippingAllowed.includes(v.toLowerCase())) invalidShipping.push({ ean, value: v }); }
+      // Material
+      if (matAllowed.length && mapping.material) { const v = String(r[mapping.material] ?? "").trim(); if (v) { const vl = v.toLowerCase(); if (!matAllowed.some((t) => vl.includes(t)) || matBlacklist.some((b) => vl.includes(b))) invalidMaterial.push({ ean, value: v }); } }
+      // Color
+      if (colorAllowed.length && mapping.color) { const v = String(r[mapping.color] ?? "").trim(); if (v && !colorAllowed.some((t) => v.toLowerCase().includes(t))) invalidColor.push({ ean, value: v }); }
+      // Title
+      if (mapping.name) {
+        const title = String(r[mapping.name] ?? "").trim();
+        if (title.length < minTitle) titleIssues.tooShort.push(ean);
+        if (/siehe oben/i.test(title)) titleIssues.seeAbove.push(ean);
+      }
+      // Description
+      if (mapping.description) {
+        const desc = String(r[mapping.description] ?? "").trim();
+        if (desc.length < minDesc) descriptionIssues.tooShort.push(ean);
+        if (/www\.|http|https/i.test(desc)) descriptionIssues.externalLinks.push(ean);
+        if (/jetzt kaufen|rabatt|angebot/i.test(desc)) descriptionIssues.advertising.push(ean);
+        const titleVal = mapping.name ? String(r[mapping.name] ?? "").trim() : "";
+        if (desc && titleVal && desc.toLowerCase() === titleVal.toLowerCase()) descriptionIssues.templateLike.push(ean);
+        else { const wc = desc ? desc.split(/\s+/).filter(Boolean).length : 0; if (wc > 0 && wc <= 3) descriptionIssues.templateLike.push(ean); else if (/beispieltext|musterbeschreibung|lorem ipsum/i.test(desc.toLowerCase())) descriptionIssues.templateLike.push(ean); }
+      }
+      // Template values
+      for (const field in templateColumnsMap) { const v = String(r[templateColumnsMap[field].col] ?? "").trim(); if (v && templateColumnsMap[field].examples.has(v.toLowerCase())) templateValueHits.push({ ean, column: field, value: v }); }
+      // Lighting energy
+      if (hasEnergyCols && mapping.name) { const t = String(r[mapping.name] ?? "").toLowerCase(); if (t && lampTokens.some((tok) => t.includes(tok))) { if ((energyCol && isBlank(r[energyCol])) || (lightingInclCol && isBlank(r[lightingInclCol])) || (eprelCol && isBlank(r[eprelCol]))) lightingEnergyMissing.push(ean); } }
     }
+
+    // Deduplicate missing fields
+    for (const f in missingEansByField) missingEansByField[f] = uniqueNonEmpty(missingEansByField[f]).sort();
 
     const samplesByField = {
       material: sampleUniqueValues(rows, mapping.material, 5),
       color: sampleUniqueValues(rows, mapping.color, 5),
       delivery_includes: sampleUniqueValues(rows, mapping.delivery_includes, 5),
     };
-
-    const invalidDeliveryIncludes = [];
-    if (mapping.delivery_includes) {
-      const col = mapping.delivery_includes;
-      let re = null;
-      try {
-        const pattern = String(rules?.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern);
-        re = new RegExp(pattern, "i");
-      } catch (e) {
-        re = null;
-      }
-      const allowList = (rules?.delivery_includes_allowlist || DEFAULT_RULES.delivery_includes_allowlist || []).map((x) =>
-        String(x).trim()
-      );
-      rows.forEach((r, idx) => {
-        const vRaw = String(r[col] ?? "").trim();
-        if (!vRaw) return;
-        if (allowList.includes(vRaw)) return;
-        const ok = re ? re.test(vRaw) : /(^|\s)(\d+)\s*[xX×]\s*\S+/i.test(vRaw);
-        if (!ok) invalidDeliveryIncludes.push({ ean: eans[idx], value: vRaw });
-      });
-    }
-
-    const invalidWashableCover = [];
-    if (mapping.washable_cover) {
-      const col = mapping.washable_cover;
-      rows.forEach((r, idx) => {
-        const raw = String(r[col] ?? "").trim().toLowerCase();
-        if (!raw) return;
-        if (raw !== "ja" && raw !== "nein") {
-          invalidWashableCover.push({ ean: eans[idx], value: raw });
-        }
-      });
-    }
-
-    const invalidMountingSide = [];
-    if (mapping.mounting_side) {
-      const col = mapping.mounting_side;
-      rows.forEach((r, idx) => {
-        const raw = String(r[col] ?? "").trim().toLowerCase();
-        if (!raw) return;
-        if (raw !== "links" && raw !== "rechts" && raw !== "beidseitig") {
-          invalidMountingSide.push({ ean: eans[idx], value: raw });
-        }
-      });
-    }
-
-    const invalidDeliveryTime = [];
-    if (mapping.delivery_time) {
-      const col = mapping.delivery_time;
-      const reWithUnit = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage?|arbeitstage?|wochen?|woche|wk\.?|wt\.?)\s*$/i;
-      const reSimpleNumber = /^\s*\d+(?:\s*-\s*\d+)?\s*$/;
-      rows.forEach((r, idx) => {
-        const raw = String(r[col] ?? "").trim();
-        if (!raw) {
-          invalidDeliveryTime.push({ ean: eans[idx], value: raw });
-          return;
-        }
-        if (!reWithUnit.test(raw) && !reSimpleNumber.test(raw)) {
-          invalidDeliveryTime.push({ ean: eans[idx], value: raw });
-        }
-      });
-    }
-
-    const imageZero = [];
-    const imageOne = [];
-    const imageLow = [];
-
-    rows.forEach((r, idx) => {
-      const c = countNonEmptyImageLinks(r, imageColumns);
-      if (c === 0) imageZero.push(eans[idx]);
-      if (c === 1) imageOne.push(eans[idx]);
-      if (c < imageMin) imageLow.push(eans[idx]);
-    });
-
     const imagePreviewUrls = firstImageUrls(rows, imageColumns, 6);
-
-    const scientificEans = [];
-    if (eanColumn) {
-      rows.forEach((r, idx) => {
-        if (looksLikeScientificEAN(r[eanColumn])) scientificEans.push(eans[idx]);
-      });
-    }
-
-    const invalidShipping = [];
-    const missingShipping = [];
-    if (mapping.shipping_mode) {
-      const col = mapping.shipping_mode;
-      const allowed = (rules?.allowed_shipping_mode || DEFAULT_RULES.allowed_shipping_mode).map((x) => String(x).toLowerCase());
-      rows.forEach((r, idx) => {
-        const raw = String(r[col] ?? "").trim();
-        if (!raw) {
-          missingShipping.push(eans[idx]);
-          return;
-        }
-        const v = raw.toLowerCase();
-        const ok = allowed.includes(v);
-        if (!ok) invalidShipping.push({ ean: eans[idx], value: raw });
-      });
-    }
-
-    const invalidMaterial = [];
-    const invalidColor = [];
-
-    if (mapping.material && (rules?.allowed_material || DEFAULT_RULES.allowed_material).length) {
-      const col = mapping.material;
-      const allowedBase = (rules?.allowed_material || DEFAULT_RULES.allowed_material).map((x) =>
-        String(x).toLowerCase().trim()
-      );
-      const materialBlacklist = ["keine angabe"];
-      const allowed = allowedBase.filter((token) => token && !materialBlacklist.includes(token));
-      rows.forEach((r, idx) => {
-        const raw = String(r[col] ?? "").trim();
-        if (!raw) return;
-        const v = raw.toLowerCase();
-        const containsAllowedToken = allowed.some((token) => token && v.includes(token));
-        if (!containsAllowedToken || materialBlacklist.some((bad) => v.includes(bad))) {
-          invalidMaterial.push({ ean: eans[idx], value: raw });
-        }
-      });
-    }
-
-    if (mapping.color && (rules?.allowed_color || DEFAULT_RULES.allowed_color).length) {
-      const col = mapping.color;
-      const allowed = (rules?.allowed_color || DEFAULT_RULES.allowed_color).map((x) =>
-        String(x).toLowerCase().trim()
-      );
-      rows.forEach((r, idx) => {
-        const raw = String(r[col] ?? "").trim();
-        if (!raw) return;
-        const v = raw.toLowerCase();
-        const containsAllowedToken = allowed.some((token) => token && v.includes(token));
-        if (!containsAllowedToken) {
-          invalidColor.push({ ean: eans[idx], value: raw });
-        }
-      });
-    }
-
-    const titleIssues = { tooShort: [], seeAbove: [], missingAttributes: [] };
-    if (mapping.name) {
-      const minTitle = Number(rules?.title_min_length ?? DEFAULT_RULES.title_min_length);
-      rows.forEach((r, idx) => {
-        const title = String(r[mapping.name] ?? "").trim();
-        if (title.length < minTitle) titleIssues.tooShort.push(eans[idx]);
-        if (/siehe oben/i.test(title)) titleIssues.seeAbove.push(eans[idx]);
-        if (mapping.material && mapping.color) {
-          const material = String(r[mapping.material] ?? "").toLowerCase();
-          const color = String(r[mapping.color] ?? "").toLowerCase();
-          const titleLower = title.toLowerCase();
-          if (material && !titleLower.includes(material)) titleIssues.missingAttributes.push(eans[idx]);
-          if (color && !titleLower.includes(color)) titleIssues.missingAttributes.push(eans[idx]);
-        }
-      });
-    }
-
-    const descriptionIssues = {
-      tooShort: [],
-      advertising: [],
-      externalLinks: [],
-      variants: [],
-      contactHint: [],
-      templateLike: [],
-    };
-    if (mapping.description) {
-      const minDesc = Number(rules?.description_min_length ?? DEFAULT_RULES.description_min_length);
-      rows.forEach((r, idx) => {
-        const desc = String(r[mapping.description] ?? "").trim();
-        if (desc.length < minDesc) descriptionIssues.tooShort.push(eans[idx]);
-        if (/www\.|http|https/i.test(desc)) descriptionIssues.externalLinks.push(eans[idx]);
-        if (/jetzt kaufen|rabatt|angebot/i.test(desc)) descriptionIssues.advertising.push(eans[idx]);
-        if (/auswahl|in verschiedenen|ihrer wahl/i.test(desc)) descriptionIssues.variants.push(eans[idx]);
-        if (/kontaktieren sie uns|hotline|kundenservice/i.test(desc)) descriptionIssues.contactHint.push(eans[idx]);
-
-        const eanId = eans[idx];
-        const titleVal = mapping.name ? String(r[mapping.name] ?? "").trim() : "";
-        const descLower = desc.toLowerCase();
-        const titleLower = titleVal.toLowerCase();
-
-        if (desc && titleVal && descLower === titleLower) {
-          descriptionIssues.templateLike.push(eanId);
-          return;
-        }
-
-        const wordCount = desc ? desc.split(/\s+/).filter(Boolean).length : 0;
-        if (wordCount > 0 && wordCount <= 3) {
-          descriptionIssues.templateLike.push(eanId);
-          return;
-        }
-
-        if (/beispieltext|musterbeschreibung|lorem ipsum/i.test(descLower)) {
-          descriptionIssues.templateLike.push(eanId);
-        }
-      });
-    }
-
-    const templateValueHits = [];
-    const templateColumns = Object.keys(EXAMPLE_TEMPLATE_VALUES);
-    templateColumns.forEach((field) => {
-      const examples = (EXAMPLE_TEMPLATE_VALUES[field] || []).map((v) => String(v).trim().toLowerCase()).filter(Boolean);
-      if (!examples.length) return;
-      const col = mapping[field];
-      if (!col) return;
-      rows.forEach((r, idx) => {
-        const raw = String(r[col] ?? "").trim();
-        if (!raw) return;
-        const v = raw.toLowerCase();
-        if (examples.includes(v)) {
-          templateValueHits.push({ ean: eans[idx], column: field, value: raw });
-        }
-      });
-    });
-
-    // Additional lighting / energy-efficiency requirements for products that look like lamps
-    const lightingEnergyMissing = [];
-    if (mapping.name) {
-      const titleCol = mapping.name;
-      const energyCol = mapping.energy_efficiency_label;
-      const lightingInclCol = mapping.lighting_included;
-      const eprelCol = mapping.eprel_registration_number;
-      const hasAnyEnergyCols = energyCol || lightingInclCol || eprelCol;
-
-      if (hasAnyEnergyCols) {
-        const lampTokens = ["lampe", "leuchte", "leuchten", "licht", "beleuchtung", "led"];
-        rows.forEach((r, idx) => {
-          const titleRaw = String(r[titleCol] ?? "").toLowerCase();
-          if (!titleRaw) return;
-          const looksLikeLamp = lampTokens.some((tok) => titleRaw.includes(tok));
-          if (!looksLikeLamp) return;
-
-          let missingAny = false;
-          if (energyCol && isBlank(r[energyCol])) missingAny = true;
-          if (lightingInclCol && isBlank(r[lightingInclCol])) missingAny = true;
-          if (eprelCol && isBlank(r[eprelCol])) missingAny = true;
-
-          if (missingAny) {
-            lightingEnergyMissing.push(eans[idx]);
-          }
-        });
-      }
-    }
 
     return {
       missingEansByField,
@@ -5204,20 +5030,14 @@ export default function App() {
   const [highlightedJumpRowKey, setHighlightedJumpRowKey] = useState(null);
 
   const filteredPreviewRows = useMemo(() => {
-    return rows
-      .filter((r) => {
-        if (!eanSearchTerms.length) return true;
-        if (eanColumn) {
-          const val = String(r[eanColumn] ?? "").trim();
-          return eanSearchTerms.some((t) => val.includes(t));
-        }
-        const termsLower = eanSearchTerms.map((t) => t.toLowerCase());
-        return Object.values(r).some((v) => {
-          const cell = String(v ?? "").toLowerCase();
-          return termsLower.some((t) => cell.includes(t));
-        });
-      })
-      .filter((r) => (showIssueRowsOnly ? issueRowIndexSet.has(r.__rowIndex) : true));
+    const hasSearch = eanSearchTerms.length > 0;
+    const termsLower = hasSearch && !eanColumn ? eanSearchTerms.map((t) => t.toLowerCase()) : [];
+    return rows.filter((r) => {
+      if (showIssueRowsOnly && !issueRowIndexSet.has(r.__rowIndex)) return false;
+      if (!hasSearch) return true;
+      if (eanColumn) return eanSearchTerms.some((t) => String(r[eanColumn] ?? "").includes(t));
+      return Object.values(r).some((v) => { const c = String(v ?? "").toLowerCase(); return termsLower.some((t) => c.includes(t)); });
+    });
   }, [rows, eanSearchTerms, eanColumn, showIssueRowsOnly, issueRowIndexSet]);
 
   useEffect(() => {
