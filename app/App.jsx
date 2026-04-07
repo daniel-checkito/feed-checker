@@ -3202,28 +3202,23 @@ function CheckerMCPage() {
     : 0;
 
   const MC_BLUE = "#0066B3";
-  const MC_HEADER = "#1B3461";
   const MC_SIDEBAR_W = 210;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", fontFamily: "ui-sans-serif, system-ui, sans-serif", background: "#F2F4F7" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100%", fontFamily: "ui-sans-serif, system-ui, sans-serif", background: "#F2F4F7" }}>
 
-      {/* TOP HEADER */}
-      <div style={{ background: MC_HEADER, height: 52, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", flexShrink: 0, zIndex: 100 }}>
+      {/* MC mock sub-header */}
+      <div style={{ background: "#1B3461", height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px" }}>CHECK24</span>
-          <span style={{ color: "#A8C4E0", fontStyle: "italic", fontSize: 14, fontWeight: 400 }}>Partnerportal</span>
+          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 17, letterSpacing: "-0.5px" }}>CHECK24</span>
+          <span style={{ color: "#A8C4E0", fontStyle: "italic", fontSize: 13, fontWeight: 400 }}>Partnerportal</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <span style={{ color: "#A8C4E0", fontSize: 13 }}>🔔</span>
-          <div style={{ color: "#FFFFFF", fontSize: 12, textAlign: "right" }}>
-            <div style={{ fontWeight: 700, fontSize: 13 }}>089 - 2424 1158 300</div>
-            <div style={{ color: "#A8C4E0", fontSize: 11 }}>Haben Sie Fragen?</div>
-          </div>
-          <span style={{ color: "#A8C4E0", fontSize: 13 }}>📅 Termin buchen</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FFFFFF", fontSize: 13 }}>
-            <span style={{ width: 28, height: 28, borderRadius: "50%", background: "#2E5FA3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>👤</span>
-            <span>Mein Account</span>
+          <span style={{ color: "#A8C4E0", fontSize: 12 }}>📅 Termin buchen</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FFFFFF", fontSize: 12 }}>
+            <span style={{ width: 24, height: 24, borderRadius: "50%", background: "#2E5FA3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>👤</span>
+            <span>Daniel Haag</span>
           </div>
         </div>
       </div>
@@ -6611,7 +6606,14 @@ export default function App() {
   }
 
   if (route === "checker-mc") {
-    return <CheckerMCPage />;
+    return (
+      <div style={{ background: "#F2F4F7", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        {topNav}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+          <CheckerMCPage />
+        </div>
+      </div>
+    );
   }
 
   return (
