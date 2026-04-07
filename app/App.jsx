@@ -4011,16 +4011,16 @@ export default function App() {
       }
 
   const [route, setRoute] = useState(() => {
-    if (typeof window === "undefined") return "checker";
+    if (typeof window === "undefined") return "feed-analyse";
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
-    if (hash === "#/qs" || hash === "#/feed-checker") return hash === "#/qs" ? "qs" : "feed-checker";
+    if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") return "feed-analyse";
     if (hash === "#/produkt-optimierung") return "produkt-optimierung";
     if (hash === "#/analytics") return "analytics";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
     if (hash === "#/checker-mc") return "checker-mc";
-    return "checker";
+    return "feed-analyse";
   });
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -4036,14 +4036,13 @@ export default function App() {
     const onHash = () => {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
-      else if (hash === "#/qs") setRoute("qs");
-      else if (hash === "#/feed-checker") setRoute("feed-checker");
+      else if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") setRoute("feed-analyse");
       else if (hash === "#/produkt-optimierung") setRoute("produkt-optimierung");
       else if (hash === "#/analytics") setRoute("analytics");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
       else if (hash === "#/checker-mc") setRoute("checker-mc");
-      else setRoute("checker");
+      else setRoute("feed-analyse");
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -5705,9 +5704,8 @@ export default function App() {
   }
 
   const NAV_ITEMS = [
-    { id: "checker",              label: "Feed Checker",       icon: "🔍" },
+    { id: "feed-analyse",         label: "Feed Analyse",       icon: "🔍" },
     { id: "checker-mc",           label: "Checker MC",         icon: "🏪" },
-    { id: "qs",                   label: "QS / APA",           icon: "📊" },
     { id: "produkt-optimierung",  label: "Produkt Optimierung",icon: "⚡" },
     ...(adminToken ? [{ id: "analytics", label: "Analytics", icon: "📈" }] : []),
   ];
@@ -5737,7 +5735,7 @@ export default function App() {
             <button
               key={item.id}
               type="button"
-              onClick={() => { window.location.hash = item.id === "checker" ? "#/checker" : `#/${item.id}`; }}
+              onClick={() => { window.location.hash = `#/${item.id}`; }}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "10px 16px",
@@ -6904,7 +6902,7 @@ export default function App() {
     );
   }
 
-  if (route === "qs" || route === "feed-checker") {
+  if (route === "feed-analyse" || route === "qs" || route === "feed-checker" || route === "checker") {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
@@ -6964,10 +6962,20 @@ export default function App() {
   }
 
   return (
-    <div style={{ background: "#F3F4F6", height: "100vh", overflow: "hidden", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
       {topNav}
-      <div style={{ flex: 1, minHeight: 0 }}>
-        {page}
+      <div
+        style={{
+          minHeight: "100vh",
+          padding: "24px",
+          display: "flex",
+          justifyContent: "center",
+          fontFamily: "ui-sans-serif, system-ui",
+          boxSizing: "border-box",
+          background: "#F3F4F6",
+        }}
+      >
+        <UnifiedAnalyzerPage headers={headers} rows={rows} />
       </div>
     </div>
   );
