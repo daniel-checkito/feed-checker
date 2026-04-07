@@ -198,21 +198,57 @@ function normalizePreviewText(value) {
 }
 
 function buildEmail({ shopName, issues, tips, canStart }) {
-  const subject = "CHECK24 Produktdatenfeed Prüfung – Ergebnisse und nächste Schritte";
+  const subject = "CHECK24 Produktdatenfeed – Ergebnisse und nächste Schritte";
   const greeting = "Guten Tag,";
 
   const intro =
-    "wir haben Ihren Produktdatenfeed automatisiert geprüft. Unten finden Sie die wichtigsten Punkte, die für eine erfolgreiche automatische Produktanlage angepasst werden sollten.";
+    "wir haben Ihren Produktdatenfeed geprüft. Damit wir Ihre Produkte schnellstmöglich anlegen können, bitten wir Sie, die folgenden Punkte zu überprüfen und anzupassen.";
 
-  const issueLines = issues.length ? issues.map((x) => `- ${x}`).join("\n") : "- Keine kritischen Fehler erkannt.";
+  // Categorize issues into clear sections
+  const hasIssues = issues.length > 0;
+  const hasTips = tips.length > 0;
 
-  const tipLines = tips.length ? tips.map((x) => `- ${x}`).join("\n") : "- Keine weiteren Verbesserungsvorschläge.";
+  let body = "";
+
+  if (hasIssues) {
+    body += "\n--- Kritische Punkte ---\n\n";
+    body += "Folgende Punkte müssen korrigiert werden, bevor wir mit der Produktanlage starten können:\n\n";
+    // Clean up issue text: remove exact counts, make more readable
+    issues.forEach((issue) => {
+      let clean = issue
+        .replace(/\s*in \d+ Artikeln\.?/g, ".")
+        .replace(/\s*in \d+ Zeilen\.?/g, ".")
+        .replace(/\s*bei \d+ Artikeln[^.]*\.?/g, ".")
+        .replace(/\.\./g, ".")
+        .trim();
+      body += `- ${clean}\n`;
+    });
+  }
+
+  if (hasTips) {
+    body += "\n--- Empfehlungen ---\n\n";
+    body += "Diese Punkte sind nicht zwingend, verbessern aber die Qualität Ihrer Produktdaten:\n\n";
+    tips.forEach((tip) => {
+      let clean = tip
+        .replace(/\s*in \d+ Artikeln[^.]*\.?/g, ".")
+        .replace(/\s*bei \d+ Artikeln[^.]*\.?/g, ".")
+        .replace(/\.\./g, ".")
+        .trim();
+      body += `- ${clean}\n`;
+    });
+  }
+
+  body += "\n--- Allgemeine Tipps für bessere Produktdaten ---\n\n";
+  body += "- Produkttitel: Verwenden Sie aussagekräftige Titel mit Marke, Produkttyp und wichtigsten Merkmalen (z.B. Farbe, Masse). Beispiel: \"IKEA KALLAX Regal 77x147 cm weiss\" statt \"Regal weiss\".\n";
+  body += "- Beschreibungen: Beschreiben Sie Vorteile, Material und Einsatzbereich. Mindestens 80 Zeichen, keine externen Links.\n";
+  body += "- Bilder: Mindestens 3 Bilder pro Produkt. Das erste Bild sollte ein Freisteller sein (weisser Hintergrund), ergänzt durch Milieu- und Detailbilder.\n";
+  body += "- Lieferumfang: Bitte im Format \"1x Tisch, 4x Stuhl\" angeben. Versandart (Paket/Spedition) nicht vergessen.\n";
 
   const decision = canStart
-    ? "Wir können mit dem Feed starten."
-    : "Bitte passen Sie die Punkte oben an. Erst danach können wir mit dem Feed starten.";
+    ? "\nWir können mit dem Feed starten. Vielen Dank!"
+    : "\nBitte passen Sie die genannten Punkte an und senden uns den korrigierten Feed zu. Bei Fragen stehen wir Ihnen gerne zur Verfügung.";
 
-  return [`Betreff: ${subject}`, "", greeting, "", intro, "", issueLines, "", tipLines, "", decision].join("\n");
+  return [`Betreff: ${subject}`, "", greeting, "", intro, body, decision].join("\n");
 }
 
 function Pill({ tone, children }) {
