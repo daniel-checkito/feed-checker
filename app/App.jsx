@@ -6346,33 +6346,34 @@ export default function App() {
                   ) : null}
 
                   <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-                        {(() => {
-                          const items = [];
-                          const keys = Object.keys(imageBuckets || {}).map((k) => Number(k)).filter((k) => Number.isFinite(k) && k >= 0);
-                          if (!keys.length) {
-                            items.push(<SmallText key="no-images">Es konnten keine Bildinformationen ermittelt werden.</SmallText>);
-                            return items;
-                          }
-                          const maxN = Math.max(...keys);
-                          for (let n = 0; n <= maxN; n += 1) {
-                            const list = imageBuckets[n] || [];
-                            if (!list.length) continue;
-                            const tone = n === 0 ? "bad" : n === 1 ? "warn" : "ok";
-                            const title = n === 0 ? `0 Bilder (${list.length})` : n === 1 ? `1 Bild (${list.length})` : `${n} Bilder (${list.length})`;
-                            const hint = n === 0 ? "EANs ohne jegliche Bilder" : n === 1 ? "EANs mit genau einem Bild" : `EANs mit genau ${n} Bildern`;
-                            items.push(
-                              <CollapsibleList
-                                key={`img-${n}`}
-                                title={title}
-                                items={list}
-                                tone={tone}
-                                hint={hint}
-                                onItemClick={(ean) => openEanImageViewer(ean)}
-                              />
-                            );
-                          }
-                          return items;
-                        })()}
+                    {(() => {
+                      const items = [];
+                      const keys = Object.keys(imageBuckets || {}).map((k) => Number(k)).filter((k) => Number.isFinite(k) && k >= 0);
+                      if (!keys.length) {
+                        items.push(<SmallText key="no-images">Es konnten keine Bildinformationen ermittelt werden.</SmallText>);
+                        return items;
+                      }
+                      const maxN = Math.max(...keys);
+                      for (let n = 0; n <= maxN; n += 1) {
+                        const list = imageBuckets[n] || [];
+                        if (!list.length) continue;
+                        const tone = n === 0 ? "bad" : n === 1 ? "warn" : "ok";
+                        const title = n === 0 ? `0 Bilder (${list.length})` : n === 1 ? `1 Bild (${list.length})` : `${n} Bilder (${list.length})`;
+                        const hint = n === 0 ? "EANs ohne jegliche Bilder" : n === 1 ? "EANs mit genau einem Bild" : `EANs mit genau ${n} Bildern`;
+                        items.push(
+                          <CollapsibleList
+                            key={`img-${n}`}
+                            title={title}
+                            items={list}
+                            tone={tone}
+                            hint={hint}
+                            onItemClick={(ean) => openEanImageViewer(ean)}
+                          />
+                        );
+                      }
+                      return items;
+                    })()}
+                  </div>
 
                   {imageSamples.length ? (
                     <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
