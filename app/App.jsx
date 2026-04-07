@@ -215,7 +215,7 @@ function normalizePreviewText(value) {
 }
 
 function buildEmail({ shopName, issues, tips, canStart }) {
-  const subject = "CHECK24 Produktdatenfeed – Ergebnisse";
+  const subject = "CHECK24: Verbessern Sie Ihre Produktdaten für mehr Sichtbarkeit";
 
   // Clean text: remove counts, normalize
   const clean = (s) => s
@@ -236,12 +236,11 @@ function buildEmail({ shopName, issues, tips, canStart }) {
   const hasHersteller = has("hersteller");
 
   let body = "Guten Tag,\n\n";
-  body += "wir haben Ihren Feed geprüft. Bitte passen Sie folgende Punkte an:\n";
+  body += "wir haben gerade Ihren Feed geprüft und Möglichkeiten gefunden, wie Sie Ihre Produktdaten verbessern können, um mehr Sichtbarkeit auf unserem Marktplatz zu bekommen. Passen Sie dazu folgende Punkte an:\n";
 
   if (hasTitel) {
     body += "\nTITEL\n";
-    body += "- Einige Produkttitel sind doppelt oder zu kurz.\n";
-    body += "- Bitte verwenden Sie Marke + Produkttyp + Merkmal, z.B. \"IKEA KALLAX Regal 77x147 cm weiss\" statt \"Regal weiss\".\n";
+    body += "- Einige Produkttitel sind doppelt oder zu kurz. Verwenden Sie aussagekräftige Titel mit Marke, Produkttyp und wichtigsten Merkmalen.\n";
   }
 
   if (hasDesc) {
@@ -256,7 +255,7 @@ function buildEmail({ shopName, issues, tips, canStart }) {
 
   if (hasBilder) {
     body += "\nBILDER\n";
-    body += "- Bitte mind. 3 Bilder pro Produkt liefern. 1. Bild = Freisteller (weisser Hintergrund), dazu Milieu- und Detailbilder.\n";
+    body += "- Bitte mind. 3 Bilder pro Produkt liefern. Erstes Bild als Freisteller (weisser Hintergrund), dazu Milieu- und Detailbilder.\n";
   }
 
   if (hasVersand) {
@@ -3331,7 +3330,7 @@ function McAngebotsfeed() {
           {[
             { icon: "📝", title: "Produkttitel", desc: "Mind. 40 Zeichen. Marke + Produkttyp + Merkmal.", good: "IKEA KALLAX Regal 77x147 cm weiss", bad: "Regal weiss" },
             { icon: "📄", title: "Beschreibung", desc: "Mind. 80 Zeichen. Vorteile, Material und Einsatzbereich. Keine Links oder Werbung.", good: null, bad: null },
-            { icon: "🖼️", title: "Bilder", desc: "Mind. 3 pro Produkt. 1. Bild = Freisteller, dazu Milieu- und Detailbilder. Keine Wasserzeichen.", good: null, bad: null },
+            { icon: "🖼️", title: "Bilder", desc: "Mind. 3 pro Produkt. Erstes Bild als Freisteller, dazu Milieu- und Detailbilder. Keine Wasserzeichen.", good: null, bad: null },
             { icon: "📦", title: "Lieferumfang", desc: "Format: 1x Tisch, 4x Stuhl. Versandart (Paket/Spedition) nicht vergessen.", good: null, bad: null },
           ].map((tip) => (
             <div key={tip.title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -5855,7 +5854,7 @@ export default function App() {
 
             {/* STEP 4 */}
             {hasOptionalShippingFindings && (
-            <StepCard title="Optionale Felder und Versand" status={stage3Status}>
+            <StepCard title="Spalten und Inhalt prüfen" status={stage3Status}>
               {!headers.length ? (
                 <SmallText>Bitte CSV hochladen, um optionale Felder und Versand zu prüfen.</SmallText>
               ) : (
