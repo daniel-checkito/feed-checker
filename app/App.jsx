@@ -3226,262 +3226,262 @@ function McAngebotsfeed() {
   const errorCount = issues ? issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length : 0;
   const warningCount = issues ? issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length : 0;
 
+  const mcScore = issues ? Math.round(((issues.totalRows - errorCount - warningCount) / Math.max(issues.totalRows, 1)) * 100) : 0;
   const [uploadMethod, setUploadMethod] = useState("upload");
 
   return (
-    <div style={{ maxWidth: 720, display: "grid", gap: 20 }}>
-      <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
+    <div style={{ maxWidth: issues ? "none" : 720, display: "flex", gap: 20 }}>
+      {/* ── LEFT: Upload & Settings ── */}
+      <div style={{ flex: issues ? "0 0 380px" : "1", display: "grid", gap: 16, alignContent: "start" }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
-      {/* ── Upload Method Toggle ── */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 6px" }}>Wie möchten Sie Ihren Angebotsfeed übermitteln?</h3>
-        <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginBottom: 14 }}>
-          Wählen Sie &quot;Eigener Server&quot;, um Ihren Feed per FTP bereitzustellen, oder &quot;Bei CHECK24 hochladen&quot;, um eine CSV-Datei direkt hochzuladen und prüfen zu lassen.
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
-          <button onClick={() => setUploadMethod("server")}
-            style={{ padding: "10px 0", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: uploadMethod === "server" ? MC_BLUE : "#FFF", color: uploadMethod === "server" ? "#FFF" : "#374151", borderRight: "1px solid #E5E7EB" }}>
-            Eigener Server
-          </button>
-          <button onClick={() => setUploadMethod("upload")}
-            style={{ padding: "10px 0", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: uploadMethod === "upload" ? MC_BLUE : "#FFF", color: uploadMethod === "upload" ? "#FFF" : "#374151" }}>
-            Bei CHECK24 hochladen
-          </button>
-        </div>
+        {/* Upload Method Toggle */}
+        <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 10 }}>Wie möchten Sie Ihren Feed übermitteln?</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", border: "1px solid #E5E7EB", borderRadius: 6, overflow: "hidden" }}>
+            <button onClick={() => setUploadMethod("server")}
+              style={{ padding: "8px 0", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: uploadMethod === "server" ? MC_BLUE : "#FFF", color: uploadMethod === "server" ? "#FFF" : "#374151", borderRight: "1px solid #E5E7EB" }}>
+              Eigener Server
+            </button>
+            <button onClick={() => setUploadMethod("upload")}
+              style={{ padding: "8px 0", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: uploadMethod === "upload" ? MC_BLUE : "#FFF", color: uploadMethod === "upload" ? "#FFF" : "#374151" }}>
+              Bei CHECK24 hochladen
+            </button>
+          </div>
 
-        {uploadMethod === "server" && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 8 }}>FTP-Zugangsdaten</div>
-            <div style={{ display: "grid", gap: 10 }}>
+          {uploadMethod === "server" && (
+            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
               {[
                 { label: "FTP-Link", value: "ftp://partner31679@partnerftp.shopping.check24.de:44021/inbound/offerfeed_MeinShop.csv", mono: true },
-                { label: "Benutzername", value: "partner31679", copy: true },
+                { label: "Benutzer", value: "partner31679", copy: true },
                 { label: "Passwort", value: "••••••••", copy: true },
               ].map((r) => (
-                <div key={r.label} style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280" }}>{r.label}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                    <span style={{ fontSize: 12, color: "#111827", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all", flex: 1 }}>{r.value}</span>
-                    {r.copy && <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 14 }}>⧉</span>}
+                <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", width: 60, flexShrink: 0 }}>{r.label}</span>
+                  <div style={{ flex: 1, padding: "5px 8px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 11, color: "#111827", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all" }}>
+                    {r.value} {r.copy && <span style={{ cursor: "pointer", color: "#9CA3AF" }}>⧉</span>}
                   </div>
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 12, fontSize: 12, color: "#6B7280", lineHeight: "18px" }}>
-              Laden Sie Ihren Feed regelmäßig auf den FTP-Server hoch. Änderungen werden automatisch übernommen.
-            </div>
-          </div>
-        )}
+          )}
 
-        {uploadMethod === "upload" && (
-          <div style={{ marginTop: 16 }}>
-            {file && !issues && <div style={{ marginBottom: 10, padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 12, color: "#111827" }}>{file.name} | {(file.size / 1024).toFixed(1)} KB</div>}
-
-            {!issues ? (
+          {uploadMethod === "upload" && (
+            <div style={{ marginTop: 12 }}>
+              {file && <div style={{ marginBottom: 8, padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 11, color: "#111827" }}>{file.name} | {(file.size / 1024).toFixed(1)} KB</div>}
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) parseFile(f); }}
                 onClick={() => fileRef.current?.click()}
-                style={{ background: dragging ? "#EEF4FF" : "#F9FAFB", border: `2px dashed ${dragging ? MC_BLUE : "#D1D5DB"}`, borderRadius: 8, padding: "28px 24px", textAlign: "center", cursor: "pointer" }}
+                style={{ background: dragging ? "#EEF4FF" : "#F9FAFB", border: `2px dashed ${dragging ? MC_BLUE : "#D1D5DB"}`, borderRadius: 8, padding: "20px 16px", textAlign: "center", cursor: "pointer" }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 4 }}>Datei hierher ziehen oder anklicken um Angebotsfeed zu aktualisieren</div>
-                <div style={{ fontSize: 11, color: "#6B7280" }}>Dateigröße maximal 64 MB</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 2 }}>Datei hierher ziehen oder anklicken</div>
+                <div style={{ fontSize: 10, color: "#6B7280" }}>CSV, max. 64 MB</div>
                 <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => parseFile(e.target.files?.[0] || null)} />
               </div>
-        ) : (
-          <div style={{ display: "grid", gap: 14 }}>
-            {/* Summary */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-              {[
-                { label: "Artikel gesamt", val: issues.totalRows, bg: "#F9FAFB", border: "#E5E7EB", color: "#111827" },
-                { label: "Fehler", val: errorCount, bg: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", border: errorCount > 0 ? "#FECACA" : "#BBF7D0", color: errorCount > 0 ? "#B91C1C" : "#166534" },
-                { label: "Warnungen", val: warningCount, bg: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", border: warningCount > 0 ? "#FCD34D" : "#BBF7D0", color: warningCount > 0 ? "#92400E" : "#166534" },
-              ].map((c) => (
-                <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8, padding: "14px 16px" }}>
-                  <div style={{ fontSize: 11, color: c.color, fontWeight: 500, marginBottom: 4 }}>{c.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: c.color }}>{c.val}</div>
-                </div>
-              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Workflow hint */}
+        {issues && (
+          <div style={{ background: "#EEF4FF", borderLeft: `3px solid ${MC_BLUE}`, borderRadius: 6, padding: "10px 14px" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: MC_BLUE, marginBottom: 4 }}>So verbessern Sie Ihren Feed</div>
+            <div style={{ fontSize: 11, color: "#374151", lineHeight: "17px" }}>
+              1. Fehlerliste herunterladen<br />
+              2. Fehler in Ihrer Datei korrigieren<br />
+              3. Korrigierte Datei neu hochladen<br />
+              4. Erneut prüfen lassen
+            </div>
+          </div>
+        )}
+
+        {/* Feed Settings */}
+        <details style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8 }}>
+          <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#111827" }}>
+            Feed-Einstellungen
+          </summary>
+          <div style={{ padding: "0 16px 16px", display: "grid", gap: 8 }}>
+            <div style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: "#111827" }}>CSV</span><span style={{ fontSize: 10, color: "#9CA3AF" }}>Format</span>
+            </div>
+            <div style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: "#111827" }}>Semikolon</span><span style={{ fontSize: 10, color: "#9CA3AF" }}>Trennzeichen</span>
+            </div>
+          </div>
+        </details>
+
+        {/* Content Tips */}
+        <details style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8 }}>
+          <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#111827" }}>
+            Tipps für besseren Content
+          </summary>
+          <div style={{ padding: "0 16px 16px", display: "grid", gap: 8 }}>
+            {[
+              { title: "Produkttitel", desc: "Mind. 40 Zeichen. Marke + Produkttyp + Merkmal." },
+              { title: "Beschreibung", desc: "Mind. 80 Zeichen. Vorteile, Material, Einsatzbereich. Keine externen Links." },
+              { title: "Bilder", desc: "Mind. 3 pro Produkt. Erstes Bild als Freisteller, dazu Milieu-Bilder." },
+              { title: "Lieferumfang", desc: "Format: 1x Tisch, 4x Stuhl. Versandart nicht vergessen." },
+            ].map((t) => (
+              <div key={t.title} style={{ padding: "6px 0", borderBottom: "1px solid #F3F4F6" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{t.title}</div>
+                <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{t.desc}</div>
+              </div>
+            ))}
+          </div>
+        </details>
+
+        {/* Downloads */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button type="button" onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
+            style={{ padding: "10px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Feedvorlage</div>
+            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>Excel-Vorlage</div>
+          </button>
+          <button type="button" onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedleitfaden_2025.pdf", "_blank", "noopener,noreferrer")}
+            style={{ padding: "10px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Feedleitfaden</div>
+            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>PDF-Anleitung</div>
+          </button>
+        </div>
+      </div>
+
+      {/* ── RIGHT: Analysis Results ── */}
+      {issues && (
+        <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+          {/* Score */}
+          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Analyse-Ergebnis</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: mcScore >= 70 ? "#16A34A" : "#DC2626" }}>{mcScore}/100</div>
             </div>
 
-            {/* Startklar status */}
-            {errorCount === 0 ? (
-              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 18, flexShrink: 0 }}>✓</div>
+            {/* Score bar */}
+            <div style={{ height: 8, borderRadius: 4, background: "#E5E7EB", overflow: "hidden", marginBottom: 8 }}>
+              <div style={{ height: "100%", borderRadius: 4, background: mcScore >= 70 ? "#16A34A" : mcScore >= 40 ? "#D97706" : "#DC2626", width: `${mcScore}%`, transition: "width 0.3s" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#6B7280" }}>
+              <span>Mindestens 70/100 für Freischaltung</span>
+              <span>{mcScore >= 70 ? "Fehlerfrei" : "Fehler vorhanden"}</span>
+            </div>
+
+            {/* Status */}
+            {mcScore >= 70 ? (
+              <div style={{ marginTop: 10, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 14, flexShrink: 0 }}>✓</div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#166534" }}>Feed ist startklar</div>
-                  <div style={{ fontSize: 12, color: "#15803D" }}>Keine kritischen Fehler gefunden. Wir können mit der Produktanlage starten.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>Fehlerfrei</div>
+                  <div style={{ fontSize: 11, color: "#15803D" }}>Feed kann freigeschaltet werden.</div>
                 </div>
               </div>
             ) : (
-              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 18, flexShrink: 0 }}>!</div>
+              <div style={{ marginTop: 10, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 14, flexShrink: 0 }}>!</div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#B91C1C" }}>Noch nicht startklar</div>
-                  <div style={{ fontSize: 12, color: "#DC2626" }}>{errorCount} Fehler und {warningCount} Warnungen gefunden. Bitte korrigieren Sie die Probleme unten.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C" }}>Fehler vorhanden</div>
+                  <div style={{ fontSize: 11, color: "#DC2626" }}>{errorCount} Pflichtfehler, {warningCount} Hinweise. Score: {mcScore}/100.</div>
                 </div>
               </div>
             )}
 
-            {/* Issue cards */}
-            {issues.missingCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder" severity="error" description="Diese Spalten fehlen:" items={issues.missingCols.map((c) => ({ label: c, hint: "Spalte fehlt komplett" }))} />}
-            {issues.missingEan.length > 0 && <McIssueCard title="Fehlende EAN" severity="error" description={`${issues.missingEan.length} Artikel ohne EAN.`} items={issues.missingEan.slice(0,8).map((r) => ({ label: `Zeile ${r}`, hint: "EAN fehlt" }))} more={Math.max(0, issues.missingEan.length - 8)} />}
-            {issues.invalidPrice.length > 0 && <McIssueCard title="Ungültiger Preis" severity="error" description={`${issues.invalidPrice.length} Artikel mit ungültigem Preis.`} items={issues.invalidPrice.slice(0,8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.invalidPrice.length - 8)} />}
-            {issues.missingImage.length > 0 && <McIssueCard title="Fehlende Bilder" severity="error" description={`${issues.missingImage.length} Artikel ohne Bild-URL.`} items={issues.missingImage.slice(0,8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: "image_url fehlt" }))} more={Math.max(0, issues.missingImage.length - 8)} />}
-            {issues.shortName.length > 0 && <McIssueCard title="Produktname zu kurz" severity="warning" description={`${issues.shortName.length} Artikel mit zu kurzem Namen.`} items={issues.shortName.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortName.length - 8)} />}
-            {issues.shortDesc.length > 0 && <McIssueCard title="Beschreibung zu kurz" severity="warning" description={`${issues.shortDesc.length} Artikel mit zu kurzer Beschreibung.`} items={issues.shortDesc.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortDesc.length - 8)} />}
-            {issues.emptyRequired.length > 0 && <McIssueCard title="Fehlende Angaben" severity="warning" description={`${issues.emptyRequired.length} Artikel mit fehlenden Pflichtangaben.`} items={issues.emptyRequired.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `Feld "${x.field}" fehlt` }))} more={Math.max(0, issues.emptyRequired.length - 8)} />}
-
-            {/* CSV Download */}
-            <div style={{ padding: "12px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Ergebnisse exportieren</div>
-                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>Alle Zeilen mit Fehlern als CSV herunterladen.</div>
-                </div>
-                <button
-                  onClick={() => {
-                    const findCol = (key) => {
-                      const h = Object.keys(rows[0] || {});
-                      return h.find((c) => c.toLowerCase().includes(key)) || "";
-                    };
-                    const colEan = findCol("ean");
-                    const colName = findCol("name");
-                    const colOfferId = findCol("offer_id") || findCol("seller_offer_id") || findCol("eindeutige") || findCol("sku");
-
-                    const missingEanSet = new Set(issues.missingEan || []);
-                    const invalidPriceSet = new Set((issues.invalidPrice || []).map((x) => x.row));
-                    const shortNameSet = new Set((issues.shortName || []).map((x) => x.row));
-                    const shortDescSet = new Set((issues.shortDesc || []).map((x) => x.row));
-                    const missingImageSet = new Set((issues.missingImage || []).map((x) => x.row));
-                    const emptyReqSet = new Set((issues.emptyRequired || []).map((x) => x.row));
-
-                    const csvRows = [];
-                    rows.forEach((r, i) => {
-                      const rn = i + 1;
-                      const reasons = [];
-                      if (missingEanSet.has(rn)) reasons.push("EAN fehlt");
-                      if (invalidPriceSet.has(rn)) reasons.push("Ungültiger Preis");
-                      if (shortNameSet.has(rn)) reasons.push("Produktname zu kurz");
-                      if (shortDescSet.has(rn)) reasons.push("Beschreibung zu kurz");
-                      if (missingImageSet.has(rn)) reasons.push("Bild fehlt");
-                      if (emptyReqSet.has(rn)) reasons.push("Pflichtfeld fehlt");
-                      if (!reasons.length) return;
-                      const ean = colEan ? String(r[colEan] ?? "").trim() : "";
-                      const name = colName ? String(r[colName] ?? "").trim() : "";
-                      const offerId = colOfferId ? String(r[colOfferId] ?? "").trim() : "";
-                      csvRows.push({ ean, offerId, name, reasons: reasons.join("; ") });
-                    });
-
-                    const header = "EAN;Offer_ID;Name;Grund";
-                    const lines = csvRows.map((r) => `"${r.ean}";"${r.offerId}";"${r.name.replace(/"/g, '""')}";"${r.reasons}"`);
-                    const csv = [header, ...lines].join("\n");
-                    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `feed-ergebnisse-${new Date().toISOString().slice(0, 10)}.csv`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  style={{ padding: "10px 20px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
-                >
-                  CSV herunterladen
-                </button>
+            {/* How score is calculated */}
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 11, color: "#6B7280" }}>Wie wird der Score berechnet?</summary>
+              <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280", lineHeight: "17px" }}>
+                Der Score zeigt den prozentualen Anteil fehlerfreier Zeilen. Bei {issues.totalRows} Zeilen und {errorCount + warningCount} Zeilen mit Problemen ergibt sich ein Score von {mcScore}/100. Ab 70/100 gilt der Feed als fehlerfrei.
               </div>
-            </div>
+            </details>
+          </div>
 
-            <button onClick={() => { setFile(null); setIssues(null); setRows([]); }} style={{ padding: "9px 20px", borderRadius: 6, border: `1px solid ${MC_BLUE}`, background: "#FFF", color: MC_BLUE, fontSize: 13, fontWeight: 600, cursor: "pointer", width: "fit-content" }}>
-              Neue Datei prüfen
-            </button>
-          </div>
-        )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Feed Format Settings ── */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 6px" }}>Wie ist Ihr Angebotsfeed formatiert?</h3>
-        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 14 }}>Damit die Daten an CHECK24 übermittelt werden können, benötigen wir ein paar Informationen zu Ihrem Angebotsfeed.</div>
-        <div style={{ display: "grid", gap: 10 }}>
-          <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13, color: "#111827" }}>CSV</span>
-            <span style={{ fontSize: 11, color: "#9CA3AF" }}>Format</span>
-          </div>
-          <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13, color: "#111827" }}>Semikolon</span>
-            <span style={{ fontSize: 11, color: "#9CA3AF" }}>Trennzeichen</span>
-          </div>
-          <div style={{ padding: "10px 14px", borderRadius: 6, border: "1px solid #E5E7EB" }}>
-            <span style={{ fontSize: 12, color: "#9CA3AF" }}>Umschließungszeichen (falls vorh.)</span>
-          </div>
-        </div>
-        <button style={{ marginTop: 14, width: "100%", background: MC_BLUE, color: "#FFF", border: "none", borderRadius: 6, padding: "12px 0", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-          Jetzt Angebotsfeed aktualisieren
-        </button>
-      </div>
-
-      {/* ── Feed Settings & Credentials ── */}
-      <details style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8 }}>
-        <summary style={{ padding: "14px 20px", cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#111827" }}>
-          Feed-Einstellungen &amp; Zugangsdaten
-        </summary>
-        <div style={{ padding: "0 20px 20px" }}>
-          <div style={{ display: "grid", gap: 10 }}>
+          {/* KPIs */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
             {[
-              { label: "Format", value: "CSV" },
-              { label: "FTP-Link", value: "ftp://partner31679@partnerftp.shopping.check24.de:44021/inbound/offerfeed_MeinShop.csv", mono: true },
-              { label: "Trennzeichen", value: "Semikolon" },
-              { label: "Benutzername", value: "partner31679", copy: true },
-              { label: "Passwort", value: "••••••••", copy: true },
-            ].map((r) => (
-              <div key={r.label} style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280" }}>{r.label}</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                  <span style={{ fontSize: 12, color: "#111827", fontFamily: r.mono ? "monospace" : "inherit", wordBreak: "break-all", flex: 1 }}>{r.value}</span>
-                  {r.copy && <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 14 }}>⧉</span>}
-                </div>
+              { label: "Artikel", val: issues.totalRows, bg: "#F9FAFB", border: "#E5E7EB", color: "#111827" },
+              { label: "Pflichtfehler", val: errorCount, bg: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", border: errorCount > 0 ? "#FECACA" : "#BBF7D0", color: errorCount > 0 ? "#B91C1C" : "#166534" },
+              { label: "Hinweise", val: warningCount, bg: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", border: warningCount > 0 ? "#FCD34D" : "#BBF7D0", color: warningCount > 0 ? "#92400E" : "#166534" },
+            ].map((c) => (
+              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 6, padding: "10px 12px" }}>
+                <div style={{ fontSize: 10, color: c.color, fontWeight: 500, marginBottom: 2 }}>{c.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.val}</div>
               </div>
             ))}
           </div>
-        </div>
-      </details>
 
-      {/* ── Downloads ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <button type="button"
-          onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
-          style={{ padding: "14px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedvorlage (Excel)</div>
-          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Muster-CSV mit Pflichtfeldern und Beispieldaten.</div>
-        </button>
-        <button type="button"
-          onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedleitfaden_2025.pdf", "_blank", "noopener,noreferrer")}
-          style={{ padding: "14px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Feedleitfaden (PDF)</div>
-          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "16px", marginTop: 4 }}>Anleitung mit Spalten, Werten und Formatvorgaben.</div>
-        </button>
-      </div>
-
-      {/* ── Content Tips ── */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: "0 0 12px" }}>So verbessern Sie Ihren Content</h3>
-        <div style={{ display: "grid", gap: 10 }}>
-          {[
-            { title: "Produkttitel", desc: "Mind. 40 Zeichen. Marke + Produkttyp + wichtigstes Merkmal verwenden." },
-            { title: "Beschreibung", desc: "Mind. 80 Zeichen. Vorteile, Material und Einsatzbereich beschreiben. Keine externen Links." },
-            { title: "Bilder", desc: "Mind. 3 Bilder pro Produkt. Erstes Bild als Freisteller (weißer Hintergrund), dazu Milieu- und Detailbilder." },
-            { title: "Lieferumfang", desc: "Im Format \"1x Tisch, 4x Stuhl\" angeben. Versandart (Paket/Spedition) nicht vergessen." },
-          ].map((tip) => (
-            <div key={tip.title} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #F3F4F6" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", width: 100, flexShrink: 0 }}>{tip.title}</div>
-              <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px" }}>{tip.desc}</div>
+          {/* Issue cards - Rot = Pflichtfehler */}
+          {(issues.missingCols.length > 0 || issues.missingEan.length > 0 || issues.invalidPrice.length > 0 || issues.missingImage.length > 0) && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Pflichtfehler (Rot)</div>
+              {issues.missingCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder" severity="error" description="Diese Spalten fehlen:" items={issues.missingCols.map((c) => ({ label: c, hint: "Spalte fehlt" }))} />}
+              {issues.missingEan.length > 0 && <McIssueCard title="Fehlende EAN" severity="error" description={`${issues.missingEan.length} Artikel ohne EAN.`} items={issues.missingEan.slice(0,8).map((r) => ({ label: `Zeile ${r}`, hint: "EAN fehlt" }))} more={Math.max(0, issues.missingEan.length - 8)} />}
+              {issues.invalidPrice.length > 0 && <McIssueCard title="Ungültiger Preis" severity="error" description={`${issues.invalidPrice.length} Artikel.`} items={issues.invalidPrice.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.invalidPrice.length - 8)} />}
+              {issues.missingImage.length > 0 && <McIssueCard title="Fehlende Bilder" severity="error" description={`${issues.missingImage.length} Artikel.`} items={issues.missingImage.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: "Bild fehlt" }))} more={Math.max(0, issues.missingImage.length - 8)} />}
             </div>
-          ))}
+          )}
+
+          {/* Issue cards - Gelb = Hinweise */}
+          {(issues.shortName.length > 0 || issues.shortDesc.length > 0 || issues.emptyRequired.length > 0) && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Hinweise (Gelb)</div>
+              {issues.shortName.length > 0 && <McIssueCard title="Produktname zu kurz" severity="warning" description={`${issues.shortName.length} Artikel.`} items={issues.shortName.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortName.length - 8)} />}
+              {issues.shortDesc.length > 0 && <McIssueCard title="Beschreibung zu kurz" severity="warning" description={`${issues.shortDesc.length} Artikel.`} items={issues.shortDesc.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortDesc.length - 8)} />}
+              {issues.emptyRequired.length > 0 && <McIssueCard title="Fehlende Angaben" severity="warning" description={`${issues.emptyRequired.length} Artikel.`} items={issues.emptyRequired.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.field}" fehlt` }))} more={Math.max(0, issues.emptyRequired.length - 8)} />}
+            </div>
+          )}
+
+          {/* CSV Download - split columns */}
+          <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Fehlerliste herunterladen</div>
+            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10 }}>CSV mit getrennten Spalten für Pflichtfehler und optionale Hinweise.</div>
+            <button
+              onClick={() => {
+                const findCol = (key) => { const h = Object.keys(rows[0] || {}); return h.find((c) => c.toLowerCase().includes(key)) || ""; };
+                const colEan = findCol("ean"), colName = findCol("name");
+                const colOfferId = findCol("offer_id") || findCol("seller_offer_id") || findCol("eindeutige") || findCol("sku");
+                const missingEanSet = new Set(issues.missingEan || []);
+                const invalidPriceSet = new Set((issues.invalidPrice || []).map((x) => x.row));
+                const missingImageSet = new Set((issues.missingImage || []).map((x) => x.row));
+                const shortNameSet = new Set((issues.shortName || []).map((x) => x.row));
+                const shortDescSet = new Set((issues.shortDesc || []).map((x) => x.row));
+                const emptyReqSet = new Set((issues.emptyRequired || []).map((x) => x.row));
+                const csvRows = [];
+                rows.forEach((r, i) => {
+                  const rn = i + 1;
+                  const pflicht = [], optional = [];
+                  if (missingEanSet.has(rn)) pflicht.push("EAN fehlt");
+                  if (invalidPriceSet.has(rn)) pflicht.push("Ungültiger Preis");
+                  if (missingImageSet.has(rn)) pflicht.push("Bild fehlt");
+                  if (shortNameSet.has(rn)) optional.push("Name zu kurz");
+                  if (shortDescSet.has(rn)) optional.push("Beschreibung zu kurz");
+                  if (emptyReqSet.has(rn)) optional.push("Pflichtfeld fehlt");
+                  if (!pflicht.length && !optional.length) return;
+                  const ean = colEan ? String(r[colEan] ?? "").trim() : "";
+                  const name = colName ? String(r[colName] ?? "").trim() : "";
+                  const offerId = colOfferId ? String(r[colOfferId] ?? "").trim() : "";
+                  csvRows.push({ ean, offerId, name, pflicht: pflicht.join("; "), optional: optional.join("; ") });
+                });
+                const header = "EAN;Offer_ID;Name;Pflichtfehler;Optionale Hinweise";
+                const lines = csvRows.map((r) => `"${r.ean}";"${r.offerId}";"${r.name.replace(/"/g, '""')}";"${r.pflicht}";"${r.optional}"`);
+                const csv = [header, ...lines].join("\n");
+                const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `feed-fehlerliste-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              style={{ width: "100%", padding: "10px 0", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              CSV herunterladen
+            </button>
+          </div>
+
+          <button onClick={() => { setFile(null); setIssues(null); setRows([]); }} style={{ padding: "9px 20px", borderRadius: 6, border: `1px solid ${MC_BLUE}`, background: "#FFF", color: MC_BLUE, fontSize: 13, fontWeight: 600, cursor: "pointer", width: "fit-content" }}>
+            Neue Datei prüfen
+          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -3509,10 +3509,11 @@ function McDashboard() {
       spark: [94, 95, 96, 97, 97, 98, 98, 98.3],
     },
     {
-      label: "Content Score", value: "74", unit: "/ 100", ziel: "≥ 80",
+      label: "Content Score", value: "74", unit: "/ 100", ziel: "≥ 70",
       color: "#D97706", good: false,
       spark: [60, 62, 65, 68, 70, 71, 73, 74],
       highlight: true,
+      tooltip: "Der Content Score zeigt den Anteil fehlerfreier Zeilen in Ihrem Feed. Ab 70/100 kann der Feed freigeschaltet werden. Klicken Sie hier, um zur Analyse zu gelangen.",
     },
   ];
 
@@ -3534,14 +3535,18 @@ function McDashboard() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
           {kpis.map((k) => (
-            <div key={k.label} style={{
-              background: "#FFFFFF",
-              border: k.highlight ? "1.5px solid #FCD34D" : "1px solid #E5E7EB",
-              borderRadius: 8,
-              padding: "14px 14px 10px",
-              display: "flex", flexDirection: "column", gap: 2,
-              boxShadow: k.highlight ? "0 0 0 3px rgba(251,191,36,0.12)" : "none",
-            }}>
+            <div key={k.label}
+              onClick={() => k.highlight ? setMcActiveNav("angebotsfeed") : null}
+              title={k.tooltip || ""}
+              style={{
+                background: "#FFFFFF",
+                border: k.highlight ? "1.5px solid #FCD34D" : "1px solid #E5E7EB",
+                borderRadius: 8,
+                padding: "14px 14px 10px",
+                display: "flex", flexDirection: "column", gap: 2,
+                boxShadow: k.highlight ? "0 0 0 3px rgba(251,191,36,0.12)" : "none",
+                cursor: k.highlight ? "pointer" : "default",
+              }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>{k.label}</span>
                 {k.highlight ? (
@@ -3561,9 +3566,11 @@ function McDashboard() {
               <div style={{ marginTop: 6 }}>
                 <Sparkline values={k.spark} color={k.color} />
               </div>
-              <div style={{ marginTop: 6 }}>
-                <span onClick={() => setMcActiveNav("angebotsfeed")} style={{ fontSize: 12, color: MC_BLUE, cursor: "pointer", textDecoration: "underline" }}>Empfehlungen ansehen</span>
-              </div>
+              {k.highlight && (
+                <div style={{ marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: MC_BLUE, textDecoration: "underline" }}>Zur Analyse</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -5570,7 +5577,7 @@ export default function App() {
                     >
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <Pill tone={summary.canStart ? "ok" : "warn"}>
-                          {summary.canStart ? "✅ Feed ist startklar" : "🚧 Noch nicht startklar"}
+                          {summary.canStart ? "Fehlerfrei" : "Fehler vorhanden"}
                         </Pill>
                         <Pill tone="info">Score {summary.score} / 100</Pill>
                         {summary.issues.length ? (
