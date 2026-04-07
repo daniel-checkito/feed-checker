@@ -2428,7 +2428,7 @@ function QsPage({ headers, rows }) {
   if (!headers.length) {
     return (
       <div style={{ width: "100%", fontFamily: "ui-sans-serif, system-ui" }}>
-        <SmallText>Bitte zuerst eine CSV Datei hochladen. Danach nutzt QS/APA die gleichen Daten.</SmallText>
+        <SmallText>Bitte zuerst eine CSV Datei hochladen um das Content Scoring zu starten.</SmallText>
       </div>
     );
   }
@@ -5635,7 +5635,7 @@ export default function App() {
                     color: pageMode === "qs-apa" ? "#FFF" : "#374151",
                   }}
                 >
-                  📊 QS / APA
+                  📊 Content Scoring
                 </button>
               </div>
             ) : null}
