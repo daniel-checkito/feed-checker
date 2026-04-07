@@ -1637,11 +1637,12 @@ function QsPage({ headers, rows }) {
 
     let cancelled = false;
 
-    async function detectFreistellerForSamples(samples) {
+    async function analyzeImageSamples(samples) {
       setFreistellerLoading(true);
       const result = {};
 
-      async function checkImage(url) {
+      // Returns white-border ratio for an image (0-1)
+      async function getWhiteRatio(url) {
         return new Promise((resolve) => {
           try {
             const img = new Image();
@@ -1651,51 +1652,33 @@ function QsPage({ headers, rows }) {
                 const canvas = document.createElement("canvas");
                 const w = img.width;
                 const h = img.height;
-                if (!w || !h) {
-                  resolve(false);
-                  return;
-                }
+                if (!w || !h) { resolve(null); return; }
                 canvas.width = w;
                 canvas.height = h;
                 const ctx = canvas.getContext("2d");
-                if (!ctx) {
-                  resolve(false);
-                  return;
-                }
+                if (!ctx) { resolve(null); return; }
                 ctx.drawImage(img, 0, 0);
                 const border = 5;
                 const imgData = ctx.getImageData(0, 0, w, h).data;
                 let whiteLike = 0;
                 let total = 0;
-                const isBorderPixel = (x, y) => x < border || y < border || x >= w - border || y >= h - border;
                 for (let y = 0; y < h; y += 4) {
                   for (let x = 0; x < w; x += 4) {
-                    if (!isBorderPixel(x, y)) continue;
+                    if (!(x < border || y < border || x >= w - border || y >= h - border)) continue;
                     const idx = (y * w + x) * 4;
-                    const r = imgData[idx];
-                    const g = imgData[idx + 1];
-                    const b = imgData[idx + 2];
+                    const r = imgData[idx], g = imgData[idx + 1], b = imgData[idx + 2];
                     total += 1;
                     const brightness = (r + g + b) / 3;
-                    const maxChannel = Math.max(r, g, b);
-                    const minChannel = Math.min(r, g, b);
-                    const chroma = maxChannel - minChannel;
-                    if (brightness >= 235 && chroma <= 20) {
-                      whiteLike += 1;
-                    }
+                    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+                    if (brightness >= 235 && chroma <= 20) whiteLike += 1;
                   }
                 }
-                const ratio = total ? whiteLike / total : 0;
-                resolve(ratio >= 0.5);
-              } catch (e) {
-                resolve(false);
-              }
+                resolve(total ? whiteLike / total : 0);
+              } catch (e) { resolve(null); }
             };
-            img.onerror = () => resolve(false);
+            img.onerror = () => resolve(null);
             img.src = url;
-          } catch (e) {
-            resolve(false);
-          }
+          } catch (e) { resolve(null); }
         });
       }
 
@@ -1703,17 +1686,19 @@ function QsPage({ headers, rows }) {
         if (cancelled) break;
         const urls = Array.isArray(sample.urls) ? sample.urls.slice(0, 5) : [];
         let hasFreisteller = false;
+        let hasMilieu = false;
         let checkedCount = 0;
-        for (const url of urls) {
+
+        for (let i = 0; i < urls.length; i++) {
           if (cancelled) break;
-          const ok = await checkImage(url);
+          const ratio = await getWhiteRatio(urls[i]);
+          if (ratio === null) continue;
           checkedCount += 1;
-          if (ok) {
-            hasFreisteller = true;
-            break;
-          }
+          if (i === 0 && ratio >= 0.5) hasFreisteller = true;
+          // Non-first images with low white ratio = likely milieu (colorful background)
+          if (i > 0 && ratio < 0.30) hasMilieu = true;
         }
-        result[sample.id] = { hasFreisteller, checkedCount };
+        result[sample.id] = { hasFreisteller, hasMilieu, checkedCount };
       }
 
       if (!cancelled) {
@@ -1722,13 +1707,9 @@ function QsPage({ headers, rows }) {
       }
     }
 
-    if (typeof window === "undefined") {
-      return;
-    }
-    detectFreistellerForSamples(qsImageSamples.slice(0, 10));
-    return () => {
-      cancelled = true;
-    };
+    if (typeof window === "undefined") return;
+    analyzeImageSamples(qsImageSamples.slice(0, 20));
+    return () => { cancelled = true; };
   }, [qsImageSamples]);
 
   const autoSuggested = useMemo(() => {
@@ -1879,21 +1860,39 @@ function QsPage({ headers, rows }) {
     }
 
     let freisteller = 0;
+    let millieu = 0;
+    let bildmatch = 20;
     if (qsImageSamples.length && freistellerChecks && Object.keys(freistellerChecks).length) {
-      const samples = qsImageSamples.slice(0, 10);
+      const samples = qsImageSamples.slice(0, 20);
       let checkedProducts = 0;
       let withFreisteller = 0;
+      let withMilieu = 0;
       samples.forEach((s) => {
         const r = freistellerChecks[s.id];
         if (!r || !r.checkedCount) return;
         checkedProducts += 1;
         if (r.hasFreisteller) withFreisteller += 1;
+        if (r.hasMilieu) withMilieu += 1;
       });
       if (checkedProducts > 0) {
-        const share = withFreisteller / checkedProducts;
-        if (share >= 0.7) freisteller = 10;
-        else if (share >= 0.3) freisteller = 5;
+        const freiShare = withFreisteller / checkedProducts;
+        if (freiShare >= 0.7) freisteller = 10;
+        else if (freiShare >= 0.3) freisteller = 5;
         else freisteller = 0;
+
+        const milieuShare = withMilieu / checkedProducts;
+        if (milieuShare >= 0.6) millieu = 10;
+        else if (milieuShare >= 0.25) millieu = 5;
+        else millieu = 0;
+      }
+
+      // Bildmatch: check for duplicate first images
+      const firstUrls = qsImageSamples.map((s) => (s.urls && s.urls[0]) || "").filter(Boolean);
+      if (firstUrls.length >= 5) {
+        const urlCounts = {};
+        firstUrls.forEach((u) => { urlCounts[u] = (urlCounts[u] || 0) + 1; });
+        const dupCount = Object.values(urlCounts).filter((c) => c > 1).reduce((sum, c) => sum + c, 0);
+        if (firstUrls.length && dupCount / firstUrls.length > 0.15) bildmatch = 0;
       }
     }
 
@@ -1906,9 +1905,9 @@ function QsPage({ headers, rows }) {
       material,
       farbe,
       shoptexte,
-      bildmatch: 0,
+      bildmatch,
       freisteller,
-      millieu: 0,
+      millieu,
       anzahlbilder,
     };
   }, [headers, rows, titleCol, descCol, dimCol, deliveryCol, brandCol, qsImageSamples, freistellerChecks]);
@@ -2104,50 +2103,43 @@ function QsPage({ headers, rows }) {
       reasons.shoptexte = "Shopbezogene Texte im Feed gefunden (z.B. Marketing-/Shop-Inhalte) – 0 Punkte.";
     }
 
-    if (scores.bildmatch === 20) {
-      reasons.bildmatch = "Erstes Bild passt konsistent zu den Produkten, keine Auffaelligkeiten – 20 Punkte.";
+    // Bildmatch reasons
+    if (qsImageSamples.length >= 5) {
+      const firstUrls = qsImageSamples.map((s) => (s.urls && s.urls[0]) || "").filter(Boolean);
+      const urlCounts = {};
+      firstUrls.forEach((u) => { urlCounts[u] = (urlCounts[u] || 0) + 1; });
+      const dupCount = Object.values(urlCounts).filter((c) => c > 1).reduce((sum, c) => sum + c, 0);
+      const uniqueCount = Object.keys(urlCounts).length;
+      if (scores.bildmatch === 20) {
+        reasons.bildmatch = `${uniqueCount} einzigartige Erstbilder bei ${firstUrls.length} Produkten. Keine Duplikate erkannt.`;
+      } else {
+        reasons.bildmatch = `${dupCount} von ${firstUrls.length} Produkten teilen dasselbe Erstbild. Bitte eindeutige Bilder verwenden.`;
+      }
     } else {
-      reasons.bildmatch = "Erstes Bild wirkt haeufig unpassend oder uneinheitlich – 0 Punkte.";
+      reasons.bildmatch = scores.bildmatch === 20 ? "Erstbilder in Ordnung." : "Zu wenige Produkte für automatische Prüfung.";
     }
 
+    // Freisteller + Milieu reasons from canvas analysis
     if (qsImageSamples.length && Object.keys(freistellerChecks || {}).length) {
-      const samples = qsImageSamples.slice(0, 10);
-      let checkedProducts = 0;
-      let withFreisteller = 0;
+      const samples = qsImageSamples.slice(0, 20);
+      let checkedProducts = 0, withFreisteller = 0, withMilieu = 0;
       samples.forEach((s) => {
         const r = freistellerChecks[s.id];
         if (!r || !r.checkedCount) return;
         checkedProducts += 1;
         if (r.hasFreisteller) withFreisteller += 1;
+        if (r.hasMilieu) withMilieu += 1;
       });
       if (checkedProducts > 0) {
-        const share = withFreisteller / checkedProducts;
-        if (scores.freisteller === 10) {
-          reasons.freisteller = `${withFreisteller} von ${checkedProducts} getesteten Produkten mit mindestens einem Freisteller – 10 Punkte.`;
-        } else if (scores.freisteller === 5) {
-          reasons.freisteller = `${withFreisteller} von ${checkedProducts} getesteten Produkten mit Freisteller – 5 Punkte.`;
-        } else {
-          reasons.freisteller = `${withFreisteller} von ${checkedProducts} getesteten Produkten mit Freisteller – 0 Punkte.`;
-        }
+        reasons.freisteller = `${withFreisteller} von ${checkedProducts} Produkten mit Freisteller (weisser Hintergrund) erkannt.`;
+        reasons.millieu = `${withMilieu} von ${checkedProducts} Produkten mit Milieu-Bild (farbiger Hintergrund) erkannt.`;
       } else {
-        reasons.freisteller = "Automatische Freisteller-Pruefung konnte keine auswertbaren Bilder finden – 0 Punkte.";
+        reasons.freisteller = "Keine auswertbaren Bilder gefunden.";
+        reasons.millieu = "Keine auswertbaren Bilder gefunden.";
       }
     } else {
-      if (scores.freisteller === 10) {
-        reasons.freisteller = "Viele Produkte mit gutem Freistellerbild – 10 Punkte.";
-      } else if (scores.freisteller === 5) {
-        reasons.freisteller = "Nur ein Teil der Produkte mit Freistellerbild – 5 Punkte.";
-      } else {
-        reasons.freisteller = "Kaum Freistellerbilder im Feed – 0 Punkte.";
-      }
-    }
-
-    if (scores.millieu === 10) {
-      reasons.millieu = "Viele Produkte mit ansprechenden Milieubildern – 10 Punkte.";
-    } else if (scores.millieu === 5) {
-      reasons.millieu = "Nur einige Produkte mit Milieubildern – 5 Punkte.";
-    } else {
-      reasons.millieu = "Fast keine Milieubilder im Feed – 0 Punkte.";
+      reasons.freisteller = scores.freisteller > 0 ? "Freisteller vorhanden." : "Kaum Freistellerbilder erkannt.";
+      reasons.millieu = scores.millieu > 0 ? "Milieubilder vorhanden." : "Kaum Milieubilder erkannt.";
     }
 
     const avgImg = avgImageCount || 0;
@@ -2332,18 +2324,18 @@ function QsPage({ headers, rows }) {
 
     const crit = {
       bildmatch: [
-        "20 P: Erstes Bild passt zum Produkt, keine Dubletten (manuelle Bewertung)",
-        "0 P: Erstes Bild unpassend oder Dubletten erkennbar",
+        "20 P: Weniger als 15% der Produkte teilen dasselbe Erstbild (automatisch)",
+        "0 P: Mehr als 15% doppelte Erstbilder erkannt",
       ],
       freisteller: [
-        "10 P: >= 70% der Stichprobe mit Freisteller (weisser Hintergrund)",
-        "5 P: >= 30% der Stichprobe mit Freisteller",
+        "10 P: >= 70% der Stichprobe mit weissem Hintergrund (automatisch)",
+        "5 P: >= 30% mit weissem Hintergrund",
         "0 P: < 30% Freisteller erkannt",
       ],
       millieu: [
-        "10 P: Viele Produkte mit Milieubildern (manuelle Bewertung)",
-        "5 P: Nur einige Produkte mit Milieubildern",
-        "0 P: Fast keine Milieubilder",
+        "10 P: >= 60% der Stichprobe mit farbigem Hintergrund in Bild 2+ (automatisch)",
+        "5 P: >= 25% mit Milieu-Bildern",
+        "0 P: < 25% Milieu-Bilder erkannt",
       ],
       anzahlbilder: [
         "10 P: Durchschnitt >= 5 Bilder pro Produkt",
@@ -2474,6 +2466,32 @@ function QsPage({ headers, rows }) {
           {showCriteria ? "Schwellenwerte ausblenden" : "Schwellenwerte anzeigen"}
         </button>
       </div>
+
+      {showCriteria && qsImageSamples.length > 0 && Object.keys(freistellerChecks || {}).length > 0 && (() => {
+        const samples = qsImageSamples.slice(0, 20);
+        let checked = 0, frei = 0, mil = 0;
+        samples.forEach((s) => {
+          const r = freistellerChecks[s.id];
+          if (!r || !r.checkedCount) return;
+          checked += 1;
+          if (r.hasFreisteller) frei += 1;
+          if (r.hasMilieu) mil += 1;
+        });
+        const firstUrls = qsImageSamples.map((s) => (s.urls && s.urls[0]) || "").filter(Boolean);
+        const urlCounts = {};
+        firstUrls.forEach((u) => { urlCounts[u] = (urlCounts[u] || 0) + 1; });
+        const uniqueFirst = Object.keys(urlCounts).length;
+        const dupFirst = Object.values(urlCounts).filter((c) => c > 1).reduce((sum, c) => sum + c, 0);
+        return (
+          <div style={{ marginTop: 8, padding: "12px 16px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 12, color: "#374151", lineHeight: "20px" }}>
+            <div style={{ fontWeight: 700, color: "#111827", marginBottom: 6 }}>Bildanalyse (Stichprobe: {checked} Produkte)</div>
+            <div>Freisteller erkannt: {frei} von {checked} ({checked ? Math.round(frei / checked * 100) : 0}%) — Schwelle: 70% = 10P, 30% = 5P</div>
+            <div>Milieu-Bilder erkannt: {mil} von {checked} ({checked ? Math.round(mil / checked * 100) : 0}%) — Schwelle: 60% = 10P, 25% = 5P</div>
+            <div>Erstbilder: {uniqueFirst} einzigartig, {dupFirst} doppelt von {firstUrls.length} — Schwelle: &gt;15% Duplikate = 0P</div>
+            <div>Durchschn. Bilder/Produkt: {avgImageCount.toFixed(1)} — Schwelle: 5+ = 10P, 2+ = 5P</div>
+          </div>
+        );
+      })()}
 
       <div style={{ marginTop: 8, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
