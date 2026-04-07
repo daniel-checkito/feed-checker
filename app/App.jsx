@@ -2710,7 +2710,43 @@ function UnifiedAnalyzerPage({ headers, rows }) {
   const [issues, setIssues] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [pageRows, setPageRows] = useState([]);
+  const [generatedEmail, setGeneratedEmail] = useState(null);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailContent, setEmailContent] = useState("");
   const fileRef = useRef(null);
+
+  function generateEmail(issues) {
+    const errorCount = issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length;
+
+    let sections = {
+      greeting: "Lieber Partner,",
+      intro: `bei der Überprüfung Ihres Angebots-Feeds haben wir ${errorCount} kritische Fehler und ${issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length} Warnungen gefunden. Anbei erhalten Sie eine detaillierte Aufstellung der Probleme, die behoben werden müssen.`,
+      missingCols: issues.missingCols.length > 0 ? `Fehlende Spalten: Die folgenden erforderlichen Spalten fehlen in Ihrem Feed: ${issues.missingCols.join(", ")}. Bitte ergänzen Sie diese Spalten, um die Anforderungen zu erfüllen.` : "",
+      missingEan: issues.missingEan.length > 0 ? `Fehlende EAN-Codes: ${issues.missingEan.length} Artikel haben keine EAN-Angabe. Die EAN ist ein Pflichtfeld und muss für alle Produkte vorhanden sein.` : "",
+      invalidPrice: issues.invalidPrice.length > 0 ? `Ungültige Preise: ${issues.invalidPrice.length} Artikel weisen ungültige oder negative Preise auf. Bitte überprüfen Sie diese und korrigieren Sie die Werte.` : "",
+      missingImage: issues.missingImage.length > 0 ? `Fehlende Bilder: ${issues.missingImage.length} Artikel haben keine Bild-URL hinterlegt. Hochwertige Produktbilder sind wichtig für die Conversion und müssen vorhanden sein.` : "",
+      shortName: issues.shortName.length > 0 ? `Kurze Produktnamen: ${issues.shortName.length} Artikel haben sehr kurze Produktbezeichnungen (weniger als 10 Zeichen). Bitte verwenden Sie aussagekräftige, präzise Produktnamen.` : "",
+      shortDesc: issues.shortDesc.length > 0 ? `Kurze Beschreibungen: ${issues.shortDesc.length} Artikel weisen zu kurze Beschreibungen auf (weniger als 30 Zeichen). Eine aussagekräftige Beschreibung ist wichtig für Kunden und Suchmaschinen.` : "",
+      emptyRequired: issues.emptyRequired.length > 0 ? `Fehlende Angaben: ${issues.emptyRequired.length} Artikel fehlen wichtige Informationen. Bitte füllen Sie alle erforderlichen Felder aus.` : "",
+      closing: "Wir bitten Sie, diese Fehler schnellstmöglich zu beheben und uns ein korrigiertes Feed-File zuzusenden. Bei Fragen stehen wir Ihnen gerne zur Verfügung.",
+      signature: "Beste Grüße,\nIhr CHECK24-Partner-Team"
+    };
+
+    const emailText = [
+      sections.greeting,
+      "",
+      sections.intro,
+      "",
+      ...Object.entries(sections).filter(([key, val]) => key !== "greeting" && key !== "intro" && key !== "closing" && key !== "signature" && val).map(([_, val]) => val),
+      "",
+      sections.closing,
+      "",
+      sections.signature
+    ].filter(Boolean).join("\n");
+
+    setGeneratedEmail(emailText);
+    setEmailContent(emailText);
+  }
 
   function parseFile(f) {
     if (!f) return;
@@ -2766,7 +2802,7 @@ function UnifiedAnalyzerPage({ headers, rows }) {
       {/* Mode Toggle */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         <button
-          onClick={() => { setMode("feed-checker"); setFile(null); setIssues(null); }}
+          onClick={() => { setMode("feed-checker"); setFile(null); setIssues(null); setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }}
           style={{
             padding: "10px 16px",
             borderRadius: 6,
@@ -2781,7 +2817,7 @@ function UnifiedAnalyzerPage({ headers, rows }) {
           Feed Checker
         </button>
         <button
-          onClick={() => { setMode("qs-apa"); setFile(null); setIssues(null); }}
+          onClick={() => { setMode("qs-apa"); setFile(null); setIssues(null); setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }}
           style={{
             padding: "10px 16px",
             borderRadius: 6,
@@ -2851,7 +2887,89 @@ function UnifiedAnalyzerPage({ headers, rows }) {
               {issues.shortDesc.length > 0 && <McIssueCard title="Beschreibung zu kurz" severity="warning" description={`${issues.shortDesc.length} Artikel mit zu kurzer Beschreibung.`} items={issues.shortDesc.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortDesc.length - 8)} />}
               {issues.emptyRequired.length > 0 && <McIssueCard title="Fehlende Angaben" severity="warning" description={`${issues.emptyRequired.length} Artikel mit fehlenden Pflichtangaben.`} items={issues.emptyRequired.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `Feld "${x.field}" fehlt` }))} more={Math.max(0, issues.emptyRequired.length - 8)} />}
 
-              <button onClick={() => { setFile(null); setIssues(null); setPageRows([]); }} style={{ padding: "9px 20px", borderRadius: 6, border: `1px solid #1553B6`, background: "#FFF", color: "#1553B6", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "fit-content" }}>
+              {/* Email Generation */}
+              {!generatedEmail && (
+                <button
+                  onClick={() => generateEmail(issues)}
+                  style={{ padding: "12px 20px", borderRadius: 6, border: "none", background: "#1553B6", color: "#FFF", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}
+                >
+                  📧 E-Mail mit Verbesserungen generieren
+                </button>
+              )}
+
+              {generatedEmail && (
+                <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "20px 24px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: "#111827", margin: 0 }}>Generierte E-Mail</h3>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {!editingEmail && (
+                        <>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(emailContent);
+                              alert("E-Mail in die Zwischenablage kopiert!");
+                            }}
+                            style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            📋 Kopieren
+                          </button>
+                          <button
+                            onClick={() => setEditingEmail(true)}
+                            style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            ✏️ Bearbeiten
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => { setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }}
+                        style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        ✕ Schließen
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingEmail ? (
+                    <div style={{ marginBottom: 16 }}>
+                      <textarea
+                        value={emailContent}
+                        onChange={(e) => setEmailContent(e.target.value)}
+                        style={{ width: "100%", minHeight: 300, padding: 12, borderRadius: 6, border: "1px solid #D1D5DB", fontFamily: "monospace", fontSize: 13, color: "#111827", boxSizing: "border-box" }}
+                      />
+                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <button
+                          onClick={() => setEditingEmail(false)}
+                          style={{ padding: "10px 16px", borderRadius: 6, background: "#1553B6", color: "#FFF", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Fertig
+                        </button>
+                        <button
+                          onClick={() => { setEmailContent(generatedEmail); setEditingEmail(false); }}
+                          style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Zurücksetzen
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(emailContent);
+                            alert("Bearbeitete E-Mail in die Zwischenablage kopiert!");
+                          }}
+                          style={{ padding: "10px 16px", borderRadius: 6, background: "#10B981", color: "#FFF", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          📋 Kopieren
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ background: "#F9FAFB", padding: 16, borderRadius: 6, fontSize: 13, color: "#374151", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+                      {emailContent}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button onClick={() => { setFile(null); setIssues(null); setPageRows([]); setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }} style={{ padding: "9px 20px", borderRadius: 6, border: `1px solid #1553B6`, background: "#FFF", color: "#1553B6", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "fit-content", marginTop: generatedEmail ? 14 : 0 }}>
                 Neue Datei prüfen
               </button>
             </div>
