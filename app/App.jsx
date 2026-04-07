@@ -3100,27 +3100,12 @@ export default function App() {
     if (hash === "#/qs") return "qs";
     if (hash === "#/produkt-optimierung") return "produkt-optimierung";
     if (hash === "#/analytics") return "analytics";
-    if (hash === "#/feedback") return "feedback";
-    if (hash === "#/login") return "login";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
     if (hash === "#/checker-mc") return "checker-mc";
     return "checker";
   });
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const [authUser, setAuthUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authMessage, setAuthMessage] = useState("");
-  const [authError, setAuthError] = useState("");
-  const [authMode, setAuthMode] = useState("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState("");
-  const [feedbackSellerKey, setFeedbackSellerKey] = useState("");
-  const [feedbackCategory, setFeedbackCategory] = useState("score");
-  const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [feedbackError, setFeedbackError] = useState("");
 
   const [rules, setRules] = useState(DEFAULT_RULES);
   const [rulesLoading, setRulesLoading] = useState(true);
@@ -3137,8 +3122,6 @@ export default function App() {
       else if (hash === "#/qs") setRoute("qs");
       else if (hash === "#/produkt-optimierung") setRoute("produkt-optimierung");
       else if (hash === "#/analytics") setRoute("analytics");
-      else if (hash === "#/feedback") setRoute("feedback");
-      else if (hash === "#/login") setRoute("login");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
       else if (hash === "#/checker-mc") setRoute("checker-mc");
@@ -3147,32 +3130,6 @@ export default function App() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    if (!supabase) return undefined;
-
-    (async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (error) {
-        setAuthError(String(error.message || error));
-        return;
-      }
-      setAuthUser(data?.session?.user || null);
-    })();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthUser(session?.user || null);
-    });
-
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
-  }, [supabase]);
 
   useEffect(() => {
     let alive = true;
@@ -3196,228 +3153,6 @@ export default function App() {
       alive = false;
     };
   }, []);
-
-  async function runAuthAction(action) {
-    if (!supabase && action !== "login") {
-      setAuthError("Supabase ist nicht konfiguriert. Bitte .env.local prüfen.");
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError("");
-    setAuthMessage("");
-    try {
-      if (action === "login") {
-        const email = authEmail.trim();
-        // First: try normal Supabase login.
-        try {
-          const { error } = await supabase?.auth.signInWithPassword({
-            email,
-            password: authPassword,
-          });
-          if (error) throw error;
-          setAuthMessage("Erfolgreich eingeloggt.");
-        } catch (_e) {
-          // Fallback: admin username/password (env-based).
-          const res = await fetch("/api/admin-login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              username: email,
-              password: authPassword,
-            }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data?.error || "Admin Login fehlgeschlagen");
-          updateAdminToken(data?.token || "");
-          setAuthMessage("Admin erfolgreich eingeloggt.");
-          window.location.hash = "#/analytics";
-          return;
-        }
-      } else if (action === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email: authEmail.trim(),
-          password: authPassword,
-          options: {
-            emailRedirectTo:
-              typeof window !== "undefined"
-                ? `${window.location.origin}/#/login`
-                : undefined,
-          },
-        });
-        if (error) throw error;
-        setAuthMessage(
-          "Registrierung gestartet. Bitte bestätige die E-Mail und logge dich danach ein."
-        );
-      } else if (action === "reset") {
-        const { error } = await supabase.auth.resetPasswordForEmail(authEmail.trim(), {
-          redirectTo:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/#/login`
-              : undefined,
-        });
-        if (error) throw error;
-        setAuthMessage("Passwort-Reset E-Mail wurde versendet.");
-      }
-    } catch (e) {
-      setAuthError(String(e?.message || e || "Authentifizierung fehlgeschlagen"));
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function logout() {
-    setAuthLoading(true);
-    setAuthError("");
-    setAuthMessage("");
-    // Clear admin session token (used for Analytics gating).
-    updateAdminToken("");
-    try {
-      if (supabase) {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-      }
-      setAuthMessage("Du wurdest ausgeloggt.");
-    } catch (e) {
-      setAuthError(String(e?.message || e || "Logout fehlgeschlagen"));
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function loadHistory() {
-    if (!supabase || !authUser) {
-      setHistoryItems([]);
-      return;
-    }
-    setHistoryLoading(true);
-    setHistoryError("");
-    try {
-      const { data, error } = await supabase
-        .from("history_entries")
-        .select("id,file_name,uploaded_at,row_count,header_count,score,issues_count")
-        .order("uploaded_at", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      setHistoryItems(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setHistoryError(String(e?.message || e || "History konnte nicht geladen werden"));
-      setHistoryItems([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }
-
-  async function saveHistoryEntry(meta) {
-    if (!supabase || !authUser) return;
-    try {
-      const { error } = await supabase.from("history_entries").insert({
-        user_id: authUser.id,
-        file_name: meta.fileName || "Unbekannt",
-        uploaded_at: new Date().toISOString(),
-        row_count: meta.rowCount ?? null,
-        header_count: meta.headerCount ?? null,
-        score: meta.score ?? null,
-        issues_count: meta.issuesCount ?? null,
-      });
-      if (error) throw error;
-      loadHistory();
-    } catch (_e) {
-      // Fail silently so upload flow is not blocked.
-    }
-  }
-
-  async function loadFeedbackTickets() {
-    if (!supabase) {
-      setFeedbackTickets([]);
-      return;
-    }
-    setFeedbackTicketsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("feedback_tickets")
-        .select("id,created_at,message,status,file_name,reporter_email,seller_key,category")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      setFeedbackTickets(Array.isArray(data) ? data : []);
-    } catch (_e) {
-      setFeedbackTickets([]);
-    } finally {
-      setFeedbackTicketsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser?.id, supabase]);
-
-  useEffect(() => {
-    if (route !== "feedback") return;
-    loadFeedbackTickets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, supabase, authUser?.id]);
-
-  async function submitQuickFeedback() {
-    setFeedbackError("");
-    setFeedbackMessage("");
-    const message = String(feedbackText || "").trim();
-    if (!message) {
-      setFeedbackError("Bitte kurz beschreiben, was nicht stimmt.");
-      return;
-    }
-
-    if (!authUser) {
-      setFeedbackError("Bitte zuerst einloggen, damit wir das Ticket korrekt zuordnen können.");
-      return;
-    }
-    try {
-      const payload = {
-        message,
-        sellerKey: String(feedbackSellerKey || "").trim(),
-        category: String(feedbackCategory || "score"),
-        route,
-        fileName: fileName || null,
-        createdAt: new Date().toISOString(),
-      };
-      if (supabase) {
-        setFeedbackSubmitting(true);
-        const primaryInsert = await supabase.from("feedback_tickets").insert({
-          message,
-          route: payload.route,
-          file_name: payload.fileName,
-          reporter_user_id: authUser?.id || null,
-          reporter_email: authUser?.email || null,
-          seller_key: payload.sellerKey || null,
-          category: payload.category || "score",
-          status: "Open",
-        });
-        if (primaryInsert.error) {
-          const fallbackInsert = await supabase.from("feedback_tickets").insert({
-            message: `${message}${payload.sellerKey ? ` | seller_key: ${payload.sellerKey}` : ""}${payload.category ? ` | category: ${payload.category}` : ""}`,
-            route: payload.route,
-            file_name: payload.fileName,
-            reporter_user_id: authUser?.id || null,
-            reporter_email: authUser?.email || null,
-            status: "Open",
-          });
-          if (fallbackInsert.error) throw fallbackInsert.error;
-        }
-      }
-      const key = "feed_quick_feedback_reports";
-      const existing = JSON.parse(localStorage.getItem(key) || "[]");
-      localStorage.setItem(key, JSON.stringify([payload, ...existing].slice(0, 100)));
-      setFeedbackText("");
-      setFeedbackSellerKey("");
-      setFeedbackCategory("score");
-      setFeedbackMessage("Danke! Dein Feedback wurde gespeichert.");
-      if (route === "feedback") loadFeedbackTickets();
-    } catch (e) {
-      setFeedbackError(String(e?.message || e || "Feedback konnte nicht gespeichert werden."));
-    } finally {
-      setFeedbackSubmitting(false);
-    }
-  }
 
   async function saveRules(nextRules) {
     try {
@@ -3478,12 +3213,6 @@ export default function App() {
   const [headers, setHeaders] = useState([]);
   const [parseError, setParseError] = useState("");
   const fileInputRef = useRef(null);
-  const [historyItems, setHistoryItems] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
-  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
-  const [feedbackTickets, setFeedbackTickets] = useState([]);
-  const [feedbackTicketsLoading, setFeedbackTicketsLoading] = useState(false);
 
   const [analyticsStats, setAnalyticsStats] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -4883,11 +4612,6 @@ export default function App() {
         const h = res.meta?.fields || Object.keys(data[0] || {});
         setHeaders(h);
         setRawRows(data);
-        saveHistoryEntry({
-          fileName: file?.name || "",
-          rowCount: data.length,
-          headerCount: h.length,
-        });
       },
       error: (err) => setParseError(String(err || "CSV parsing error")),
     });
@@ -5093,8 +4817,8 @@ export default function App() {
               style={{ height: 44, width: "auto", maxWidth: 340, display: "block" }}
             />
           </button>
-          {["checker", "checker-mc", "qs", "produkt-optimierung", ...(adminToken ? ["analytics"] : []), "feedback"].map((r) => {
-            const labels = { checker: "Checker", "checker-mc": "Checker MC", qs: "QS/APA", feedback: "Feedback", analytics: "Analytics" };
+          {["checker", "checker-mc", "qs", "produkt-optimierung", ...(adminToken ? ["analytics"] : [])].map((r) => {
+            const labels = { checker: "Checker", "checker-mc": "Checker MC", qs: "QS/APA", analytics: "Analytics" };
             const labelsWithOptimization = { ...labels, "produkt-optimierung": "Produkt Optimierung" };
             return (
               <button
@@ -5116,227 +4840,7 @@ export default function App() {
             );
           })}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {authUser?.email ? (
-            <div style={{ fontSize: 12, color: "#374151", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {authUser.email}
-            </div>
-          ) : null}
-        </div>
       </div>
-      <button
-        type="button"
-        onClick={() => { window.location.hash = "#/login"; }}
-        style={{
-          position: "absolute",
-          right: 16,
-          top: 8,
-          padding: "10px 18px",
-          borderRadius: 999,
-          border: `1px solid ${BRAND_COLOR}`,
-          background: route === "login" ? "#1E3A8A" : BRAND_COLOR,
-          color: "#FFFFFF",
-          cursor: "pointer",
-          fontSize: 14,
-          fontWeight: 800,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          zIndex: 1,
-        }}
-      >
-        <span aria-hidden="true">🔐</span>
-        <span>{authUser ? "Konto" : "Login"}</span>
-      </button>
-    </div>
-  );
-
-  const stickyFeedbackCta =
-    route !== "login" ? (
-      <>
-        {feedbackOpen ? (
-          <div
-            style={{
-              position: "fixed",
-              right: 20,
-              bottom: 76,
-              zIndex: 61,
-              width: "min(360px, calc(100vw - 24px))",
-              padding: 12,
-              borderRadius: 14,
-              border: "1px solid #E5E7EB",
-              background: "#FFFFFF",
-              boxShadow: "0 18px 30px rgba(15, 23, 42, 0.24)",
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>Schnelles Feedback</div>
-              <button
-                type="button"
-                onClick={() => setFeedbackOpen(false)}
-                style={{
-                  border: "1px solid #E5E7EB",
-                  background: "#F9FAFB",
-                  borderRadius: 999,
-                  padding: "4px 8px",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
-              >
-                Schließen
-              </button>
-            </div>
-            <div style={{ fontSize: 12, color: "#6B7280" }}>
-              Melde kurz einen Fehler oder eine falsche Bewertung.
-            </div>
-            <textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              placeholder="Was ist falsch? (z. B. Score wirkt zu niedrig für EAN ...)"
-              rows={4}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                borderRadius: 10,
-                border: "1px solid #D1D5DB",
-                padding: 10,
-                fontSize: 12,
-                resize: "vertical",
-              }}
-            />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <input
-                value={feedbackSellerKey}
-                onChange={(e) => setFeedbackSellerKey(e.target.value)}
-                placeholder="seller_key (optional)"
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  borderRadius: 10,
-                  border: "1px solid #D1D5DB",
-                  padding: 10,
-                  fontSize: 12,
-                }}
-              />
-              <select
-                value={feedbackCategory}
-                onChange={(e) => setFeedbackCategory(e.target.value)}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  borderRadius: 10,
-                  border: "1px solid #D1D5DB",
-                  padding: 10,
-                  fontSize: 12,
-                  background: "#FFFFFF",
-                }}
-              >
-                <option value="score">Kategorie: Score</option>
-                <option value="validation">Kategorie: Validierung</option>
-                <option value="ui">Kategorie: UI</option>
-                <option value="other">Kategorie: Sonstiges</option>
-              </select>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={submitQuickFeedback}
-                disabled={feedbackSubmitting}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 999,
-                  border: `1px solid ${BRAND_COLOR}`,
-                  background: BRAND_COLOR,
-                  color: "#FFFFFF",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: feedbackSubmitting ? "not-allowed" : "pointer",
-                }}
-              >
-                {feedbackSubmitting ? "Sende..." : "Feedback senden"}
-              </button>
-              {fileName ? (
-                <div style={{ fontSize: 11, color: "#6B7280" }}>Datei: {fileName}</div>
-              ) : null}
-            </div>
-            {feedbackError ? (
-              <div style={{ fontSize: 12, color: "#B91C1C" }}>{feedbackError}</div>
-            ) : null}
-            {feedbackMessage ? (
-              <div style={{ fontSize: 12, color: "#166534" }}>{feedbackMessage}</div>
-            ) : null}
-          </div>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={() => setFeedbackOpen((v) => !v)}
-          style={{
-            position: "fixed",
-            right: 20,
-            bottom: 20,
-            zIndex: 60,
-            padding: "12px 16px",
-            borderRadius: 999,
-            border: `1px solid ${BRAND_COLOR}`,
-            background: BRAND_COLOR,
-            color: "#FFFFFF",
-            fontSize: 13,
-            fontWeight: 800,
-            boxShadow: "0 10px 20px rgba(15, 23, 42, 0.2)",
-            cursor: "pointer",
-          }}
-          aria-label="Feedback öffnen"
-          title="Feedback senden"
-        >
-          {feedbackOpen ? "Feedback schließen" : "Feedback"}
-        </button>
-      </>
-    ) : null;
-
-  const historyCardBody = !isSupabaseConfigured ? (
-    <div style={{ fontSize: 13, color: "#92400E" }}>
-      Supabase ist noch nicht konfiguriert.
-    </div>
-  ) : !authUser ? (
-    <div style={{ fontSize: 13, color: "#6B7280" }}>
-      Bitte einloggen, um deine zuletzt geprueften Dateien zu sehen.
-    </div>
-  ) : historyLoading ? (
-    <div style={{ fontSize: 13, color: "#6B7280" }}>History wird geladen...</div>
-  ) : historyError ? (
-    <div style={{ fontSize: 13, color: "#B91C1C" }}>{historyError}</div>
-  ) : historyItems.length === 0 ? (
-    <div style={{ fontSize: 13, color: "#6B7280" }}>
-      Noch keine geprueften Dateien vorhanden.
-    </div>
-  ) : (
-    <div style={{ display: "grid", gap: 8 }}>
-      {historyItems.map((item) => (
-        <div
-          key={item.id}
-          style={{
-            padding: "8px 10px",
-            borderRadius: 10,
-            border: "1px solid #E5E7EB",
-            background: "#F9FAFB",
-            fontSize: 12,
-            color: "#111827",
-            display: "grid",
-            gap: 2,
-          }}
-        >
-          <div style={{ fontWeight: 700 }}>{item.file_name || "Unbekannte Datei"}</div>
-          <div style={{ color: "#6B7280" }}>
-            {item.uploaded_at ? new Date(item.uploaded_at).toLocaleString() : "-"}
-          </div>
-          <div style={{ color: "#6B7280" }}>
-            Zeilen: {item.row_count ?? "-"} | Spalten: {item.header_count ?? "-"}
-          </div>
-        </div>
-      ))}
     </div>
   );
 
@@ -5417,16 +4921,6 @@ export default function App() {
               {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
             </StepCard>
 
-            {/* CHECKER EMPTY-STATE HISTORY */}
-            {!headers.length ? (
-              <StepCard
-                title="History"
-                status="idle"
-                subtitle="Zuletzt geprüfte Dateien"
-              >
-                {historyCardBody}
-              </StepCard>
-            ) : null}
 
             {headers.length ? (
               <>
@@ -6376,245 +5870,6 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <RulesPage rules={rules} setRules={setRules} onSave={saveRules} saving={rulesSaving} saveError={rulesSaveError} savedAt={rulesSavedAt} adminToken={adminToken} updateAdminToken={updateAdminToken} />
-        {stickyFeedbackCta}
-      </div>
-    );
-  }
-
-  if (route === "feedback") {
-    return (
-      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
-        {topNav}
-        <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
-          <StepCard
-            title="Feedback Tool"
-            status="ok"
-            subtitle="Ticket senden, wenn ein Feed falsch bewertet wurde"
-          >
-            <div style={{ display: "grid", gap: 10 }}>
-              <SmallText>
-                Du kannst Feedback direkt über den Sticky-Button senden. Hier siehst du eingegangene Tickets aus Supabase.
-              </SmallText>
-              {!isSupabaseConfigured ? (
-                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCD34D", background: "#FFFBEB", color: "#92400E", fontSize: 13 }}>
-                  Supabase ist nicht konfiguriert.
-                </div>
-              ) : feedbackTicketsLoading ? (
-                <div style={{ fontSize: 13, color: "#6B7280" }}>Tickets werden geladen...</div>
-              ) : feedbackTickets.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#6B7280" }}>Noch keine Tickets vorhanden.</div>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {feedbackTickets
-                    .filter((ticket) => String(ticket.status || "Open").toLowerCase() !== "resolved")
-                    .map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      style={{
-                        padding: 10,
-                        borderRadius: 12,
-                        border: "1px solid #E5E7EB",
-                        background: "#FFFFFF",
-                        display: "grid",
-                        gap: 4,
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{ticket.message || "-"}</div>
-                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, border: "1px solid #CBD5E1", background: "#F8FAFC", color: "#334155" }}>
-                          {ticket.status || "Open"}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 12, color: "#6B7280" }}>
-                        {ticket.created_at ? new Date(ticket.created_at).toLocaleString() : "-"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#6B7280" }}>
-                        Datei: {ticket.file_name || "-"} | User: {ticket.reporter_email || "-"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#6B7280" }}>
-                        seller_key: {ticket.seller_key || "-"} | Kategorie: {ticket.category || "-"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ padding: 10, borderRadius: 12, border: "1px dashed #D1D5DB", background: "#F9FAFB" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Hinweis</div>
-                <div style={{ marginTop: 4, fontSize: 12, color: "#4B5563" }}>
-                  Falls Supabase temporär nicht erreichbar ist, wird Feedback lokal im Browser gespeichert und später nicht automatisch synchronisiert.
-                </div>
-              </div>
-            </div>
-          </StepCard>
-        </div>
-        {stickyFeedbackCta}
-      </div>
-    );
-  }
-
-  if (route === "login") {
-    return (
-      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
-        {topNav}
-        <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
-          <StepCard
-            title="Login"
-            status={authUser ? "ok" : "idle"}
-            subtitle=""
-          >
-            {!isSupabaseConfigured ? (
-              <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCD34D", background: "#FFFBEB", color: "#92400E", fontSize: 13 }}>
-                Supabase ist noch nicht vollständig konfiguriert. Bitte <code>NEXT_PUBLIC_SUPABASE_URL</code> und{" "}
-                <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY</code> in <code>.env.local</code> setzen und den Dev-Server neu starten.
-              </div>
-            ) : null}
-
-            {authUser ? (
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #A7F3D0", background: "#ECFDF3", color: "#166534", fontSize: 13 }}>
-                  Eingeloggt als <strong>{authUser.email || "Unbekannter Benutzer"}</strong>
-                </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    onClick={logout}
-                    disabled={authLoading}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 999,
-                      border: "1px solid #CBD5E1",
-                      background: "#FFFFFF",
-                      color: "#111827",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: authLoading ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {authLoading ? "Bitte warten..." : "Logout"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: 10 }}>
-                {/** Only show password reset if the user likely entered a wrong password. */}
-                {(() => {
-                  const showResetOption =
-                    Boolean(authError) &&
-                    /(invalid login credentials|wrong password|invalid password|passwort|password)/i.test(String(authError));
-                  const modes = [
-                    { id: "login", label: "Login" },
-                    { id: "signup", label: "Sign up" },
-                    ...(showResetOption ? [{ id: "reset", label: "Passwort vergessen" }] : []),
-                  ];
-                  return (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {modes.map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => {
-                            setAuthMode(m.id);
-                            setAuthError("");
-                            setAuthMessage("");
-                          }}
-                          style={{
-                            padding: "6px 12px",
-                            borderRadius: 999,
-                            border: `1px solid ${BRAND_COLOR}`,
-                            background: authMode === m.id ? BRAND_COLOR : "#FFFFFF",
-                            color: authMode === m.id ? "#FFFFFF" : BRAND_COLOR,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                <label style={{ display: "grid", gap: 4 }}>
-                  <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>E-Mail</span>
-                  <input
-                    type="email"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    placeholder="name@firma.de"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      border: "1px solid #D1D5DB",
-                      background: "#FFFFFF",
-                      fontSize: 13,
-                      color: "#111827",
-                      maxWidth: 420,
-                    }}
-                  />
-                </label>
-
-                {authMode !== "reset" ? (
-                  <label style={{ display: "grid", gap: 4 }}>
-                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>Passwort</span>
-                    <input
-                      type="password"
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      placeholder="Mindestens 8 Zeichen"
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "1px solid #D1D5DB",
-                        background: "#FFFFFF",
-                        fontSize: 13,
-                        color: "#111827",
-                        maxWidth: 420,
-                      }}
-                    />
-                  </label>
-                ) : null}
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    disabled={authLoading || !authEmail.trim() || (authMode !== "reset" && !authPassword)}
-                    onClick={() => runAuthAction(authMode)}
-                    style={{
-                      padding: "10px 16px",
-                      borderRadius: 999,
-                      border: `1px solid ${BRAND_COLOR}`,
-                      background: BRAND_COLOR,
-                      color: "#FFFFFF",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: authLoading ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {authLoading
-                      ? "Bitte warten..."
-                      : authMode === "signup"
-                      ? "Konto erstellen"
-                      : authMode === "reset"
-                      ? "Reset E-Mail senden"
-                      : "Einloggen"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {authError ? (
-              <div style={{ marginTop: 10, padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
-                {authError}
-              </div>
-            ) : null}
-            {authMessage ? (
-              <div style={{ marginTop: 10, padding: 10, borderRadius: 12, border: "1px solid #A7F3D0", background: "#ECFDF3", color: "#166534", fontSize: 13 }}>
-                {authMessage}
-              </div>
-            ) : null}
-          </StepCard>
-        </div>
       </div>
     );
   }
@@ -6630,29 +5885,8 @@ export default function App() {
               status="warn"
               subtitle="Bitte zuerst als Admin einloggen."
             >
-              <div style={{ display: "grid", gap: 12 }}>
-                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
-                  Admin Login erforderlich.
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.location.hash = "#/login";
-                  }}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: 999,
-                    border: `1px solid ${BRAND_COLOR}`,
-                    background: BRAND_COLOR,
-                    color: "#FFFFFF",
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    width: "fit-content",
-                  }}
-                >
-                  Zur Admin Anmeldung
-                </button>
+              <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
+                Kein Admin-Token vorhanden.
               </div>
             </StepCard>
           </div>
@@ -6748,7 +5982,6 @@ export default function App() {
             </div>
           </StepCard>
         </div>
-        {stickyFeedbackCta}
       </div>
     );
   }
@@ -6893,15 +6126,6 @@ export default function App() {
 
                     {headers.length ? <QsPage headers={headers} rows={rows} /> : null}
 
-                    {!headers.length ? (
-                      <StepCard
-                        title="History"
-                        status="idle"
-                        subtitle="Zuletzt geprüfte Dateien"
-                      >
-                        {historyCardBody}
-                      </StepCard>
-                    ) : null}
                   </div>
                 </div>
 
@@ -6913,7 +6137,6 @@ export default function App() {
             </div>
           </div>
         </div>
-        {stickyFeedbackCta}
       </div>
     );
   }
@@ -6923,7 +6146,6 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <ProduktOptimierungPage />
-        {stickyFeedbackCta}
       </div>
     );
   }
@@ -6933,7 +6155,6 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <ShopPerformance />
-        {stickyFeedbackCta}
       </div>
     );
   }
@@ -6943,7 +6164,6 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <Onboarding />
-        {stickyFeedbackCta}
       </div>
     );
   }
@@ -6956,7 +6176,6 @@ export default function App() {
           <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>Checker MC</div>
           <p style={{ color: "#6B7280", marginTop: 8 }}>Diese Seite ist noch in Entwicklung.</p>
         </div>
-        {stickyFeedbackCta}
       </div>
     );
   }
@@ -6967,7 +6186,6 @@ export default function App() {
       <div style={{ flex: 1, minHeight: 0 }}>
         {page}
       </div>
-      {stickyFeedbackCta}
     </div>
   );
 }
