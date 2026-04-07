@@ -5235,17 +5235,6 @@ export default function App() {
           <span style={{ color: "#A8C4E0", fontStyle: "italic", fontSize: 14, fontWeight: 400 }}>Feed Checker</span>
         </button>
 
-        {/* Right side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div style={{ color: "#FFFFFF", fontSize: 12, textAlign: "right", lineHeight: 1.4 }}>
-            <div style={{ fontWeight: 700 }}>089 – 2424 1158 300</div>
-            <div style={{ color: "#A8C4E0", fontSize: 11 }}>Haben Sie Fragen?</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FFFFFF", fontSize: 13, cursor: "pointer" }}>
-            <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#2E5FA3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>👤</span>
-            <span style={{ fontWeight: 500 }}>Mein Account</span>
-          </div>
-        </div>
       </div>
 
       {/* Nav tab row */}
