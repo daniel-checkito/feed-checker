@@ -2704,6 +2704,183 @@ function QsPage({ headers, rows }) {
   );
 }
 
+function UnifiedAnalyzerPage({ headers, rows }) {
+  const [mode, setMode] = useState("feed-checker");
+  const [file, setFile] = useState(null);
+  const [issues, setIssues] = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [pageRows, setPageRows] = useState([]);
+  const fileRef = useRef(null);
+
+  function parseFile(f) {
+    if (!f) return;
+    setFile(f);
+    setIssues(null);
+    Papa.parse(f, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res) => {
+        const r = Array.isArray(res.data) ? res.data : [];
+        const h = res.meta?.fields || Object.keys(r[0] || {});
+        setPageRows(r);
+        if (mode === "feed-checker") {
+          analyzeFile(r, h);
+        }
+      },
+    });
+  }
+
+  function analyzeFile(rows, headers) {
+    const hl = headers.map((h) => h.toLowerCase().trim());
+    const missingCols = MC_REQUIRED_COLS.filter((c) => !hl.some((h) => h === c || h.includes(c)));
+    const findCol = (key) => headers.find((h) => h.toLowerCase().trim() === key || h.toLowerCase().includes(key));
+    const colEan = findCol("ean"), colName = findCol("name"), colPrice = findCol("price");
+    const colDesc = findCol("description") || findCol("desc"), colImage = findCol("image_url") || findCol("image"), colBrand = findCol("brand");
+    const missingEan = [], invalidPrice = [], shortName = [], shortDesc = [], missingImage = [], emptyRequired = [];
+    rows.forEach((row, i) => {
+      const rn = i + 1;
+      const ean = colEan ? String(row[colEan] ?? "").trim() : "";
+      const name = colName ? String(row[colName] ?? "").trim() : "";
+      const price = colPrice ? String(row[colPrice] ?? "").trim() : "";
+      const desc = colDesc ? String(row[colDesc] ?? "").trim() : "";
+      const image = colImage ? String(row[colImage] ?? "").trim() : "";
+      const brand = colBrand ? String(row[colBrand] ?? "").trim() : "";
+      if (colEan && !ean) missingEan.push(rn);
+      if (colPrice && price) { const n = parseFloat(price.replace(",", ".")); if (isNaN(n) || n <= 0) invalidPrice.push({ row: rn, ean, value: price }); }
+      if (colName && name && name.length < 10) shortName.push({ row: rn, ean, value: name });
+      if (colDesc && desc && desc.length < 30) shortDesc.push({ row: rn, ean, value: desc.slice(0, 60) });
+      if (colImage && !image) missingImage.push({ row: rn, ean });
+      if (colBrand && !brand) emptyRequired.push({ row: rn, ean, field: "brand" });
+    });
+    setIssues({ totalRows: rows.length, missingCols, missingEan, invalidPrice, shortName, shortDesc, missingImage, emptyRequired });
+  }
+
+  const errorCount = issues ? issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length : 0;
+  const warningCount = issues ? issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length : 0;
+
+  const effectiveHeaders = headers.length > 0 ? headers : (file ? Object.keys(pageRows[0] || {}) : []);
+  const effectiveRows = headers.length > 0 ? rows : pageRows;
+
+  return (
+    <div style={{ maxWidth: 1000, marginLeft: "auto", marginRight: "auto" }}>
+      {/* Mode Toggle */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <button
+          onClick={() => { setMode("feed-checker"); setFile(null); setIssues(null); }}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 6,
+            border: mode === "feed-checker" ? `2px solid #1553B6` : "1px solid #D1D5DB",
+            background: mode === "feed-checker" ? "#1553B6" : "#FFF",
+            color: mode === "feed-checker" ? "#FFF" : "#111827",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Feed Checker
+        </button>
+        <button
+          onClick={() => { setMode("qs-apa"); setFile(null); setIssues(null); }}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 6,
+            border: mode === "qs-apa" ? `2px solid #1553B6` : "1px solid #D1D5DB",
+            background: mode === "qs-apa" ? "#1553B6" : "#FFF",
+            color: mode === "qs-apa" ? "#FFF" : "#111827",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          QS/APA
+        </button>
+      </div>
+
+      {/* Feed Checker Mode */}
+      {mode === "feed-checker" && (
+        <div>
+          {!issues ? (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) parseFile(f); }}
+              onClick={() => fileRef.current?.click()}
+              style={{ background: dragging ? "#EEF4FF" : "#F9FAFB", border: `2px dashed ${dragging ? "#1553B6" : "#D1D5DB"}`, borderRadius: 8, padding: "36px 24px", textAlign: "center", cursor: "pointer" }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>CSV-Datei ablegen oder klicken zum Auswählen</div>
+              <div style={{ fontSize: 12, color: "#6B7280" }}>Unterstützt: .csv (Semikolon- oder Komma-getrennt)</div>
+              <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => parseFile(e.target.files?.[0] || null)} />
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 14 }}>
+              {/* Summary */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+                {[
+                  { label: "Artikel gesamt", val: issues.totalRows, bg: "#F9FAFB", border: "#E5E7EB", color: "#111827" },
+                  { label: "Fehler", val: errorCount, bg: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", border: errorCount > 0 ? "#FECACA" : "#BBF7D0", color: errorCount > 0 ? "#B91C1C" : "#166534" },
+                  { label: "Warnungen", val: warningCount, bg: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", border: warningCount > 0 ? "#FCD34D" : "#BBF7D0", color: warningCount > 0 ? "#92400E" : "#166534" },
+                ].map((c) => (
+                  <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8, padding: "14px 16px" }}>
+                    <div style={{ fontSize: 11, color: c.color, fontWeight: 500, marginBottom: 4 }}>{c.label}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: c.color }}>{c.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Status banner */}
+              {errorCount === 0 && warningCount === 0 ? (
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span>✅</span>
+                  <div><div style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>Feed ist in Ordnung</div><div style={{ fontSize: 12, color: "#15803D" }}>Keine Probleme gefunden.</div></div>
+                </div>
+              ) : (
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span>⚠️</span>
+                  <div><div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C" }}>Probleme gefunden</div><div style={{ fontSize: 12, color: "#DC2626" }}>Bitte korrigieren Sie die Fehler.</div></div>
+                </div>
+              )}
+
+              {/* Issue cards */}
+              {issues.missingCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder" severity="error" description="Diese Spalten fehlen:" items={issues.missingCols.map((c) => ({ label: c, hint: "Spalte fehlt komplett" }))} />}
+              {issues.missingEan.length > 0 && <McIssueCard title="Fehlende EAN" severity="error" description={`${issues.missingEan.length} Artikel ohne EAN.`} items={issues.missingEan.slice(0,8).map((r) => ({ label: `Zeile ${r}`, hint: "EAN fehlt" }))} more={Math.max(0, issues.missingEan.length - 8)} />}
+              {issues.invalidPrice.length > 0 && <McIssueCard title="Ungültiger Preis" severity="error" description={`${issues.invalidPrice.length} Artikel mit ungültigem Preis.`} items={issues.invalidPrice.slice(0,8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.invalidPrice.length - 8)} />}
+              {issues.missingImage.length > 0 && <McIssueCard title="Fehlende Bilder" severity="error" description={`${issues.missingImage.length} Artikel ohne Bild-URL.`} items={issues.missingImage.slice(0,8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: "image_url fehlt" }))} more={Math.max(0, issues.missingImage.length - 8)} />}
+              {issues.shortName.length > 0 && <McIssueCard title="Produktname zu kurz" severity="warning" description={`${issues.shortName.length} Artikel mit zu kurzem Namen.`} items={issues.shortName.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortName.length - 8)} />}
+              {issues.shortDesc.length > 0 && <McIssueCard title="Beschreibung zu kurz" severity="warning" description={`${issues.shortDesc.length} Artikel mit zu kurzer Beschreibung.`} items={issues.shortDesc.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortDesc.length - 8)} />}
+              {issues.emptyRequired.length > 0 && <McIssueCard title="Fehlende Angaben" severity="warning" description={`${issues.emptyRequired.length} Artikel mit fehlenden Pflichtangaben.`} items={issues.emptyRequired.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `Feld "${x.field}" fehlt` }))} more={Math.max(0, issues.emptyRequired.length - 8)} />}
+
+              <button onClick={() => { setFile(null); setIssues(null); setPageRows([]); }} style={{ padding: "9px 20px", borderRadius: 6, border: `1px solid #1553B6`, background: "#FFF", color: "#1553B6", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "fit-content" }}>
+                Neue Datei prüfen
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* QS/APA Mode */}
+      {mode === "qs-apa" && effectiveHeaders.length > 0 && (
+        <QsPage headers={effectiveHeaders} rows={effectiveRows} />
+      )}
+      {mode === "qs-apa" && effectiveHeaders.length === 0 && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) parseFile(f); }}
+          onClick={() => fileRef.current?.click()}
+          style={{ background: dragging ? "#EEF4FF" : "#F9FAFB", border: `2px dashed ${dragging ? "#1553B6" : "#D1D5DB"}`, borderRadius: 8, padding: "36px 24px", textAlign: "center", cursor: "pointer" }}
+        >
+          <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>CSV-Datei ablegen oder klicken zum Auswählen</div>
+          <div style={{ fontSize: 12, color: "#6B7280" }}>Unterstützt: .csv (Semikolon- oder Komma-getrennt)</div>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => parseFile(e.target.files?.[0] || null)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProduktOptimierungPage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3678,7 +3855,7 @@ export default function App() {
     if (typeof window === "undefined") return "checker";
     const hash = window.location.hash;
     if (hash === "#/rules") return "rules";
-    if (hash === "#/qs") return "qs";
+    if (hash === "#/qs" || hash === "#/feed-checker") return hash === "#/qs" ? "qs" : "feed-checker";
     if (hash === "#/produkt-optimierung") return "produkt-optimierung";
     if (hash === "#/analytics") return "analytics";
     if (hash === "#/shop-performance") return "shop-performance";
@@ -3701,6 +3878,7 @@ export default function App() {
       const hash = window.location.hash;
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/qs") setRoute("qs");
+      else if (hash === "#/feed-checker") setRoute("feed-checker");
       else if (hash === "#/produkt-optimierung") setRoute("produkt-optimierung");
       else if (hash === "#/analytics") setRoute("analytics");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
@@ -6567,156 +6745,22 @@ export default function App() {
     );
   }
 
-  if (route === "qs") {
+  if (route === "qs" || route === "feed-checker") {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <div
           style={{
-            height: "100vh",
-            overflow: "hidden",
+            minHeight: "100vh",
+            padding: "24px",
+            display: "flex",
+            justifyContent: "center",
             fontFamily: "ui-sans-serif, system-ui",
             boxSizing: "border-box",
             background: "#F3F4F6",
-            display: "flex",
-            flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              justifyContent: "center",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                width: "100%",
-                maxWidth: headers.length ? "none" : 1000,
-                padding: 24,
-                boxSizing: "border-box",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  marginTop: 18,
-                  display: headers.length ? "flex" : "block",
-                  gap: headers.length ? 16 : 14,
-                  alignItems: "flex-start",
-                  height: headers.length ? "calc(100vh - 24px - 48px)" : "auto",
-                }}
-              >
-                {/* LEFT: QS/APA dashboard + upload */}
-                <div
-                  style={{
-                    flex: headers.length ? "1 1 0" : "auto",
-                    maxWidth: "none",
-                    maxHeight: headers.length ? "100%" : "none",
-                    overflowY: headers.length ? "auto" : "visible",
-                    paddingRight: headers.length ? 4 : 0,
-                  }}
-                >
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
-                    <StepCard
-                      title="Datei hochladen"
-                      status={headers.length ? "ok" : "idle"}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "flex-start",
-                          gap: 10,
-                          marginTop: 2,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            border: `1px solid ${BRAND_COLOR}`,
-                            background: "#FFFFFF",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: BRAND_COLOR,
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                          }}
-                        >
-                          Datei auswählen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            window.open(
-                              "http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx",
-                              "_blank",
-                              "noopener,noreferrer"
-                            )
-                          }
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            border: "1px solid #CBD5E1",
-                            background: "#F9FAFB",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: "#111827",
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                          }}
-                        >
-                          Feedvorlage (Excel) herunterladen
-                        </button>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#6B7280",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            flex: 1,
-                            minWidth: 0,
-                          }}
-                        >
-                          {fileName
-                            ? `Aktuelle Datei: ${fileName}`
-                            : ""}
-                        </div>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".csv,text/csv"
-                          onChange={(e) => onPickFile(e.target.files?.[0] || null)}
-                          style={{ display: "none" }}
-                        />
-                      </div>
-                      {parseError ? (
-                        <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>
-                          Fehler beim Einlesen {parseError}
-                        </div>
-                      ) : null}
-                    </StepCard>
-
-                    {headers.length ? <QsPage headers={headers} rows={rows} /> : null}
-
-                  </div>
-                </div>
-
-                {/* RIGHT: shared file preview */}
-                {headers.length ? (
-                  <FeedPreviewPanel headers={headers}>{step7Inner}</FeedPreviewPanel>
-                ) : null}
-              </div>
-            </div>
-          </div>
+          <UnifiedAnalyzerPage headers={headers} rows={rows} />
         </div>
       </div>
     );
