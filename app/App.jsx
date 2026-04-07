@@ -434,6 +434,7 @@ function ResizableTable({
   const MAX_ROW_HEIGHT = 48; // enforce compact preview height cap
   const [rowHeight, setRowHeight] = useState(32);
   const [descriptionModal, setDescriptionModal] = useState(null);
+  const [descriptionHtmlView, setDescriptionHtmlView] = useState(false);
   const [rowIssueModal, setRowIssueModal] = useState(null);
   const [hoveredCriticalRowIndex, setHoveredCriticalRowIndex] = useState(null);
   const dragRef = useRef(null);
@@ -820,19 +821,23 @@ function ResizableTable({
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{descriptionModal.title}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{descriptionModal.title}</div>
+                <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid #D1D5DB" }}>
+                  <button onClick={() => setDescriptionHtmlView(false)}
+                    style={{ padding: "3px 10px", border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: !descriptionHtmlView ? BRAND_COLOR : "#FFF", color: !descriptionHtmlView ? "#FFF" : "#374151" }}>
+                    Text
+                  </button>
+                  <button onClick={() => setDescriptionHtmlView(true)}
+                    style={{ padding: "3px 10px", border: "none", borderLeft: "1px solid #D1D5DB", fontSize: 10, fontWeight: 600, cursor: "pointer", background: descriptionHtmlView ? BRAND_COLOR : "#FFF", color: descriptionHtmlView ? "#FFF" : "#374151" }}>
+                    HTML
+                  </button>
+                </div>
+              </div>
               <button
-                onClick={() => setDescriptionModal(null)}
-                style={{
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  border: "1px solid #E5E7EB",
-                  background: "#FFFFFF",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
-              >
-                Schließen
+                onClick={() => { setDescriptionModal(null); setDescriptionHtmlView(false); }}
+                style={{ padding: "2px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", fontSize: 11, cursor: "pointer" }}>
+                Schliessen
               </button>
             </div>
             <div
@@ -845,9 +850,15 @@ function ResizableTable({
                 lineHeight: "18px",
                 color: "#111827",
                 overflow: "auto",
+                flex: 1,
+                minHeight: 0,
               }}
             >
-              {descriptionModal.text}
+              {descriptionHtmlView ? (
+                <div dangerouslySetInnerHTML={{ __html: descriptionModal.text }} />
+              ) : (
+                descriptionModal.text
+              )}
             </div>
           </div>
         </div>
