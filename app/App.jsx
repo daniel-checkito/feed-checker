@@ -4922,9 +4922,9 @@ export default function App() {
         addRowsByEans(optionalFindings.descriptionIssues.tooShort, warningRowIdx);
         addIssue(
           `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`,
-          findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean))
+          findTargetsByEans(optionalFindings.descriptionIssues.tooShort)
         );
-        addTip("Produktbeschreibungen etwas ausführlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).", findTargetsByEans(optionalFindings.descriptionIssues.tooShort.map((x) => x?.ean)));
+        addTip("Produktbeschreibungen etwas ausführlicher gestalten (Vorteile, Materialien, wichtige Eigenschaften).", findTargetsByEans(optionalFindings.descriptionIssues.tooShort));
         score -= 3;
       }
       if (optionalFindings.descriptionIssues.templateLike.length > 0) {
@@ -4955,7 +4955,7 @@ export default function App() {
       addRowsByEans(optionalFindings.descriptionIssues.externalLinks, warningRowIdx);
       addIssue(
         `Externe Links in Beschreibungen bei ${optionalFindings.descriptionIssues.externalLinks.length} Artikeln.`,
-        findTargetsByEans(optionalFindings.descriptionIssues.externalLinks.map((x) => x?.ean))
+        findTargetsByEans(optionalFindings.descriptionIssues.externalLinks)
       );
       addTip("Bitte in der Beschreibung keine externen Links oder Werbung auf andere Seiten einfuegen.");
       score -= 3;
@@ -5126,8 +5126,8 @@ export default function App() {
     const invalidDeliveryTimeSet = new Set(
       (optionalFindings.invalidDeliveryTime || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean)
     );
-    const tooShortSet = new Set((optionalFindings.descriptionIssues?.tooShort || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
-    const externalLinksSet = new Set((optionalFindings.descriptionIssues?.externalLinks || []).map((x) => String(x?.ean ?? "").trim()).filter(Boolean));
+    const tooShortSet = new Set((optionalFindings.descriptionIssues?.tooShort || []).map((x) => String(x ?? "").trim()).filter(Boolean));
+    const externalLinksSet = new Set((optionalFindings.descriptionIssues?.externalLinks || []).map((x) => String(x ?? "").trim()).filter(Boolean));
 
     for (const idx of criticalIdxs) {
       const ean = String(rows[idx]?.[eanColumn] ?? "").trim();
