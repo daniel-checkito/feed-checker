@@ -5543,7 +5543,74 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Email button inside Zusammenfassung */}
+                    {/* Action buttons */}
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <button
+                        onClick={() => {
+                          // Build CSV export with all issues per row
+                          const sellerCol = mapping.seller_offer_id;
+                          const nameCol = mapping.name;
+
+                          // Build sets for warning-level checks
+                          const missingMaterialSet = new Set(optionalFindings.missingEansByField?.material || []);
+                          const missingColorSet = new Set(optionalFindings.missingEansByField?.color || []);
+                          const missingDeliverySet = new Set(optionalFindings.missingEansByField?.delivery_includes || []);
+                          const imageOneSet = new Set(optionalFindings.imageOneEans || []);
+                          const imageLowSet = new Set(optionalFindings.imageLowEans || []);
+                          const templateSet = new Set((optionalFindings.descriptionIssues?.templateLike || []).map((x) => String(x ?? "").trim()));
+                          const invalidMatSet = new Set((optionalFindings.invalidMaterial || []).map((x) => String(x?.ean ?? "").trim()));
+                          const invalidColSet = new Set((optionalFindings.invalidColor || []).map((x) => String(x?.ean ?? "").trim()));
+
+                          const csvRows = [];
+                          for (let idx = 0; idx < rows.length; idx++) {
+                            const r = rows[idx];
+                            const ean = eanColumn ? String(r[eanColumn] ?? "").trim() : "";
+                            const sellerId = sellerCol ? String(r[sellerCol] ?? "").trim() : "";
+                            const name = nameCol ? String(r[nameCol] ?? "").trim() : "";
+                            const reasons = [];
+
+                            // Critical issues
+                            if (rowCriticalIssuesByIndex[idx]) reasons.push(...rowCriticalIssuesByIndex[idx]);
+
+                            // Warning issues (not in critical set)
+                            if (ean) {
+                              if (missingMaterialSet.has(ean)) reasons.push("Material fehlt");
+                              if (missingColorSet.has(ean)) reasons.push("Farbe fehlt");
+                              if (missingDeliverySet.has(ean)) reasons.push("Lieferumfang fehlt");
+                              if (imageOneSet.has(ean) || imageLowSet.has(ean)) reasons.push("Zu wenig Bilder");
+                              if (templateSet.has(ean)) reasons.push("Beschreibung wirkt wie Platzhalter");
+                              if (invalidMatSet.has(ean)) reasons.push("Material ungültig");
+                              if (invalidColSet.has(ean)) reasons.push("Farbe ungültig");
+                            }
+                            if (duplicates.sellerDup?.has(idx)) reasons.push("Doppelte Offer ID");
+
+                            // Deduplicate
+                            const unique = [...new Set(reasons)];
+                            if (!unique.length) continue;
+
+                            csvRows.push({ ean, sellerId, name, reasons: unique.join("; ") });
+                          }
+
+                          // Build CSV string
+                          const header = "EAN;Offer_ID;Name;Grund";
+                          const lines = csvRows.map((r) =>
+                            `"${r.ean}";"${r.sellerId}";"${r.name.replace(/"/g, '""')}";"${r.reasons}"`
+                          );
+                          const csv = [header, ...lines].join("\n");
+                          const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `feed-checker-ergebnisse-${new Date().toISOString().slice(0, 10)}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        style={{ flex: 1, padding: "10px 16px", borderRadius: 6, border: "1px solid #16A34A", background: "#F0FDF4", color: "#16A34A", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        CSV herunterladen
+                      </button>
+                    </div>
+
                     {!generatedEmail && (
                       <button
                         onClick={() => {
