@@ -2468,91 +2468,78 @@ function QsPage({ headers, rows }) {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 18, padding: 10, borderRadius: 16, border: "1px solid #A7F3D0", background: "#F0FDF4" }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#166534" }}>Attribute Qualität</div>
+      <div style={{ marginTop: 18, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
         <SmallText>
           Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen. Herstellerfeed wird
           ausschliesslich manuell per Ja/Nein bewertet.
         </SmallText>
 
-        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 8 }}>
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
           {attributeItems.map((item) => {
             const toneColor = item.status === "ok" ? "#16A34A" : item.status === "bad" ? "#DC2626" : "#F59E0B";
-            const icon = "●";
+            const toneBg = item.status === "ok" ? "#F0FDF4" : item.status === "bad" ? "#FEF2F2" : "#FFFBEB";
             const hasColumn = !!item.columnLabel;
             const columnText = hasColumn ? `Spalte: ${item.columnLabel}` : "Spalte nicht erkannt";
+            const maxPts = Math.max(...item.options);
 
             return (
-              <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: 7, borderRadius: 12, border: "1px solid #E5E7EB", borderLeft: `4px solid ${toneColor}`, background: "#FFFFFF", gap: 4 }}>
+              <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#FAFAFA", gap: 6 }}>
+                {/* Header row */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                    <span style={{ fontSize: 10, color: toneColor }}>{icon}</span>
-                    <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                    <div style={{ padding: "4px 10px", borderRadius: 6, background: toneBg, border: `1px solid ${toneColor}33`, fontSize: 13, fontWeight: 800, color: toneColor, minWidth: 52, textAlign: "center" }}>
+                      {item.value}/{maxPts}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{item.label}</div>
-                      {item.id !== "herstellerfeed" ? (
-                        <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{columnText}</div>
-                      ) : (
-                        <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          Manuelle Bewertung: Ja = 20 P, Nein = 0 P
-                        </div>
-                      )}
+                      <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.id === "herstellerfeed" ? "Manuelle Bewertung" : columnText}
+                      </div>
                     </div>
                   </div>
-                  <div>
+                  <div style={{ flexShrink: 0 }}>
                     {item.id === "herstellerfeed" ? (
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button
-                          type="button"
-                          onClick={() => item.onChange(20)}
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: 999,
-                            border: item.value === 20 ? "1px solid #16A34A" : "1px solid #D1D5DB",
-                            background: item.value === 20 ? "#DCFCE7" : "#FFFFFF",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                          }}
-                        >
+                        <button type="button" onClick={() => item.onChange(20)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: item.value === 20 ? "1px solid #16A34A" : "1px solid #D1D5DB", background: item.value === 20 ? "#DCFCE7" : "#FFF", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                           Ja
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => item.onChange(0)}
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: 999,
-                            border: item.value === 0 ? "1px solid #DC2626" : "1px solid #D1D5DB",
-                            background: item.value === 0 ? "#FEE2E2" : "#FFFFFF",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                          }}
-                        >
+                        <button type="button" onClick={() => item.onChange(0)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: item.value === 0 ? "1px solid #DC2626" : "1px solid #D1D5DB", background: item.value === 0 ? "#FEE2E2" : "#FFF", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                           Nein
                         </button>
                       </div>
                     ) : item.editable ? (
-                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", fontSize: 12, background: "#FFFFFF", cursor: "pointer" }}>
-                        {item.options.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt} P
-                          </option>
-                        ))}
+                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 12, background: "#FFF", cursor: "pointer" }}>
+                        {item.options.map((opt) => (<option key={opt} value={opt}>{opt} P</option>))}
                       </select>
                     ) : (
-                      <span style={{ padding: "3px 8px", borderRadius: 999, background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
+                      <span style={{ padding: "3px 8px", borderRadius: 6, background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
                     )}
                   </div>
                 </div>
-                {item.description ? <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>{item.description}</div> : null}
-                {item.id !== "herstellerfeed" && item.criteria && item.criteria.length ? (
-                  <details style={{ marginTop: 4 }}>
-                    <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>Kriterien fuer Punkte anzeigen</summary>
-                    <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
-                      {item.criteria.map((line, idx) => (<li key={idx}>{line}</li>))}
-                    </ul>
-                  </details>
+                {/* Description */}
+                {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
+                {/* Scoring thresholds - always visible */}
+                {item.criteria && item.criteria.length ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                    {item.criteria.map((line, idx) => {
+                      const pts = line.match(/^(\d+)\s*P/);
+                      const isActive = pts && Number(pts[1]) === item.value;
+                      return (
+                        <div key={idx} style={{
+                          fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                          background: isActive ? toneBg : "#F3F4F6",
+                          border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                          color: isActive ? toneColor : "#6B7280",
+                          fontWeight: isActive ? 600 : 400,
+                        }}>
+                          {line}
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : null}
               </div>
             );
@@ -2560,44 +2547,59 @@ function QsPage({ headers, rows }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 24, padding: 10, borderRadius: 16, border: "1px solid #BFDBFE", background: "#EFF6FF" }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#1D4ED8" }}>Bildqualität</div>
+      <div style={{ marginTop: 24, padding: 16, borderRadius: 12, border: “1px solid #E5E7EB”, background: “#FFFFFF” }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: “#111827” }}>Bildqualität</div>
         <SmallText>
-          Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. „1. Bild &amp; keine Dopplungen“, „Freisteller“ und
-          „Millieu“ muessen manuell ueber das Dropdown bewertet werden. Darunter siehst du Beispielprodukte.
+          Bewertung von erstem Bild, Freistellern, Milieu und Anzahl Bilder. „1. Bild &amp; keine Dopplungen”, „Freisteller” und
+          „Millieu” muessen manuell ueber das Dropdown bewertet werden.
         </SmallText>
 
-        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 8 }}>
+        <div style={{ marginTop: 12, display: “grid”, gridTemplateColumns: “1fr”, gap: 8 }}>
           {imageItems.map((item) => {
-            const toneColor = item.status === "ok" ? "#16A34A" : item.status === "bad" ? "#DC2626" : "#F59E0B";
-            const icon = "●";
+            const toneColor = item.status === “ok” ? “#16A34A” : item.status === “bad” ? “#DC2626” : “#F59E0B”;
+            const toneBg = item.status === “ok” ? “#F0FDF4” : item.status === “bad” ? “#FEF2F2” : “#FFFBEB”;
+            const maxPts = Math.max(...item.options);
             return (
-              <div key={item.id} style={{ display: "flex", flexDirection: "column", padding: 7, borderRadius: 12, border: "1px solid #E5E7EB", borderLeft: `4px solid ${toneColor}`, background: "#FFFFFF", gap: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                    <span style={{ fontSize: 10, color: toneColor }}>{icon}</span>
-                    <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{item.label}</div>
+              <div key={item.id} style={{ display: “flex”, flexDirection: “column”, padding: “10px 14px”, borderRadius: 10, border: “1px solid #E5E7EB”, background: “#FAFAFA”, gap: 6 }}>
+                {/* Header row */}
+                <div style={{ display: “flex”, alignItems: “center”, justifyContent: “space-between”, gap: 8 }}>
+                  <div style={{ display: “flex”, alignItems: “center”, gap: 10, minWidth: 0, flex: 1 }}>
+                    <div style={{ padding: “4px 10px”, borderRadius: 6, background: toneBg, border: `1px solid ${toneColor}33`, fontSize: 13, fontWeight: 800, color: toneColor, minWidth: 52, textAlign: “center” }}>
+                      {item.value}/{maxPts}
                     </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: “#111827” }}>{item.label}</div>
                   </div>
-                  <div>
+                  <div style={{ flexShrink: 0 }}>
                     {item.editable ? (
-                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", fontSize: 12, background: "#FFFFFF", cursor: "pointer" }}>
+                      <select value={item.value} onChange={(e) => item.onChange(Number(e.target.value))} style={{ padding: “4px 8px”, borderRadius: 6, border: “1px solid #D1D5DB”, fontSize: 12, background: “#FFF”, cursor: “pointer” }}>
                         {item.options.map((opt) => (<option key={opt} value={opt}>{opt} P</option>))}
                       </select>
                     ) : (
-                      <span style={{ padding: "3px 8px", borderRadius: 999, background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
+                      <span style={{ padding: “3px 8px”, borderRadius: 6, background: “#EFF6FF”, color: “#1D4ED8”, fontSize: 11, fontWeight: 600 }}>{item.value} P</span>
                     )}
                   </div>
                 </div>
-                {item.description ? <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>{item.description}</div> : null}
+                {/* Description */}
+                {item.description ? <div style={{ fontSize: 11, color: “#4B5563”, lineHeight: “16px” }}>{item.description}</div> : null}
+                {/* Scoring thresholds - always visible */}
                 {item.criteria && item.criteria.length ? (
-                  <details style={{ marginTop: 4 }}>
-                    <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563" }}>Kriterien fuer Punkte anzeigen</summary>
-                    <ul style={{ marginTop: 4, paddingLeft: 16, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
-                      {item.criteria.map((line, idx) => (<li key={idx}>{line}</li>))}
-                    </ul>
-                  </details>
+                  <div style={{ display: “flex”, flexWrap: “wrap”, gap: 4, marginTop: 2 }}>
+                    {item.criteria.map((line, idx) => {
+                      const pts = line.match(/^(\d+)\s*P/);
+                      const isActive = pts && Number(pts[1]) === item.value;
+                      return (
+                        <div key={idx} style={{
+                          fontSize: 10, lineHeight: “14px”, padding: “3px 8px”, borderRadius: 6,
+                          background: isActive ? toneBg : “#F3F4F6”,
+                          border: isActive ? `1px solid ${toneColor}44` : “1px solid #E5E7EB”,
+                          color: isActive ? toneColor : “#6B7280”,
+                          fontWeight: isActive ? 600 : 400,
+                        }}>
+                          {line}
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : null}
               </div>
             );
