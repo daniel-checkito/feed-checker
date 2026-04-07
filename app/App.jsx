@@ -5729,14 +5729,36 @@ export default function App() {
 
             {/* STEP 3 */}
             {(showAllChecks || stage2Status !== "ok") && (
-            <StepCard title="Duplikate" status={stage2Status} subtitle="Wir prüfen doppelte EAN und doppelte Produkttitel">
+            <StepCard title="Duplikate erkennen" status={stage2Status} subtitle="Wir prüfen doppelte EAN, Produkttitel und Offer IDs">
               {!headers.length ? (
                 <SmallText>Bitte CSV hochladen, um Duplikate zu prüfen.</SmallText>
               ) : (
                 <>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <Pill tone={eanColumn ? "ok" : "warn"}>{eanColumn ? `EAN Spalte ${eanColumn}` : "EAN Spalte nicht gefunden"}</Pill>
-                    <Pill tone={titleColumn ? "ok" : "warn"}>{titleColumn ? `Titel Spalte ${titleColumn}` : "Titel Spalte nicht gefunden"}</Pill>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {[
+                      { label: "EAN", hasDups: duplicateEans.length > 0, found: !!eanColumn },
+                      { label: "Titel", hasDups: duplicateTitleRows.length > 0, found: !!titleColumn },
+                      { label: "Offer ID", hasDups: duplicateSellerOfferIds.length > 0, found: !!sellerColumn },
+                    ].map((t) => {
+                      const ok = t.found && !t.hasDups;
+                      const bad = t.found && t.hasDups;
+                      return (
+                        <div
+                          key={t.label}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "6px 12px", borderRadius: 999,
+                            fontSize: 12, fontWeight: 600,
+                            border: `1px solid ${bad ? "#FCA5A5" : ok ? "#A7F3D0" : "#E5E7EB"}`,
+                            background: bad ? "#FEF2F2" : ok ? "#ECFDF5" : "#F9FAFB",
+                            color: bad ? "#B91C1C" : ok ? "#047857" : "#6B7280",
+                          }}
+                        >
+                          <span style={{ fontSize: 14, fontWeight: 700 }}>{bad ? "✕" : ok ? "✓" : "–"}</span>
+                          {t.label}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {duplicateEans.length > 0 || duplicateTitleRows.length > 0 || duplicateSellerOfferIds.length > 0 ? (
