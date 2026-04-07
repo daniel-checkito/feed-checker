@@ -4468,7 +4468,8 @@ export default function App() {
       const id = eanColumn
         ? String(r?.[eanColumn] ?? "").trim() || `ROW_${i + 1}`
         : `ROW_${i + 1}`;
-      out.push({ id, urls });
+      const title = titleColumn ? String(r?.[titleColumn] ?? "").trim() : "";
+      out.push({ id, title, urls, count: urls.length });
       if (out.length >= 50) break;
     }
     return out;
@@ -6275,107 +6276,57 @@ export default function App() {
                     })()}
                   </div>
 
-                  {imageSamples.length ? (
-                    <div style={{ marginTop: 14 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Bild-Vorschau ({imageSamples.length} Produkte mit Bildern)</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {imageSamples
-                        .filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t)))
-                        .slice(0, imageSampleLimitStep5)
-                        .map((sample) => (
-                        <div key={sample.id} style={{ padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#FFFFFF", display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
-                          <div style={{ minWidth: 0, maxWidth: 220 }}>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sample.id}</div>
-                          </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                            {sample.urls.slice(0, 6).map((u) => (
-                              <a
-                                key={u}
-                                href={u}
-                                target="_blank"
-                                rel="noreferrer"
-                                title={u}
-                                style={{ display: "block", width: 64, height: 64, flexShrink: 0 }}
-                              >
-                                <div style={{ width: 64, height: 64, position: "relative" }}>
-                                  <img
-                                    src={u}
-                                    alt="Bild"
-                                    loading="lazy"
-                                    style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB", display: "block" }}
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = "none";
-                                      const fallback = e.currentTarget.nextElementSibling;
-                                      if (fallback && fallback instanceof HTMLElement) fallback.style.display = "flex";
-                                      setBrokenImageIds((prev) => { const set = new Set(prev); set.add(sample.id); return Array.from(set); });
-                                    }}
-                                  />
-                                  <div
-                                    style={{
-                                      display: "none",
-                                      width: 64,
-                                      height: 64,
-                                      borderRadius: 12,
-                                      border: "1px solid #E5E7EB",
-                                      background: "#F3F4F6",
-                                      color: "#6B7280",
-                                      fontSize: 10,
-                                      fontWeight: 600,
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      textAlign: "center",
-                                      padding: "0 6px",
-                                      boxSizing: "border-box",
-                                      cursor: "copy",
-                                    }}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      if (navigator?.clipboard?.writeText) {
-                                        navigator.clipboard.writeText(u).catch(() => {});
-                                      }
-                                    }}
-                                    title="Fehler - klicken um Link zu kopieren"
-                                  >
-                                    Fehler - Link kopieren
-                                  </div>
-                                </div>
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      {imageSampleLimitStep5 <
-                      imageSamples.filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t))).length ? (
-                        <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-start" }}>
-                          <button
-                            onClick={() =>
-                              setImageSampleLimitStep5((n) =>
-                                Math.min(
-                                  imageSamples.filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t))).length,
-                                  n + 5
-                                )
-                              )
-                            }
-                            style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
-                          >
-                            Mehr Produkte anzeigen
-                          </button>
-                        </div>
-                      ) : null}
-                      {brokenImageIds.length ? (
-                        <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>
-                          Warnung: Bei {brokenImageIds.length} Produkten konnten Vorschaubilder nicht geladen werden.
-                          Bitte prüfen, ob die Bild-Links für diese EANs funktionieren: {brokenImageIds.slice(0, 10).join(", ")}{brokenImageIds.length > 10 ? " …" : ""}
-                        </div>
-                      ) : null}
+                  {(() => {
+                    const filtered = imageSamples.filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t)));
+                    const shown = filtered.slice(0, imageSampleLimitStep5);
+                    if (!shown.length) return (
+                      <div style={{ marginTop: 12 }}>
+                        <SmallText>Keine Produkte mit Bildlinks gefunden.</SmallText>
                       </div>
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 12 }}>
-                      <SmallText>Es konnten keine Beispielprodukte mit Bildlinks ermittelt werden. Besonders kritisch sind EANs ohne Bilder oder nur einem Bild.</SmallText>
-                    </div>
-                  )}
+                    );
+                    return (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+                          {shown.map((sample) => (
+                            <div key={sample.id} style={{ borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFF", overflow: "hidden" }}>
+                              {/* Image grid */}
+                              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(sample.urls.length, 3)}, 1fr)`, gap: 2, padding: 4, background: "#F9FAFB" }}>
+                                {sample.urls.slice(0, 3).map((u) => (
+                                  <a key={u} href={u} target="_blank" rel="noreferrer" title={u} style={{ display: "block", aspectRatio: "1", overflow: "hidden", borderRadius: 6 }}>
+                                    <img
+                                      src={u} alt="" loading="lazy"
+                                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                      onError={(e) => { e.currentTarget.style.display = "none"; setBrokenImageIds((prev) => { const set = new Set(prev); set.add(sample.id); return Array.from(set); }); }}
+                                    />
+                                  </a>
+                                ))}
+                              </div>
+                              {/* Info */}
+                              <div style={{ padding: "8px 10px" }}>
+                                {sample.title && <div style={{ fontSize: 11, fontWeight: 600, color: "#111827", lineHeight: "15px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{sample.title}</div>}
+                                <div style={{ fontSize: 10, color: "#6B7280", marginTop: 3 }}>
+                                  EAN: {sample.id} | {sample.count} Bilder
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {filtered.length > imageSampleLimitStep5 && (
+                          <div style={{ marginTop: 10, marginBottom: 40, display: "flex", justifyContent: "flex-start" }}>
+                            <button onClick={() => setImageSampleLimitStep5((n) => Math.min(filtered.length, n + 5))}
+                              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                              Mehr Produkte anzeigen
+                            </button>
+                          </div>
+                        )}
+                        {brokenImageIds.length > 0 && (
+                          <div style={{ marginTop: 8, fontSize: 11, color: "#92400E" }}>
+                            {brokenImageIds.length} Produkte mit fehlerhaften Bild-Links: {brokenImageIds.slice(0, 5).join(", ")}{brokenImageIds.length > 5 ? " ..." : ""}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </StepCard>
