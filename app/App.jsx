@@ -3921,6 +3921,8 @@ export default function App() {
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailContent, setEmailContent] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
+  const [csvExporting, setCsvExporting] = useState(false);
+  const [csvProgress, setCsvProgress] = useState(0);
 
   const [imageMin, setImageMin] = useState(DEFAULT_RULES.image_min_per_product);
   const [imageSampleLimitStep5, setImageSampleLimitStep5] = useState(5);
@@ -5599,74 +5601,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Action buttons */}
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <button
-                        onClick={() => {
-                          // Build CSV export with all issues per row
-                          const sellerCol = mapping.seller_offer_id;
-                          const nameCol = mapping.name;
-
-                          // Build sets for warning-level checks
-                          const missingMaterialSet = new Set(optionalFindings.missingEansByField?.material || []);
-                          const missingColorSet = new Set(optionalFindings.missingEansByField?.color || []);
-                          const missingDeliverySet = new Set(optionalFindings.missingEansByField?.delivery_includes || []);
-                          const imageOneSet = new Set(optionalFindings.imageOneEans || []);
-                          const imageLowSet = new Set(optionalFindings.imageLowEans || []);
-                          const templateSet = new Set((optionalFindings.descriptionIssues?.templateLike || []).map((x) => String(x ?? "").trim()));
-                          const invalidMatSet = new Set((optionalFindings.invalidMaterial || []).map((x) => String(x?.ean ?? "").trim()));
-                          const invalidColSet = new Set((optionalFindings.invalidColor || []).map((x) => String(x?.ean ?? "").trim()));
-
-                          const csvRows = [];
-                          for (let idx = 0; idx < rows.length; idx++) {
-                            const r = rows[idx];
-                            const ean = eanColumn ? String(r[eanColumn] ?? "").trim() : "";
-                            const sellerId = sellerCol ? String(r[sellerCol] ?? "").trim() : "";
-                            const name = nameCol ? String(r[nameCol] ?? "").trim() : "";
-                            const reasons = [];
-
-                            // Critical issues
-                            if (rowCriticalIssuesByIndex[idx]) reasons.push(...rowCriticalIssuesByIndex[idx]);
-
-                            // Warning issues (not in critical set)
-                            if (ean) {
-                              if (missingMaterialSet.has(ean)) reasons.push("Material fehlt");
-                              if (missingColorSet.has(ean)) reasons.push("Farbe fehlt");
-                              if (missingDeliverySet.has(ean)) reasons.push("Lieferumfang fehlt");
-                              if (imageOneSet.has(ean) || imageLowSet.has(ean)) reasons.push("Zu wenig Bilder");
-                              if (templateSet.has(ean)) reasons.push("Beschreibung wirkt wie Platzhalter");
-                              if (invalidMatSet.has(ean)) reasons.push("Material ungültig");
-                              if (invalidColSet.has(ean)) reasons.push("Farbe ungültig");
-                            }
-                            if (duplicates.sellerDup?.has(idx)) reasons.push("Doppelte Offer ID");
-
-                            // Deduplicate
-                            const unique = [...new Set(reasons)];
-                            if (!unique.length) continue;
-
-                            csvRows.push({ ean, sellerId, name, reasons: unique.join("; ") });
-                          }
-
-                          // Build CSV string
-                          const header = "EAN;Offer_ID;Name;Grund";
-                          const lines = csvRows.map((r) =>
-                            `"${r.ean}";"${r.sellerId}";"${r.name.replace(/"/g, '""')}";"${r.reasons}"`
-                          );
-                          const csv = [header, ...lines].join("\n");
-                          const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = `feed-checker-ergebnisse-${new Date().toISOString().slice(0, 10)}.csv`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        style={{ flex: 1, padding: "10px 16px", borderRadius: 6, border: "1px solid #16A34A", background: "#F0FDF4", color: "#16A34A", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                      >
-                        CSV herunterladen
-                      </button>
-                    </div>
-
                     {!generatedEmail && (
                       <button
                         onClick={() => {
@@ -5713,6 +5647,88 @@ export default function App() {
                         </div>
                       </div>
                     )}
+
+                    {/* CSV Download */}
+                    <div style={{ marginTop: 14, padding: "14px 16px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Ergebnisse als CSV exportieren</div>
+                          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>Alle Zeilen mit Fehlern und Warnungen inkl. EAN, Offer ID, Name und Grund.</div>
+                        </div>
+                        <button
+                          disabled={csvExporting}
+                          onClick={async () => {
+                            setCsvExporting(true);
+                            setCsvProgress(0);
+                            // Use setTimeout to let UI update
+                            await new Promise((r) => setTimeout(r, 50));
+
+                            const sellerCol = mapping.seller_offer_id;
+                            const nameCol = mapping.name;
+                            const missingMaterialSet = new Set(optionalFindings.missingEansByField?.material || []);
+                            const missingColorSet = new Set(optionalFindings.missingEansByField?.color || []);
+                            const missingDeliverySet = new Set(optionalFindings.missingEansByField?.delivery_includes || []);
+                            const imageOneSet = new Set(optionalFindings.imageOneEans || []);
+                            const imageLowSet = new Set(optionalFindings.imageLowEans || []);
+                            const templateSet = new Set((optionalFindings.descriptionIssues?.templateLike || []).map((x) => String(x ?? "").trim()));
+                            const invalidMatSet = new Set((optionalFindings.invalidMaterial || []).map((x) => String(x?.ean ?? "").trim()));
+                            const invalidColSet = new Set((optionalFindings.invalidColor || []).map((x) => String(x?.ean ?? "").trim()));
+
+                            const csvRows = [];
+                            const total = rows.length;
+                            const batchSize = 500;
+                            for (let start = 0; start < total; start += batchSize) {
+                              const end = Math.min(start + batchSize, total);
+                              for (let idx = start; idx < end; idx++) {
+                                const r = rows[idx];
+                                const ean = eanColumn ? String(r[eanColumn] ?? "").trim() : "";
+                                const sellerId = sellerCol ? String(r[sellerCol] ?? "").trim() : "";
+                                const name = nameCol ? String(r[nameCol] ?? "").trim() : "";
+                                const reasons = [];
+                                if (rowCriticalIssuesByIndex[idx]) reasons.push(...rowCriticalIssuesByIndex[idx]);
+                                if (ean) {
+                                  if (missingMaterialSet.has(ean)) reasons.push("Material fehlt");
+                                  if (missingColorSet.has(ean)) reasons.push("Farbe fehlt");
+                                  if (missingDeliverySet.has(ean)) reasons.push("Lieferumfang fehlt");
+                                  if (imageOneSet.has(ean) || imageLowSet.has(ean)) reasons.push("Zu wenig Bilder");
+                                  if (templateSet.has(ean)) reasons.push("Beschreibung wirkt wie Platzhalter");
+                                  if (invalidMatSet.has(ean)) reasons.push("Material ungültig");
+                                  if (invalidColSet.has(ean)) reasons.push("Farbe ungültig");
+                                }
+                                if (duplicates.sellerDup?.has(idx)) reasons.push("Doppelte Offer ID");
+                                const unique = [...new Set(reasons)];
+                                if (unique.length) csvRows.push({ ean, sellerId, name, reasons: unique.join("; ") });
+                              }
+                              setCsvProgress(Math.round((end / total) * 100));
+                              await new Promise((r) => setTimeout(r, 0));
+                            }
+
+                            const header = "EAN;Offer_ID;Name;Grund";
+                            const lines = csvRows.map((r) => `"${r.ean}";"${r.sellerId}";"${r.name.replace(/"/g, '""')}";"${r.reasons}"`);
+                            const csv = [header, ...lines].join("\n");
+                            const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `feed-checker-ergebnisse-${new Date().toISOString().slice(0, 10)}.csv`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                            setCsvExporting(false);
+                          }}
+                          style={{ padding: "10px 20px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 13, fontWeight: 600, cursor: csvExporting ? "not-allowed" : "pointer", flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}
+                        >
+                          {csvExporting ? <><Spinner size={14} color="#FFF" /> Exportiere...</> : "CSV herunterladen"}
+                        </button>
+                      </div>
+                      {csvExporting && (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: 3, background: "#16A34A", width: `${csvProgress}%`, transition: "width 0.2s" }} />
+                          </div>
+                          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>{csvProgress}% analysiert ({rows.length} Zeilen)</div>
+                        </div>
+                      )}
+                    </div>
 
                   </>
                 ) : null}
