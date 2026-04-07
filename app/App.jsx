@@ -5077,6 +5077,20 @@ export default function App() {
     tryParse("UTF-8");
   }
 
+  const jumpToEanWithColumn = (ean, col) => {
+    jumpToIssueTarget({
+      ean,
+      rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
+      column: col || null,
+    });
+  };
+
+  const resetPreview = () => {
+    setVisibleColumns(null);
+    setEanSearch("");
+    setShowIssueRowsOnly(false);
+  };
+
   // ── Step 7 preview JSX (shared between inline and fullscreen) ──────────────
   const step7Inner = (
     <>
@@ -5120,12 +5134,9 @@ export default function App() {
           Spalten {Array.isArray(visibleColumns) ? `(${visibleColumns.length}/${headers.length})` : `(${headers.length})`}
         </button>
         {Array.isArray(visibleColumns) && visibleColumns.length < headers.length && (
-          <button
-            type="button"
-            onClick={() => setVisibleColumns(null)}
-            style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 11, fontWeight: 600, cursor: "pointer", color: "#374151", whiteSpace: "nowrap" }}
-          >
-            Alle Spalten
+          <button type="button" onClick={resetPreview}
+            style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 11, fontWeight: 600, cursor: "pointer", color: "#374151", whiteSpace: "nowrap" }}>
+            Ansicht zurücksetzen
           </button>
         )}
         <button
@@ -5852,263 +5863,112 @@ export default function App() {
                   {optionalFindings.missingEANs.length > 0 ? (
                     <div style={{ marginTop: 14 }}>
                       <CollapsibleList
-                        title="Zeilen ohne EAN"
-                        items={optionalFindings.missingEANs
-                          .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                          .map((ean) => String(ean))}
+                        title={`Zeilen ohne EAN (${optionalFindings.missingEANs.length})`}
+                        items={optionalFindings.missingEANs.slice(0, 50).map((ean) => String(ean))}
                         tone="bad"
-                        hint="➜ bitte EAN nachliefern"
-                        onItemClick={(ean) =>
-                          jumpToIssueTarget({
-                            ean,
-                            rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                          })
-                        }
+                        hint="EAN nachliefern"
+                        onItemClick={(ean) => jumpToEanWithColumn(ean, eanColumn)}
                       />
                     </div>
                   ) : null}
 
                   {(optionalFindings.missingEansByField.material.length > 0 || (optionalFindings.invalidMaterial?.length || 0) > 0) && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {optionalFindings.missingEansByField.material.length > 0 ? (
-                          <CollapsibleList
-                            title="Material fehlt"
-                            items={optionalFindings.missingEansByField.material
-                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => String(ean))}
-                            tone="warn"
-                            onItemClick={(ean) =>
-                              jumpToIssueTarget({
-                                ean,
-                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                              })
-                            }
-                          />
-                        ) : null}
-                        {optionalFindings.invalidMaterial?.length ? (
-                          <CollapsibleList
-                            title="Material ausserhalb erlaubter Werte"
-                            items={groupByValueWithEans(optionalFindings.invalidMaterial).filter((g) =>
-                              !eanSearchTerms.length
-                                ? true
-                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                            )}
-                            tone="warn"
-                            hint="Werte, die nicht in der Material-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-
-                            onItemClick={(ean) =>
-                              jumpToIssueTarget({
-                                ean,
-                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                              })
-                            }
-                          />
-                        ) : null}
-                      </div>
+                    <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                      {optionalFindings.missingEansByField.material.length > 0 && (
+                        <CollapsibleList title={`Material fehlt (${optionalFindings.missingEansByField.material.length})`}
+                          items={optionalFindings.missingEansByField.material.slice(0, 50).map((ean) => String(ean))} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.material)} />
+                      )}
+                      {optionalFindings.invalidMaterial?.length > 0 && (
+                        <CollapsibleList title="Material ausserhalb erlaubter Werte"
+                          items={groupByValueWithEans(optionalFindings.invalidMaterial).slice(0, 50)} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.material)} />
+                      )}
                     </div>
                   )}
 
                   {(optionalFindings.missingEansByField.color.length > 0 || (optionalFindings.invalidColor?.length || 0) > 0) && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {optionalFindings.missingEansByField.color.length > 0 ? (
-                          <CollapsibleList
-                            title="Farbe fehlt"
-                            items={optionalFindings.missingEansByField.color
-                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => String(ean))}
-                            tone="warn"
-                            onItemClick={(ean) =>
-                              jumpToIssueTarget({
-                                ean,
-                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                              })
-                            }
-                          />
-                        ) : null}
-                        {optionalFindings.invalidColor?.length ? (
-                          <>
-                            <CollapsibleList
-                              title="Farbe ausserhalb erlaubter Werte"
-                              items={groupByValueWithEans(optionalFindings.invalidColor).filter((g) =>
-                                !eanSearchTerms.length
-                                  ? true
-                                  : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                              )}
-                              tone="warn"
-                              hint="Werte, die nicht in der Farb-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-
-                              onItemClick={(ean) =>
-                                jumpToIssueTarget({
-                                  ean,
-                                  rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                                })
-                              }
-                            />
-                          </>
-                        ) : null}
-                      </div>
+                    <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                      {optionalFindings.missingEansByField.color.length > 0 && (
+                        <CollapsibleList title={`Farbe fehlt (${optionalFindings.missingEansByField.color.length})`}
+                          items={optionalFindings.missingEansByField.color.slice(0, 50).map((ean) => String(ean))} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.color)} />
+                      )}
+                      {optionalFindings.invalidColor?.length > 0 && (
+                        <CollapsibleList title="Farbe ausserhalb erlaubter Werte"
+                          items={groupByValueWithEans(optionalFindings.invalidColor).slice(0, 50)} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.color)} />
+                      )}
                     </div>
                   )}
 
                   {(optionalFindings.missingEansByField.delivery_includes.length > 0 || (optionalFindings.invalidDeliveryIncludes?.length || 0) > 0) && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {optionalFindings.missingEansByField.delivery_includes.length > 0 ? (
-                          <CollapsibleList
-                            title="Lieferumfang fehlt"
-                            items={optionalFindings.missingEansByField.delivery_includes
-                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => String(ean))}
-                            tone="warn"
-                            onItemClick={(ean) =>
-                              jumpToIssueTarget({
-                                ean,
-                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                              })
-                            }
-                          />
-                        ) : null}
-                        {optionalFindings.invalidDeliveryIncludes?.length ? (
-                          <CollapsibleList
-                            title="Lieferumfang ausserhalb Pattern"
-                            items={groupByValueWithEans(optionalFindings.invalidDeliveryIncludes).filter((g) =>
-                              !eanSearchTerms.length
-                                ? true
-                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                            )}
-                            tone="warn"
-                            hint=""
-
-                            onItemClick={(ean) =>
-                              jumpToIssueTarget({
-                                ean,
-                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                              })
-                            }
-                          />
-                        ) : null}
-                      </div>
+                    <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                      {optionalFindings.missingEansByField.delivery_includes.length > 0 && (
+                        <CollapsibleList title={`Lieferumfang fehlt (${optionalFindings.missingEansByField.delivery_includes.length})`}
+                          items={optionalFindings.missingEansByField.delivery_includes.slice(0, 50).map((ean) => String(ean))} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.delivery_includes)} />
+                      )}
+                      {optionalFindings.invalidDeliveryIncludes?.length > 0 && (
+                        <CollapsibleList title="Lieferumfang-Format ungültig"
+                          items={groupByValueWithEans(optionalFindings.invalidDeliveryIncludes).slice(0, 50)} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.delivery_includes)} />
+                      )}
                     </div>
                   )}
 
-                  {mapping.delivery_time && ((optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0) || (optionalFindings.invalidDeliveryTime?.length > 0)) ? (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0 ? (
-                          <CollapsibleList
-                            title="Lieferzeit fehlt"
-                            items={optionalFindings.missingEansByField.delivery_time
-                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => String(ean))}
-                            tone="warn"
-                            onItemClick={(ean) =>
-                              jumpToIssueTarget({
-                                ean,
-                                rowIndex: rows.findIndex((r) => String(r?.[eanColumn] ?? "").trim() === String(ean)),
-                              })
-                            }
-                          />
-                        ) : null}
-                        {optionalFindings.invalidDeliveryTime?.length ? (
-                          <CollapsibleList
-                            title="Lieferzeit ausserhalb erlaubter Formate"
-                            items={groupByValueWithEans(optionalFindings.invalidDeliveryTime)
-                              .filter((g) =>
-                                !eanSearchTerms.length
-                                  ? true
-                                  : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                              )
-                              .map((g) => `${g.value || "(leer)"} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                            tone="warn"
-                            hint='Erwartet werden Angaben wie "3-5 Werktage", "2 Wochen" oder "10 Arbeitstage" ohne Mischformen.'
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {optionalFindings.templateValueHits && optionalFindings.templateValueHits.length > 0 ? (
-                    <div style={{ marginTop: 12 }}>
-                        <CollapsibleList
-                          title="Felder mit Beispielwerten"
-                          items={groupByValueWithEans(optionalFindings.templateValueHits)
-                            .filter((g) =>
-                              !eanSearchTerms.length
-                                ? true
-                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                            )
-                            .map((g) => `${g.value} (${g.eans.length} EANs, Spalte ${g.column || "unbekannt"}): ${g.eans.join(", ")}`)}
+                  {mapping.delivery_time && ((optionalFindings.missingEansByField.delivery_time?.length > 0) || (optionalFindings.invalidDeliveryTime?.length > 0)) ? (
+                    <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                      {optionalFindings.missingEansByField.delivery_time?.length > 0 && (
+                        <CollapsibleList title={`Lieferzeit fehlt (${optionalFindings.missingEansByField.delivery_time.length})`}
+                          items={optionalFindings.missingEansByField.delivery_time.slice(0, 50).map((ean) => String(ean))} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.delivery_time)} />
+                      )}
+                      {optionalFindings.invalidDeliveryTime?.length > 0 && (
+                        <CollapsibleList title="Lieferzeit-Format ungültig"
+                          items={groupByValueWithEans(optionalFindings.invalidDeliveryTime).slice(0, 50).map((g) => `${g.value || "(leer)"} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
                           tone="warn"
-                          hint="Werte, die wie Beispielangaben aus einem Muster-Feed aussehen (z.B. Demo-URLs, Platzhalter)."
-                        />
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.delivery_time)} />
+                      )}
                     </div>
                   ) : null}
 
-                  {mapping.washable_cover && optionalFindings.invalidWashableCover.length > 0 ? (
+                  {optionalFindings.templateValueHits?.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                        <CollapsibleList
-                          title="Ungültige washable_cover Werte"
-                          items={groupByValueWithEans(optionalFindings.invalidWashableCover)
-                            .filter((g) =>
-                              !eanSearchTerms.length
-                                ? true
-                                : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                            )
-                            .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                          tone="warn"
-                          hint='Waschbarer Bezug sollte nur "ja" oder "nein" enthalten'
-                        />
+                      <CollapsibleList title="Felder mit Beispielwerten"
+                        items={groupByValueWithEans(optionalFindings.templateValueHits).slice(0, 50).map((g) => `${g.value} (Spalte ${g.column || "?"}): ${g.eans.slice(0, 5).join(", ")}`)}
+                        tone="warn" />
                     </div>
-                  ) : null}
+                  )}
 
-                  {mapping.mounting_side && optionalFindings.invalidMountingSide.length > 0 ? (
+                  {mapping.washable_cover && optionalFindings.invalidWashableCover.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <CollapsibleList
-                        title="Ungültige mounting_side Werte"
-                        items={groupByValueWithEans(optionalFindings.invalidMountingSide)
-                          .filter((g) =>
-                            !eanSearchTerms.length
-                              ? true
-                              : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                          )
-                          .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                        tone="warn"
-                        hint='Montageseite sollte nur "links", "rechts" oder "beidseitig" enthalten'
-                      />
+                      <CollapsibleList title="Ungültige washable_cover Werte"
+                        items={groupByValueWithEans(optionalFindings.invalidWashableCover).slice(0, 50).map((g) => `${g.value} – ${g.eans.length} EANs`)}
+                        tone="warn" onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.washable_cover)} />
                     </div>
-                  ) : null}
+                  )}
+
+                  {mapping.mounting_side && optionalFindings.invalidMountingSide.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <CollapsibleList title="Ungültige mounting_side Werte"
+                        items={groupByValueWithEans(optionalFindings.invalidMountingSide).slice(0, 50).map((g) => `${g.value} – ${g.eans.length} EANs`)}
+                        tone="warn" onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.mounting_side)} />
+                    </div>
+                  )}
 
                   {mapping.shipping_mode && (optionalFindings.missingShipping.length > 0 || optionalFindings.invalidShipping.length > 0) ? (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                        {optionalFindings.missingShipping.length > 0 ? (
-                          <CollapsibleList
-                            title="shipping_mode fehlt"
-                            items={optionalFindings.missingShipping
-                              .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((x) => String(x))}
-                            tone="warn"
-                            hint="Felder ohne Versandart"
-                          />
-                        ) : null}
-                        {optionalFindings.invalidShipping.length > 0 ? (
-                          <CollapsibleList
-                            title="shipping_mode ausserhalb erlaubter Werte"
-                            items={groupByValueWithEans(optionalFindings.invalidShipping)
-                              .filter((g) =>
-                                !eanSearchTerms.length
-                                  ? true
-                                  : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                              )
-                              .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                            tone="warn"
-                            hint="Werte, die nicht in der shipping_mode-Liste im Regeln-Tab stehen, gruppiert nach Wert"
-
-                          />
-                        ) : null}
-                      </div>
+                    <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                      {optionalFindings.missingShipping.length > 0 && (
+                        <CollapsibleList title={`shipping_mode fehlt (${optionalFindings.missingShipping.length})`}
+                          items={optionalFindings.missingShipping.slice(0, 50).map((x) => String(x))} tone="warn"
+                          onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.shipping_mode)} />
+                      )}
+                      {optionalFindings.invalidShipping.length > 0 && (
+                        <CollapsibleList title="shipping_mode ungültig"
+                          items={groupByValueWithEans(optionalFindings.invalidShipping).slice(0, 50).map((g) => `${g.value} – ${g.eans.length} EANs`)}
+                          tone="warn" onItemClick={(ean) => jumpToEanWithColumn(ean, mapping.shipping_mode)} />
+                      )}
                     </div>
                   ) : null}
 
