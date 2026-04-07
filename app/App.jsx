@@ -3864,6 +3864,9 @@ export default function App() {
   const [activeStep, setActiveStep] = useState(1);
   const [showAllChecks, setShowAllChecks] = useState(false);
   const [pageMode, setPageMode] = useState("feed-checker");
+  const [generatedEmail, setGeneratedEmail] = useState(null);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailContent, setEmailContent] = useState("");
 
   const [imageMin, setImageMin] = useState(DEFAULT_RULES.image_min_per_product);
   const [imageSampleLimitStep5, setImageSampleLimitStep5] = useState(5);
@@ -5208,6 +5211,9 @@ export default function App() {
     setRawRows([]);
     setHeaders([]);
     setBrokenImageIds([]);
+    setGeneratedEmail(null);
+    setEmailContent("");
+    setEditingEmail(false);
 
     if (!file) return;
 
@@ -5550,7 +5556,7 @@ export default function App() {
             {headers.length ? (
               <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: "1px solid #D1D5DB" }}>
                 <button
-                  onClick={() => setPageMode("feed-checker")}
+                  onClick={() => { setPageMode("feed-checker"); setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }}
                   style={{
                     flex: 1, padding: "9px 0", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer",
                     background: pageMode === "feed-checker" ? BRAND_COLOR : "#FFF",
@@ -5560,7 +5566,7 @@ export default function App() {
                   🔍 Feed Checker
                 </button>
                 <button
-                  onClick={() => setPageMode("qs-apa")}
+                  onClick={() => { setPageMode("qs-apa"); setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }}
                   style={{
                     flex: 1, padding: "9px 0", border: "none", borderLeft: "1px solid #D1D5DB", fontSize: 13, fontWeight: 600, cursor: "pointer",
                     background: pageMode === "qs-apa" ? BRAND_COLOR : "#FFF",
@@ -6481,6 +6487,86 @@ export default function App() {
                 </>
               )}
             </StepCard>
+
+            {/* EMAIL GENERATION */}
+            {!generatedEmail && (
+              <button
+                onClick={() => {
+                  const email = buildEmail({ shopName: "", issues: summary.issues, tips: summary.tips, canStart: summary.canStart });
+                  setGeneratedEmail(email);
+                  setEmailContent(email);
+                }}
+                style={{ padding: "12px 20px", borderRadius: 8, border: "none", background: BRAND_COLOR, color: "#FFF", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%" }}
+              >
+                E-Mail generieren
+              </button>
+            )}
+
+            {generatedEmail && (
+              <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 10, padding: "16px 20px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>Generierte E-Mail</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {!editingEmail && (
+                      <>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(emailContent).catch(() => {}); }}
+                          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Kopieren
+                        </button>
+                        <button
+                          onClick={() => setEditingEmail(true)}
+                          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Bearbeiten
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => { setGeneratedEmail(null); setEmailContent(""); setEditingEmail(false); }}
+                      style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Schliessen
+                    </button>
+                  </div>
+                </div>
+
+                {editingEmail ? (
+                  <div>
+                    <textarea
+                      value={emailContent}
+                      onChange={(e) => setEmailContent(e.target.value)}
+                      style={{ width: "100%", minHeight: 280, padding: 12, borderRadius: 8, border: "1px solid #D1D5DB", fontFamily: "ui-sans-serif, system-ui", fontSize: 13, color: "#111827", boxSizing: "border-box", lineHeight: "20px" }}
+                    />
+                    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                      <button
+                        onClick={() => setEditingEmail(false)}
+                        style={{ padding: "8px 14px", borderRadius: 6, background: BRAND_COLOR, color: "#FFF", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Fertig
+                      </button>
+                      <button
+                        onClick={() => { setEmailContent(generatedEmail); setEditingEmail(false); }}
+                        style={{ padding: "8px 14px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Zuruecksetzen
+                      </button>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(emailContent).catch(() => {}); }}
+                        style={{ padding: "8px 14px", borderRadius: 6, background: "#10B981", color: "#FFF", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Kopieren
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: "#F9FAFB", padding: 14, borderRadius: 8, fontSize: 13, color: "#374151", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {emailContent}
+                  </div>
+                )}
+              </div>
+            )}
 
               </>
             ) : null}
