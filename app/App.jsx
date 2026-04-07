@@ -6265,81 +6265,61 @@ export default function App() {
                     </div>
                   ) : null}
 
-                  <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-                    {(() => {
-                      const items = [];
-                      const keys = Object.keys(imageBuckets || {}).map((k) => Number(k)).filter((k) => Number.isFinite(k) && k >= 0);
-                      if (!keys.length) {
-                        items.push(<SmallText key="no-images">Es konnten keine Bildinformationen ermittelt werden.</SmallText>);
-                        return items;
-                      }
-                      const maxN = Math.max(...keys);
-                      for (let n = 0; n <= maxN; n += 1) {
-                        const list = imageBuckets[n] || [];
-                        if (!list.length) continue;
-                        const tone = n === 0 ? "bad" : n === 1 ? "warn" : "ok";
-                        const title = n === 0 ? `0 Bilder (${list.length})` : n === 1 ? `1 Bild (${list.length})` : `${n} Bilder (${list.length})`;
-                        const hint = n === 0 ? "EANs ohne jegliche Bilder" : n === 1 ? "EANs mit genau einem Bild" : `EANs mit genau ${n} Bildern`;
-                        items.push(
-                          <CollapsibleList
-                            key={`img-${n}`}
-                            title={title}
-                            items={list}
-                            tone={tone}
-                            hint={hint}
-                            onItemClick={(ean) => openEanImageViewer(ean)}
-                          />
-                        );
-                      }
-                      return items;
-                    })()}
-                  </div>
+                  {/* Image count summary */}
+                  {(() => {
+                    const keys = Object.keys(imageBuckets || {}).map((k) => Number(k)).filter((k) => Number.isFinite(k) && k >= 0).sort((a, b) => a - b);
+                    if (!keys.length) return <SmallText>Keine Bildinformationen ermittelt.</SmallText>;
+                    return (
+                      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {keys.map((n) => {
+                          const list = imageBuckets[n] || [];
+                          if (!list.length) return null;
+                          const tone = n === 0 ? "#DC2626" : n === 1 ? "#D97706" : "#16A34A";
+                          const bg = n === 0 ? "#FEF2F2" : n === 1 ? "#FFFBEB" : "#F0FDF4";
+                          const label = n === 0 ? "0 Bilder" : n === 1 ? "1 Bild" : `${n} Bilder`;
+                          return (
+                            <div key={n} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: bg, border: `1px solid ${tone}33`, fontSize: 11, fontWeight: 600, color: tone }}>
+                              {label}: {list.length}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
+                  {/* Product image preview — one row per product */}
                   {(() => {
                     const filtered = imageSamples.filter((s) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(s.id).includes(t)));
                     const shown = filtered.slice(0, imageSampleLimitStep5);
-                    if (!shown.length) return (
-                      <div style={{ marginTop: 12 }}>
-                        <SmallText>Keine Produkte mit Bildlinks gefunden.</SmallText>
-                      </div>
-                    );
+                    if (!shown.length) return <div style={{ marginTop: 12 }}><SmallText>Keine Produkte mit Bildlinks gefunden.</SmallText></div>;
                     return (
-                      <div style={{ marginTop: 14 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
-                          {shown.map((sample) => (
-                            <div key={sample.id} style={{ borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFF", overflow: "hidden" }}>
-                              {/* Image grid */}
-                              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(sample.urls.length, 3)}, 1fr)`, gap: 2, padding: 4, background: "#F9FAFB" }}>
-                                {sample.urls.slice(0, 3).map((u) => (
-                                  <a key={u} href={u} target="_blank" rel="noreferrer" title={u} style={{ display: "block", aspectRatio: "1", overflow: "hidden", borderRadius: 6 }}>
-                                    <img
-                                      src={u} alt="" loading="lazy"
-                                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                                      onError={(e) => { e.currentTarget.style.display = "none"; setBrokenImageIds((prev) => { const set = new Set(prev); set.add(sample.id); return Array.from(set); }); }}
-                                    />
-                                  </a>
-                                ))}
-                              </div>
-                              {/* Info */}
-                              <div style={{ padding: "8px 10px" }}>
-                                {sample.title && <div style={{ fontSize: 11, fontWeight: 600, color: "#111827", lineHeight: "15px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{sample.title}</div>}
-                                <div style={{ fontSize: 10, color: "#6B7280", marginTop: 3 }}>
-                                  EAN: {sample.id} | {sample.count} Bilder
-                                </div>
-                              </div>
+                      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {shown.map((sample) => (
+                          <div key={sample.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
+                            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                              {sample.urls.slice(0, 5).map((u) => (
+                                <a key={u} href={u} target="_blank" rel="noreferrer" title={u} style={{ display: "block" }}>
+                                  <img src={u} alt="" loading="lazy"
+                                    style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB", display: "block" }}
+                                    onError={(e) => { e.currentTarget.style.display = "none"; setBrokenImageIds((prev) => { const set = new Set(prev); set.add(sample.id); return Array.from(set); }); }}
+                                  />
+                                </a>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                        {filtered.length > imageSampleLimitStep5 && (
-                          <div style={{ marginTop: 10, marginBottom: 40, display: "flex", justifyContent: "flex-start" }}>
-                            <button onClick={() => setImageSampleLimitStep5((n) => Math.min(filtered.length, n + 5))}
-                              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-                              Mehr Produkte anzeigen
-                            </button>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              {sample.title && <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sample.title}</div>}
+                              <div style={{ fontSize: 10, color: "#6B7280", marginTop: 1 }}>EAN: {sample.id} | {sample.count} Bilder</div>
+                            </div>
                           </div>
+                        ))}
+                        {filtered.length > imageSampleLimitStep5 && (
+                          <button onClick={() => setImageSampleLimitStep5((n) => Math.min(filtered.length, n + 5))}
+                            style={{ padding: "8px 14px", marginBottom: 40, borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 12, fontWeight: 600, width: "fit-content" }}>
+                            Mehr Produkte anzeigen
+                          </button>
                         )}
                         {brokenImageIds.length > 0 && (
-                          <div style={{ marginTop: 8, fontSize: 11, color: "#92400E" }}>
+                          <div style={{ fontSize: 11, color: "#92400E" }}>
                             {brokenImageIds.length} Produkte mit fehlerhaften Bild-Links: {brokenImageIds.slice(0, 5).join(", ")}{brokenImageIds.length > 5 ? " ..." : ""}
                           </div>
                         )}
