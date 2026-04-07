@@ -2674,74 +2674,32 @@ function QsPage({ headers, rows }) {
         })()}
 
         {qsImageSamples.length ? (
-          <div style={{ marginTop: 12, padding: 10, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Bild Vorschau (Liste)</div>
-            <SmallText>Jede Zeile ist ein Produkt. Links siehst du ID und Anzahl Bilder, rechts einige Vorschaubilder zum manuellen Check.</SmallText>
-            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-              {qsImageSamples.slice(0, imageSampleLimit).map((sample) => (
-                <div key={sample.id} style={{ padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF", display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>{sample.id}</div>
-                    <div style={{ marginTop: 2, fontSize: 11, color: "#6B7280" }}>{sample.count} Bilder</div>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {sample.urls.slice(0, 5).map((u) => (
-                      <a key={u} href={u} target="_blank" rel="noreferrer" title={u} style={{ display: "block", width: 54, height: 54, flexShrink: 0 }}>
-                        <div style={{ width: 54, height: 54, position: "relative" }}>
-                          <img
-                            src={u}
-                            alt="Bild"
-                            loading="lazy"
-                            style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFFFFF", display: "block" }}
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                              const fallback = e.currentTarget.nextElementSibling;
-                              if (fallback && fallback instanceof HTMLElement) fallback.style.display = "flex";
-                            }}
-                          />
-                          <div
-                            style={{
-                              display: "none",
-                              width: 54,
-                              height: 54,
-                              borderRadius: 8,
-                              border: "1px solid #E5E7EB",
-                              background: "#F3F4F6",
-                              color: "#6B7280",
-                              fontSize: 10,
-                              fontWeight: 600,
-                              alignItems: "center",
-                              justifyContent: "center",
-                              textAlign: "center",
-                              padding: "0 4px",
-                              boxSizing: "border-box",
-                              cursor: "copy",
-                            }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (navigator?.clipboard?.writeText) {
-                                navigator.clipboard.writeText(u).catch(() => {});
-                              }
-                            }}
-                            title="Fehler - klicken um Link zu kopieren"
-                          >
-                            Fehler - Link kopieren
-                          </div>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            {qsImageSamples.slice(0, imageSampleLimit).map((sample) => (
+              <div key={sample.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
+                <div style={{ width: 140, flexShrink: 0 }}>
+                  {sample.title && <div style={{ fontSize: 11, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sample.title.slice(0, 40)}</div>}
+                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{sample.id}</div>
+                  <div style={{ fontSize: 10, color: "#9CA3AF" }}>{sample.count} Bilder</div>
                 </div>
-              ))}
-            </div>
-            {imageSampleLimit < qsImageSamples.length ? (
-              <div style={{ marginTop: 6, marginBottom: 60, display: "flex", justifyContent: "flex-start" }}>
-                <button onClick={() => setImageSampleLimit((n) => Math.min(qsImageSamples.length, n + 5))} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFFFFF", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-                  Mehr Produkte anzeigen
-                </button>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flex: 1 }}>
+                  {sample.urls.slice(0, 5).map((u) => (
+                    <a key={u} href={u} target="_blank" rel="noreferrer" title={u} style={{ display: "block" }}>
+                      <img src={u} alt="" loading="lazy"
+                        style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB", display: "block" }}
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    </a>
+                  ))}
+                </div>
               </div>
-            ) : null}
+            ))}
+            {imageSampleLimit < qsImageSamples.length && (
+              <button onClick={() => setImageSampleLimit((n) => Math.min(qsImageSamples.length, n + 5))}
+                style={{ padding: "8px 14px", marginBottom: 40, borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 12, fontWeight: 600, width: "fit-content" }}>
+                Mehr Produkte anzeigen
+              </button>
+            )}
           </div>
         ) : null}
       </div>
@@ -6150,7 +6108,12 @@ export default function App() {
                       <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                         {shown.map((sample) => (
                           <div key={sample.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
-                            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                            <div style={{ width: 140, flexShrink: 0 }}>
+                              {sample.title && <div style={{ fontSize: 11, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sample.title.slice(0, 40)}</div>}
+                              <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{sample.id}</div>
+                              <div style={{ fontSize: 10, color: "#9CA3AF" }}>{sample.count} Bilder</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flex: 1 }}>
                               {sample.urls.slice(0, 5).map((u) => (
                                 <a key={u} href={u} target="_blank" rel="noreferrer" title={u} style={{ display: "block" }}>
                                   <img src={u} alt="" loading="lazy"
@@ -6159,10 +6122,6 @@ export default function App() {
                                   />
                                 </a>
                               ))}
-                            </div>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              {sample.title && <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sample.title}</div>}
-                              <div style={{ fontSize: 10, color: "#6B7280", marginTop: 1 }}>EAN: {sample.id} | {sample.count} Bilder</div>
                             </div>
                           </div>
                         ))}
