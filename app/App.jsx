@@ -5870,46 +5870,22 @@ export default function App() {
                   </div>
 
                   {duplicateEans.length > 0 || duplicateTitleRows.length > 0 || duplicateSellerOfferIds.length > 0 ? (
-                    <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                      {duplicateEans.length > 0 ? (
-                        <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte EAN Werte</div>
-                          <SmallText>Liste der EAN Werte die mehr als einmal vorkommen</SmallText>
-                          <div style={{ marginTop: 10 }}>
-                            <CollapsibleList title="Doppelte EAN" items={duplicateEans} tone="warn" />
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {duplicateTitleRows.length > 0 ? (
-                        <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Titel</div>
-                          <div style={{ marginTop: 10 }}>
-                            <CollapsibleList
-                              title="Doppelte Titel"
-                              items={groupByValueWithEans(duplicateTitleRows.map((x) => ({ value: x.title, ean: x.ean })))
-                                .filter((g) =>
-                                  !eanSearchTerms.length
-                                    ? true
-                                    : g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t)))
-                                )
-                                .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
-                              tone="warn"
-                              hint="Jede Zeile zeigt einen Titel und alle EANs, die diesen Titel mehrfach verwenden"
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {duplicateSellerOfferIds.length > 0 ? (
-                        <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Doppelte Seller_Offer_ID Werte</div>
-                          <SmallText>Liste der Seller_Offer_ID Werte die mehr als einmal vorkommen</SmallText>
-                          <div style={{ marginTop: 10 }}>
-                            <CollapsibleList title="Doppelte Seller_Offer_ID" items={duplicateSellerOfferIds} tone="warn" />
-                          </div>
-                        </div>
-                      ) : null}
+                    <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                      {duplicateEans.length > 0 && (
+                        <CollapsibleList title="Doppelte EAN" items={duplicateEans} tone="warn" />
+                      )}
+                      {duplicateTitleRows.length > 0 && (
+                        <CollapsibleList
+                          title="Doppelte Titel"
+                          items={groupByValueWithEans(duplicateTitleRows.map((x) => ({ value: x.title, ean: x.ean })))
+                            .filter((g) => !eanSearchTerms.length || g.eans.some((ean) => eanSearchTerms.some((t) => String(ean).includes(t))))
+                            .map((g) => `${g.value} – ${g.eans.length} EANs: ${g.eans.join(", ")}`)}
+                          tone="warn"
+                        />
+                      )}
+                      {duplicateSellerOfferIds.length > 0 && (
+                        <CollapsibleList title="Doppelte Seller_Offer_ID" items={duplicateSellerOfferIds} tone="warn" />
+                      )}
                     </div>
                   ) : null}
                 </>
@@ -6088,9 +6064,7 @@ export default function App() {
 
                   {mapping.delivery_time && ((optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0) || (optionalFindings.invalidDeliveryTime?.length > 0)) ? (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Lieferzeit (delivery_time)</div>
-                      <SmallText>Erwartetes Format z B &quot;3-5 Werktage&quot; oder &quot;2 Wochen&quot; ohne zusaetzlichen Fliesstext.</SmallText>
-                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      <div style={{ display: "grid", gap: 8 }}>
                         {optionalFindings.missingEansByField.delivery_time && optionalFindings.missingEansByField.delivery_time.length > 0 ? (
                           <CollapsibleList
                             title="Lieferzeit fehlt"
@@ -6126,9 +6100,6 @@ export default function App() {
 
                   {optionalFindings.templateValueHits && optionalFindings.templateValueHits.length > 0 ? (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Beispielwerte aus Muster-Feed</div>
-                      <SmallText>In diesen Feldern scheinen noch Beispiel-/Demo-Werte aus dem Muster-Feed zu stehen. Bitte fuer echte Produkte entfernen oder korrekt ausfuellen.</SmallText>
-                      <div style={{ marginTop: 8 }}>
                         <CollapsibleList
                           title="Felder mit Beispielwerten"
                           items={groupByValueWithEans(optionalFindings.templateValueHits)
@@ -6141,15 +6112,11 @@ export default function App() {
                           tone="warn"
                           hint="Werte, die wie Beispielangaben aus einem Muster-Feed aussehen (z.B. Demo-URLs, Platzhalter)."
                         />
-                      </div>
                     </div>
                   ) : null}
 
                   {mapping.washable_cover && optionalFindings.invalidWashableCover.length > 0 ? (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Waschbarer Bezug (washable_cover)</div>
-                      <SmallText>Erlaubt sind nur die Werte &quot;ja&quot; oder &quot;nein&quot;.</SmallText>
-                      <div style={{ marginTop: 8 }}>
                         <CollapsibleList
                           title="Ungültige washable_cover Werte"
                           items={groupByValueWithEans(optionalFindings.invalidWashableCover)
@@ -6162,15 +6129,11 @@ export default function App() {
                           tone="warn"
                           hint='Waschbarer Bezug sollte nur "ja" oder "nein" enthalten'
                         />
-                      </div>
                     </div>
                   ) : null}
 
                   {mapping.mounting_side && optionalFindings.invalidMountingSide.length > 0 ? (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Montageseite (mounting_side)</div>
-                      <SmallText>Erlaubt sind nur die Werte &quot;links&quot;, &quot;rechts&quot; oder &quot;beidseitig&quot; – Kombinationen wie &quot;links, rechts, beidseitig&quot; sind nicht erlaubt.</SmallText>
-                      <div style={{ marginTop: 8 }}>
                       <CollapsibleList
                         title="Ungültige mounting_side Werte"
                         items={groupByValueWithEans(optionalFindings.invalidMountingSide)
@@ -6183,7 +6146,6 @@ export default function App() {
                         tone="warn"
                         hint='Montageseite sollte nur "links", "rechts" oder "beidseitig" enthalten'
                       />
-                      </div>
                     </div>
                   ) : null}
 
@@ -6359,10 +6321,7 @@ export default function App() {
                     </div>
                   ) : null}
 
-                  <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid #E5E7EB", background: "#F9FAFB", minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Anzahl Bilder pro Produkt</div>
-                      <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                  <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                         {(() => {
                           const items = [];
                           const keys = Object.keys(imageBuckets || {}).map((k) => Number(k)).filter((k) => Number.isFinite(k) && k >= 0);
@@ -6390,9 +6349,6 @@ export default function App() {
                           }
                           return items;
                         })()}
-                      </div>
-                    </div>
-                  </div>
 
                   {imageSamples.length ? (
                     <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
