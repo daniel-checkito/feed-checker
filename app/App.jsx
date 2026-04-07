@@ -6012,7 +6012,7 @@ export default function App() {
                         title="Zeilen ohne EAN"
                         items={optionalFindings.missingEANs
                           .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                          .map((ean) => ({ value: ean, eans: [ean] }))}
+                          .map((ean) => String(ean))}
                         tone="bad"
                         hint="➜ bitte EAN nachliefern"
                         onItemClick={(ean) =>
@@ -6084,7 +6084,7 @@ export default function App() {
                             title="Farbe fehlt"
                             items={optionalFindings.missingEansByField.color
                               .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => ({ value: ean, eans: [ean] }))}
+                              .map((ean) => String(ean))}
                             tone="warn"
                             onItemClick={(ean) =>
                               jumpToIssueTarget({
@@ -6135,7 +6135,7 @@ export default function App() {
                             title="Lieferumfang fehlt"
                             items={optionalFindings.missingEansByField.delivery_includes
                               .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => ({ value: ean, eans: [ean] }))}
+                              .map((ean) => String(ean))}
                             tone="warn"
                             onItemClick={(ean) =>
                               jumpToIssueTarget({
@@ -6178,7 +6178,7 @@ export default function App() {
                             title="Lieferzeit fehlt"
                             items={optionalFindings.missingEansByField.delivery_time
                               .filter((x) => !eanSearchTerms.length || eanSearchTerms.some((t) => String(x).includes(t)))
-                              .map((ean) => ({ value: ean, eans: [ean] }))}
+                              .map((ean) => String(ean))}
                             tone="warn"
                             onItemClick={(ean) =>
                               jumpToIssueTarget({
