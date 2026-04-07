@@ -4736,7 +4736,7 @@ export default function App() {
         addRowsByEans(optionalFindings.descriptionIssues.tooShort, criticalRowIdx);
         addRowsByEans(optionalFindings.descriptionIssues.tooShort, warningRowIdx);
         addIssue(
-          `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln (Mindestlänge laut Regeln-Tab).`,
+          `Beschreibungen zu kurz bei ${optionalFindings.descriptionIssues.tooShort.length} Artikeln.`,
           findTargetsByEans(optionalFindings.descriptionIssues.tooShort)
         );
         const descIssueEans = [...new Set([...optionalFindings.descriptionIssues.tooShort, ...(optionalFindings.descriptionIssues.templateLike || [])])];
