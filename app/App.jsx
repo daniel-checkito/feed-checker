@@ -5325,7 +5325,7 @@ export default function App() {
 
   const NAV_ITEMS = [
     { id: "feed-analyse",         label: "Feed Analyse",       icon: "🔍" },
-    { id: "checker-mc",           label: "Checker MC",         icon: "🏪" },
+    { id: "checker-mc",           label: "Merchant Center Prototype", icon: "🏪" },
     { id: "produkt-optimierung",  label: "Produkt Optimierung",icon: "⚡" },
     ...(adminToken ? [{ id: "analytics", label: "Analytics", icon: "📈" }] : []),
   ];
