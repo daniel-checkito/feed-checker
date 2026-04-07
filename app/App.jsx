@@ -1,5 +1,17 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
+
+// Inline spinner component
+function Spinner({ size = 16, color = "#1553B6" }) {
+  return (
+    <span style={{ display: "inline-block", width: size, height: size, verticalAlign: "middle" }}>
+      <svg width={size} height={size} viewBox="0 0 24 24" style={{ animation: "fc-spin 0.8s linear infinite" }}>
+        <circle cx="12" cy="12" r="10" fill="none" stroke={color} strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+      </svg>
+      <style>{`@keyframes fc-spin { to { transform: rotate(360deg); } }`}</style>
+    </span>
+  );
+}
 import ShopPerformance from "./shop-performance";
 import Onboarding from "./onboarding";
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabaseClient";
@@ -2656,7 +2668,7 @@ function QsPage({ headers, rows }) {
               <div style={{ fontWeight: 700, color: "#111827", fontSize: 12, marginBottom: 4 }}>Automatische Bildanalyse ({checked} Produkte geprüft)</div>
               {checked > 0 && <div>Freisteller: {frei}/{checked} ({Math.round(frei / checked * 100)}%) | Milieu: {mil}/{checked} ({Math.round(mil / checked * 100)}%)</div>}
               <div>Erstbilder: {uniqueFirst} einzigartig, {dupFirst} doppelt | Durchschn. {avgImageCount.toFixed(1)} Bilder/Produkt</div>
-              {freistellerLoading && <div style={{ color: BRAND_COLOR, fontWeight: 600 }}>Analyse läuft...</div>}
+              {freistellerLoading && <div style={{ display: "flex", alignItems: "center", gap: 6, color: BRAND_COLOR, fontWeight: 600, fontSize: 12 }}><Spinner /> Bildanalyse läuft...</div>}
             </div>
           );
         })()}
@@ -2820,7 +2832,7 @@ function ProduktOptimierungPage() {
                 cursor: loading ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Optimierung läuft..." : "Optimieren"}
+              {loading ? <span style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}><Spinner size={14} color="#FFF" /> Optimierung läuft...</span> : "Optimieren"}
             </button>
             {result?.feedback?.usedClaude ? (
               <SmallText>AI wurde genutzt (Claude).</SmallText>
@@ -3845,6 +3857,7 @@ export default function App() {
   const [rawRows, setRawRows] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [parseError, setParseError] = useState("");
+  const [parsing, setParsing] = useState(false);
   const fileInputRef = useRef(null);
 
   const [analyticsStats, setAnalyticsStats] = useState(null);
@@ -5071,6 +5084,7 @@ export default function App() {
     setEditingEmail(false);
 
     if (!file) return;
+    setParsing(true);
 
     // Try reading with UTF-8 first; if garbled German chars detected, retry with Windows-1252
     const tryParse = (encoding) => {
@@ -5094,8 +5108,9 @@ export default function App() {
             const h = res.meta?.fields || Object.keys(data[0] || {});
             setHeaders(h);
             setRawRows(data);
+            setParsing(false);
           },
-          error: (err) => setParseError(String(err || "CSV parsing error")),
+          error: (err) => { setParseError(String(err || "CSV parsing error")); setParsing(false); },
         });
       };
       reader.onerror = () => setParseError("Datei konnte nicht gelesen werden.");
@@ -5419,6 +5434,7 @@ export default function App() {
                 <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
               </div>
               {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
+              {parsing && <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, color: BRAND_COLOR, fontSize: 13, fontWeight: 600 }}><Spinner /> Datei wird analysiert...</div>}
             </StepCard>
 
             {/* Mode Toggle */}
@@ -6358,7 +6374,7 @@ export default function App() {
                     cursor: analyticsLoading ? "not-allowed" : "pointer",
                   }}
                 >
-                  {analyticsLoading ? "Lade..." : "Analytics laden"}
+                  {analyticsLoading ? <span style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}><Spinner size={14} color="#FFF" /> Lade...</span> : "Analytics laden"}
                 </button>
                 <SmallText>Die Daten werden nur gespeichert, wenn die Feature-Route genutzt wird.</SmallText>
               </div>
