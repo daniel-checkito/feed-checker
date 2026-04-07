@@ -2640,8 +2640,8 @@ function QsPage({ headers, rows }) {
               ))}
             </div>
             {imageSampleLimit < qsImageSamples.length ? (
-              <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-start" }}>
-                <button onClick={() => setImageSampleLimit((n) => Math.min(qsImageSamples.length, n + 5))} style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+              <div style={{ marginTop: 6, marginBottom: 60, display: "flex", justifyContent: "flex-start" }}>
+                <button onClick={() => setImageSampleLimit((n) => Math.min(qsImageSamples.length, n + 5))} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFFFFF", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
                   Mehr Produkte anzeigen
                 </button>
               </div>
@@ -2649,6 +2649,7 @@ function QsPage({ headers, rows }) {
           </div>
         ) : null}
       </div>
+      <div style={{ height: 60 }} />
     </div>
   );
 }
