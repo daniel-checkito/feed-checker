@@ -3080,6 +3080,437 @@ function ProduktOptimierungPage() {
   );
 }
 
+// ─── CHECK24 Merchant Center style Feed Checker ──────────────────────────────
+
+const MC_NAV_ITEMS = [
+  { id: "dashboard", label: "Dashboard", icon: "⊞" },
+  { id: "bestellungen", label: "Bestellungen", icon: "📦" },
+  { id: "angebote", label: "Angebote", icon: "≡", children: [
+    { id: "feed-checker", label: "Feed Checker" },
+    { id: "gelistete", label: "Gelistete Angebote" },
+    { id: "nicht-gelistet", label: "Nicht gelistete Angebote" },
+  ]},
+  { id: "finanzen", label: "Finanzen", icon: "€" },
+  { id: "einstellungen", label: "Einstellungen", icon: "⚙" },
+  { id: "faq", label: "FAQ", icon: "?" },
+];
+
+const MC_REQUIRED_COLS = ["ean", "name", "price", "brand", "description", "image_url"];
+
+function CheckerMCPage() {
+  const [mcFile, setMcFile] = useState(null);
+  const [mcRows, setMcRows] = useState([]);
+  const [mcHeaders, setMcHeaders] = useState([]);
+  const [mcIssues, setMcIssues] = useState(null);
+  const [mcDragging, setMcDragging] = useState(false);
+  const [mcActiveNav, setMcActiveNav] = useState("feed-checker");
+  const mcFileRef = useRef(null);
+
+  function parseMcFile(file) {
+    if (!file) return;
+    setMcFile(file);
+    setMcIssues(null);
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res) => {
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const headers = res.meta?.fields || Object.keys(rows[0] || {});
+        setMcRows(rows);
+        setMcHeaders(headers);
+        analyzeMcFile(rows, headers);
+      },
+    });
+  }
+
+  function analyzeMcFile(rows, headers) {
+    const headersLower = headers.map((h) => h.toLowerCase().trim());
+
+    // --- Missing required columns ---
+    const missingCols = MC_REQUIRED_COLS.filter(
+      (col) => !headersLower.some((h) => h === col || h.includes(col))
+    );
+
+    // --- Per-row issues ---
+    const emptyRequired = [];
+    const missingEan = [];
+    const invalidPrice = [];
+    const shortName = [];
+    const shortDesc = [];
+    const missingImage = [];
+
+    // Map actual column names to our expected keys
+    function findCol(key) {
+      return headers.find((h) => h.toLowerCase().trim() === key || h.toLowerCase().includes(key));
+    }
+    const colEan = findCol("ean");
+    const colName = findCol("name");
+    const colPrice = findCol("price");
+    const colDesc = findCol("description") || findCol("desc");
+    const colImage = findCol("image_url") || findCol("image");
+    const colBrand = findCol("brand");
+
+    rows.forEach((row, i) => {
+      const rowNum = i + 1;
+      const ean = colEan ? String(row[colEan] ?? "").trim() : "";
+      const name = colName ? String(row[colName] ?? "").trim() : "";
+      const price = colPrice ? String(row[colPrice] ?? "").trim() : "";
+      const desc = colDesc ? String(row[colDesc] ?? "").trim() : "";
+      const image = colImage ? String(row[colImage] ?? "").trim() : "";
+      const brand = colBrand ? String(row[colBrand] ?? "").trim() : "";
+
+      if (colEan && !ean) missingEan.push(rowNum);
+      if (colPrice && price) {
+        const num = parseFloat(price.replace(",", "."));
+        if (isNaN(num) || num <= 0) invalidPrice.push({ row: rowNum, ean, value: price });
+      }
+      if (colName && name && name.length < 10) shortName.push({ row: rowNum, ean, value: name });
+      if (colDesc && desc && desc.length < 30) shortDesc.push({ row: rowNum, ean, value: desc.slice(0, 60) });
+      if (colImage && !image) missingImage.push({ row: rowNum, ean });
+      if (colBrand && !brand) emptyRequired.push({ row: rowNum, ean, field: "brand" });
+    });
+
+    setMcIssues({
+      totalRows: rows.length,
+      missingCols,
+      missingEan,
+      invalidPrice,
+      shortName,
+      shortDesc,
+      missingImage,
+      emptyRequired,
+    });
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    setMcDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) parseMcFile(file);
+  }
+
+  const errorCount = mcIssues
+    ? mcIssues.missingCols.length +
+      mcIssues.missingEan.length +
+      mcIssues.invalidPrice.length +
+      mcIssues.missingImage.length
+    : 0;
+  const warningCount = mcIssues
+    ? mcIssues.shortName.length +
+      mcIssues.shortDesc.length +
+      mcIssues.emptyRequired.length
+    : 0;
+
+  const MC_BLUE = "#0066B3";
+  const MC_HEADER = "#1B3461";
+  const MC_SIDEBAR_W = 210;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", fontFamily: "ui-sans-serif, system-ui, sans-serif", background: "#F2F4F7" }}>
+
+      {/* TOP HEADER */}
+      <div style={{ background: MC_HEADER, height: 52, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", flexShrink: 0, zIndex: 100 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: "#FFFFFF", fontWeight: 900, fontSize: 20, letterSpacing: "-0.5px" }}>CHECK24</span>
+          <span style={{ color: "#A8C4E0", fontStyle: "italic", fontSize: 14, fontWeight: 400 }}>Partnerportal</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <span style={{ color: "#A8C4E0", fontSize: 13 }}>🔔</span>
+          <div style={{ color: "#FFFFFF", fontSize: 12, textAlign: "right" }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>089 - 2424 1158 300</div>
+            <div style={{ color: "#A8C4E0", fontSize: 11 }}>Haben Sie Fragen?</div>
+          </div>
+          <span style={{ color: "#A8C4E0", fontSize: 13 }}>📅 Termin buchen</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FFFFFF", fontSize: 13 }}>
+            <span style={{ width: 28, height: 28, borderRadius: "50%", background: "#2E5FA3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>👤</span>
+            <span>Mein Account</span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flex: 1 }}>
+
+        {/* LEFT SIDEBAR */}
+        <div style={{ width: MC_SIDEBAR_W, background: "#FFFFFF", borderRight: "1px solid #E2E8EF", flexShrink: 0, paddingTop: 8 }}>
+          {MC_NAV_ITEMS.map((item) => (
+            <div key={item.id}>
+              <div
+                onClick={() => item.children ? null : setMcActiveNav(item.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 16px",
+                  cursor: item.children ? "default" : "pointer",
+                  fontSize: 13,
+                  color: !item.children && mcActiveNav === item.id ? MC_BLUE : "#374151",
+                  fontWeight: !item.children && mcActiveNav === item.id ? 600 : 400,
+                  background: !item.children && mcActiveNav === item.id ? "#EBF4FD" : "transparent",
+                }}
+              >
+                <span style={{ fontSize: 14, color: "#9CA3AF", width: 18, textAlign: "center" }}>{item.icon}</span>
+                {item.label}
+              </div>
+              {item.children ? item.children.map((child) => (
+                <div
+                  key={child.id}
+                  onClick={() => setMcActiveNav(child.id)}
+                  style={{
+                    padding: "8px 16px 8px 44px",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    color: mcActiveNav === child.id ? MC_BLUE : "#4B5563",
+                    fontWeight: mcActiveNav === child.id ? 600 : 400,
+                    background: mcActiveNav === child.id ? "#EBF4FD" : "transparent",
+                    borderLeft: mcActiveNav === child.id ? `3px solid ${MC_BLUE}` : "3px solid transparent",
+                  }}
+                >
+                  {child.label}
+                </div>
+              )) : null}
+            </div>
+          ))}
+        </div>
+
+        {/* MAIN CONTENT */}
+        <div style={{ flex: 1, padding: "24px 32px", overflowY: "auto" }}>
+
+          {/* Page title */}
+          <div style={{ marginBottom: 20 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: MC_BLUE, margin: 0 }}>Feed Checker</h1>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: "4px 0 0" }}>
+              Laden Sie Ihre Feed-Datei hoch und prüfen Sie, ob alles korrekt ist.
+            </p>
+          </div>
+
+          {/* Upload area */}
+          {!mcIssues ? (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setMcDragging(true); }}
+              onDragLeave={() => setMcDragging(false)}
+              onDrop={onDrop}
+              onClick={() => mcFileRef.current?.click()}
+              style={{
+                background: mcDragging ? "#EBF4FD" : "#FFFFFF",
+                border: `2px dashed ${mcDragging ? MC_BLUE : "#CBD5E1"}`,
+                borderRadius: 10,
+                padding: "48px 24px",
+                textAlign: "center",
+                cursor: "pointer",
+                transition: "all 0.15s",
+                marginBottom: 24,
+              }}
+            >
+              <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 6 }}>
+                CSV-Datei hier ablegen oder klicken zum Auswählen
+              </div>
+              <div style={{ fontSize: 13, color: "#6B7280" }}>
+                Unterstützt: .csv (Semikolon- oder Komma-getrennt)
+              </div>
+              <input
+                ref={mcFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                style={{ display: "none" }}
+                onChange={(e) => parseMcFile(e.target.files?.[0] || null)}
+              />
+            </div>
+          ) : null}
+
+          {/* Results */}
+          {mcIssues ? (
+            <div style={{ display: "grid", gap: 16 }}>
+
+              {/* Summary cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                <div style={{ background: "#FFFFFF", borderRadius: 8, padding: 16, border: "1px solid #E5E7EB" }}>
+                  <div style={{ fontSize: 12, color: "#6B7280", fontWeight: 500, marginBottom: 4 }}>Artikel gesamt</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: "#111827" }}>{mcIssues.totalRows}</div>
+                </div>
+                <div style={{ background: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", borderRadius: 8, padding: 16, border: `1px solid ${errorCount > 0 ? "#FECACA" : "#BBF7D0"}` }}>
+                  <div style={{ fontSize: 12, color: errorCount > 0 ? "#B91C1C" : "#166534", fontWeight: 500, marginBottom: 4 }}>Fehler</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: errorCount > 0 ? "#B91C1C" : "#166534" }}>{errorCount}</div>
+                </div>
+                <div style={{ background: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", borderRadius: 8, padding: 16, border: `1px solid ${warningCount > 0 ? "#FCD34D" : "#BBF7D0"}` }}>
+                  <div style={{ fontSize: 12, color: warningCount > 0 ? "#92400E" : "#166534", fontWeight: 500, marginBottom: 4 }}>Warnungen</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: warningCount > 0 ? "#92400E" : "#166534" }}>{warningCount}</div>
+                </div>
+              </div>
+
+              {/* Overall status */}
+              {errorCount === 0 && warningCount === 0 ? (
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>✅</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#166534" }}>Ihr Feed ist in Ordnung!</div>
+                    <div style={{ fontSize: 12, color: "#15803D" }}>Keine Probleme gefunden. Die Datei kann hochgeladen werden.</div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>⚠️</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#B91C1C" }}>Es wurden Probleme gefunden</div>
+                    <div style={{ fontSize: 12, color: "#DC2626" }}>Bitte korrigieren Sie die Fehler, bevor Sie den Feed einreichen.</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Missing columns */}
+              {mcIssues.missingCols.length > 0 ? (
+                <McIssueCard
+                  title="Fehlende Pflichtfelder"
+                  severity="error"
+                  description="Diese Spalten fehlen in Ihrer Datei:"
+                  items={mcIssues.missingCols.map((c) => ({ label: c, hint: "Spalte fehlt komplett im Feed" }))}
+                />
+              ) : null}
+
+              {/* Missing EAN */}
+              {mcIssues.missingEan.length > 0 ? (
+                <McIssueCard
+                  title="Fehlende EAN"
+                  severity="error"
+                  description={`Bei ${mcIssues.missingEan.length} Artikeln fehlt die EAN (Pflichtfeld).`}
+                  items={mcIssues.missingEan.slice(0, 8).map((r) => ({ label: `Zeile ${r}`, hint: "EAN fehlt" }))}
+                  more={mcIssues.missingEan.length > 8 ? mcIssues.missingEan.length - 8 : 0}
+                />
+              ) : null}
+
+              {/* Invalid price */}
+              {mcIssues.invalidPrice.length > 0 ? (
+                <McIssueCard
+                  title="Ungültiger Preis"
+                  severity="error"
+                  description={`Bei ${mcIssues.invalidPrice.length} Artikeln ist der Preis ungültig (muss eine positive Zahl sein).`}
+                  items={mcIssues.invalidPrice.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `Wert: "${x.value}"` }))}
+                  more={mcIssues.invalidPrice.length > 8 ? mcIssues.invalidPrice.length - 8 : 0}
+                />
+              ) : null}
+
+              {/* Missing images */}
+              {mcIssues.missingImage.length > 0 ? (
+                <McIssueCard
+                  title="Fehlende Bilder"
+                  severity="error"
+                  description={`Bei ${mcIssues.missingImage.length} Artikeln fehlt die Bild-URL (Pflichtfeld).`}
+                  items={mcIssues.missingImage.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: "image_url fehlt" }))}
+                  more={mcIssues.missingImage.length > 8 ? mcIssues.missingImage.length - 8 : 0}
+                />
+              ) : null}
+
+              {/* Short name */}
+              {mcIssues.shortName.length > 0 ? (
+                <McIssueCard
+                  title="Produktname zu kurz"
+                  severity="warning"
+                  description={`Bei ${mcIssues.shortName.length} Artikeln ist der Name kürzer als 10 Zeichen.`}
+                  items={mcIssues.shortName.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `"${x.value}"` }))}
+                  more={mcIssues.shortName.length > 8 ? mcIssues.shortName.length - 8 : 0}
+                />
+              ) : null}
+
+              {/* Short description */}
+              {mcIssues.shortDesc.length > 0 ? (
+                <McIssueCard
+                  title="Beschreibung zu kurz"
+                  severity="warning"
+                  description={`Bei ${mcIssues.shortDesc.length} Artikeln ist die Beschreibung kürzer als 30 Zeichen.`}
+                  items={mcIssues.shortDesc.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `"${x.value}"` }))}
+                  more={mcIssues.shortDesc.length > 8 ? mcIssues.shortDesc.length - 8 : 0}
+                />
+              ) : null}
+
+              {/* Empty brand */}
+              {mcIssues.emptyRequired.length > 0 ? (
+                <McIssueCard
+                  title="Fehlende Pflichtangaben"
+                  severity="warning"
+                  description={`Bei ${mcIssues.emptyRequired.length} Artikeln fehlen Pflichtangaben.`}
+                  items={mcIssues.emptyRequired.slice(0, 8).map((x) => ({ label: `Zeile ${x.row}${x.ean ? ` · EAN ${x.ean}` : ""}`, hint: `Feld "${x.field}" fehlt` }))}
+                  more={mcIssues.emptyRequired.length > 8 ? mcIssues.emptyRequired.length - 8 : 0}
+                />
+              ) : null}
+
+              {/* Reset button */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => { setMcFile(null); setMcRows([]); setMcHeaders([]); setMcIssues(null); }}
+                  style={{
+                    padding: "9px 20px", borderRadius: 6, border: `1px solid ${MC_BLUE}`,
+                    background: "#FFFFFF", color: MC_BLUE, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Neue Datei prüfen
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* FOOTER */}
+      <div style={{ background: "#FFFFFF", borderTop: "1px solid #E5E7EB", padding: "14px 32px", display: "flex", justifyContent: "center", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center" }}>
+          {["News", "Karriere", "Presse", "Marktplatzpartner", "Affiliate-Programm", "Gutscheine", "Unternehmen", "Kontakt", "AGB", "Datenschutz", "Impressum"].map((l) => (
+            <span key={l} style={{ fontSize: 12, color: MC_BLUE, cursor: "pointer" }}>{l}</span>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "#9CA3AF" }}>© 2026 CHECK24 Vergleichsportal Möbel GmbH.</div>
+      </div>
+    </div>
+  );
+}
+
+function McIssueCard({ title, severity, description, items, more }) {
+  const [expanded, setExpanded] = useState(true);
+  const isError = severity === "error";
+  const accent = isError ? "#B91C1C" : "#92400E";
+  const bg = isError ? "#FEF2F2" : "#FFFBEB";
+  const border = isError ? "#FECACA" : "#FCD34D";
+  const badgeBg = isError ? "#FEE2E2" : "#FEF3C7";
+  const icon = isError ? "❌" : "⚠️";
+  return (
+    <div style={{ background: "#FFFFFF", borderRadius: 8, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+      <div
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 16px", cursor: "pointer", borderLeft: `4px solid ${accent}`,
+          background: bg, borderBottom: expanded ? `1px solid ${border}` : "none",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span>{icon}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: accent }}>{title}</span>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600 }}>
+            {items.length + (more || 0)} Artikel
+          </span>
+        </div>
+        <span style={{ fontSize: 12, color: "#9CA3AF" }}>{expanded ? "▲" : "▼"}</span>
+      </div>
+      {expanded ? (
+        <div style={{ padding: "12px 16px" }}>
+          <p style={{ fontSize: 13, color: "#374151", margin: "0 0 10px" }}>{description}</p>
+          <div style={{ display: "grid", gap: 6 }}>
+            {items.map((item, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{item.label}</span>
+                <span style={{ fontSize: 11, color: "#6B7280" }}>{item.hint}</span>
+              </div>
+            ))}
+            {more > 0 ? (
+              <div style={{ fontSize: 12, color: "#6B7280", padding: "4px 10px" }}>
+                … und {more} weitere Artikel
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function App() {
     const [adminToken, setAdminToken] = useState(() => {
         if (typeof window === "undefined") return "";
@@ -6169,15 +6600,7 @@ export default function App() {
   }
 
   if (route === "checker-mc") {
-    return (
-      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
-        {topNav}
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>Checker MC</div>
-          <p style={{ color: "#6B7280", marginTop: 8 }}>Diese Seite ist noch in Entwicklung.</p>
-        </div>
-      </div>
-    );
+    return <CheckerMCPage />;
   }
 
   return (
