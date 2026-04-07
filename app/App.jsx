@@ -2383,30 +2383,14 @@ function QsPage({ headers, rows }) {
 
   if (!headers.length) {
     return (
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>QS/APA Dashboard</div>
-        <SmallText>Bitte zuerst im Tab &quot;Checker&quot; eine CSV Datei hochladen. Danach nutzt QS/APA die gleichen Daten.</SmallText>
+      <div style={{ width: "100%", fontFamily: "ui-sans-serif, system-ui" }}>
+        <SmallText>Bitte zuerst eine CSV Datei hochladen. Danach nutzt QS/APA die gleichen Daten.</SmallText>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>QS/APA Dashboard</div>
-            {total > 0 ? <Pill tone="info">{total} Zeilen</Pill> : null}
-          </div>
-          {total > 0 ? (
-            <div style={{ marginTop: 4, color: "#6B7280", fontSize: 13, lineHeight: "18px" }}>
-              
-            </div>
-          ) : null}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }} />
-      </div>
-
+    <div style={{ width: "100%", fontFamily: "ui-sans-serif, system-ui", boxSizing: "border-box" }}>
       {total > 0 ? (
         <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #A7F3D0", background: "#ECFDF3", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
