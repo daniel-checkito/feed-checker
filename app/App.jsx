@@ -2430,63 +2430,39 @@ function QsPage({ headers, rows }) {
       </div>
 
       {total > 0 ? (
-        <div
-          style={{
-            marginTop: 14,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 10,
-          }}
-        >
-          <div style={{ padding: 12, borderRadius: 16, border: "1px solid #A7F3D0", background: "#ECFDF3" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#047857" }}>Attribute Score</div>
-            <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{attributeScore}</div>
-              <div style={{ fontSize: 12, color: "#6B7280" }}>/ 90</div>
+        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #A7F3D0", background: "#ECFDF3", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "#047857", fontWeight: 600 }}>Attribute Score</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 2 }}>
+                <span style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>{attributeScore}</span>
+                <span style={{ fontSize: 11, color: "#6B7280" }}>/ 90</span>
+              </div>
             </div>
-            <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <SmallText>Bewertung der Inhalts-Attribute.</SmallText>
-              <button
-                onClick={() => {
-                  const txt = `Attribute Score ${attributeScore} von 90`;
-                  if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
-                }}
-                style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
-              >
-                Kopieren
-              </button>
-            </div>
+            <button
+              onClick={() => { if (navigator.clipboard) navigator.clipboard.writeText(`Attribute Score ${attributeScore} von 90`).catch(() => {}); }}
+              style={{ padding: "3px 7px", borderRadius: 999, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
+            >Kopieren</button>
           </div>
 
-          <div style={{ padding: 12, borderRadius: 16, border: "1px solid #BFDBFE", background: "#EFF6FF" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "#1D4ED8" }}>Bild Score</div>
-            <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{imageScore}</div>
-              <div style={{ fontSize: 12, color: "#6B7280" }}>/ 90</div>
+          <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #BFDBFE", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "#1D4ED8", fontWeight: 600 }}>Bild Score</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 2 }}>
+                <span style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>{imageScore}</span>
+                <span style={{ fontSize: 11, color: "#6B7280" }}>/ 90</span>
+              </div>
             </div>
-            <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <SmallText>Bewertung von 1. Bild, Freisteller, Millieu & Anzahl.</SmallText>
-              <button
-                onClick={() => {
-                  const txt = `Bild Score ${imageScore} von 90`;
-                  if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
-                }}
-                style={{ padding: "4px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "#FFFFFF", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}
-              >
-                Kopieren
-              </button>
-            </div>
+            <button
+              onClick={() => { if (navigator.clipboard) navigator.clipboard.writeText(`Bild Score ${imageScore} von 90`).catch(() => {}); }}
+              style={{ padding: "3px 7px", borderRadius: 999, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
+            >Kopieren</button>
           </div>
 
-          <div style={{ padding: 12, borderRadius: 16, border: apaEligible ? "1px solid #A7F3D0" : "1px solid #FCA5A5", background: apaEligible ? "#ECFDF3" : "#FEF2F2" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: apaEligible ? "#047857" : "#B91C1C" }}>APA Eignung</div>
-            <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{apaEligible ? "Geeignet" : "Noch nicht geeignet"}</div>
-            </div>
-            <div style={{ marginTop: 6, fontSize: 12, color: "#374151" }}>
-              {apaEligible
-                ? "✅ Alle benoetigten QS/APA Kriterien erfuellt – Feed kann fuer APA freigeschaltet werden."
-                : "❌ Aktuell nicht fuer APA geeignet – bitte Attribute/Bilder anhand der QS/APA Kriterien verbessern."}
+          <div style={{ padding: "10px 14px", borderRadius: 10, border: apaEligible ? "1px solid #A7F3D0" : "1px solid #FCA5A5", background: apaEligible ? "#ECFDF3" : "#FEF2F2", display: "flex", alignItems: "center", gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: apaEligible ? "#047857" : "#B91C1C", fontWeight: 600 }}>APA Eignung</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginTop: 2 }}>{apaEligible ? "✅ Geeignet" : "❌ Nicht geeignet"}</div>
             </div>
           </div>
         </div>
