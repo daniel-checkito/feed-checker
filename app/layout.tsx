@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CHECK24 Feed Checker",
+  title: "Feed Checker by Daniel",
   description: "Feed quality checks, QS/APA scoring, and partner feedback workflows.",
   icons: {
     icon: "/favicon.png",
