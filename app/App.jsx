@@ -5552,6 +5552,97 @@ export default function App() {
               {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
             </StepCard>
 
+            {/* Onboarding Tips - shown before file upload */}
+            {!headers.length && (
+              <>
+                <div style={{ padding: "16px 20px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Was wird geprueft?</div>
+                  <SmallText>Nach dem Upload analysieren wir Ihren Feed automatisch in zwei Modi:</SmallText>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+                    <div style={{ padding: "10px 14px", borderRadius: 8, background: "#F9FAFB", border: "1px solid #E5E7EB" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: BRAND_COLOR }}>🔍 Feed Checker</div>
+                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4, lineHeight: "16px" }}>Pflichtfelder, Duplikate, Preise, fehlende Bilder, Versandangaben und Formatfehler.</div>
+                    </div>
+                    <div style={{ padding: "10px 14px", borderRadius: 8, background: "#F9FAFB", border: "1px solid #E5E7EB" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: BRAND_COLOR }}>📊 QS / APA</div>
+                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4, lineHeight: "16px" }}>Qualitaets-Scoring fuer Attribute und Bilder. Prueft APA-Eignung (Amazon Product Ads).</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ padding: "16px 20px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Pflichtfelder in Ihrem Feed</div>
+                  <SmallText>Diese Spalten muessen in der CSV-Datei vorhanden sein:</SmallText>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    {["ean (GTIN14)", "seller_offer_id", "name", "price", "brand", "description", "image_url"].map((f) => (
+                      <span key={f} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: "#EEF4FF", border: "1px solid #BFDBFE", color: "#1D4ED8", fontWeight: 600 }}>{f}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ padding: "16px 20px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 10 }}>Tipps fuer besseren Content</div>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>📝</div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Titel</div>
+                        <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>
+                          Mindestens 40 Zeichen, aussagekraeftig und eindeutig. Marke + Produkttyp + wichtigstes Merkmal.
+                          <br /><span style={{ color: "#16A34A" }}>Gut:</span> &quot;IKEA KALLAX Regal 77x147 cm weiss Birke&quot;
+                          <br /><span style={{ color: "#DC2626" }}>Schlecht:</span> &quot;Regal weiss&quot;
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>📄</div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Beschreibung</div>
+                        <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>
+                          Mindestens 80 Zeichen. Vorteile, Material, Masse und Einsatzbereich beschreiben. Keine externen Links oder Werbung.
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>🖼️</div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Bilder</div>
+                        <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>
+                          Mindestens 3 Bilder pro Produkt. Erstes Bild als Freisteller (weisser Hintergrund), dazu Milieu- und Detailbilder. Keine Wasserzeichen.
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <div style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>📦</div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Lieferumfang</div>
+                        <div style={{ fontSize: 12, color: "#6B7280", lineHeight: "18px", marginTop: 2 }}>
+                          Im Format &quot;Anzahl x Produkt&quot; angeben, z.B. &quot;1x Tisch, 4x Stuhl&quot;. Versandart (Paket/Spedition) nicht vergessen.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
+                    style={{ flex: 1, padding: "12px 16px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 13, fontWeight: 600, color: "#111827", cursor: "pointer", textAlign: "center" }}
+                  >
+                    📥 Feedvorlage (Excel) herunterladen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedleitfaden_2025.pdf", "_blank", "noopener,noreferrer")}
+                    style={{ flex: 1, padding: "12px 16px", borderRadius: 8, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, fontSize: 13, fontWeight: 600, color: "#FFF", cursor: "pointer", textAlign: "center" }}
+                  >
+                    📖 Feedleitfaden (PDF) herunterladen
+                  </button>
+                </div>
+              </>
+            )}
+
             {/* Mode Toggle */}
             {headers.length ? (
               <div style={{ display: "flex", gap: 0, borderRadius: 8, overflow: "hidden", border: "1px solid #D1D5DB" }}>
