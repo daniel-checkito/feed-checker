@@ -3104,6 +3104,7 @@ export default function App() {
     if (hash === "#/login") return "login";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
+    if (hash === "#/checker-mc") return "checker-mc";
     return "checker";
   });
   const supabase = useMemo(() => getSupabaseClient(), []);
@@ -3140,6 +3141,7 @@ export default function App() {
       else if (hash === "#/login") setRoute("login");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
+      else if (hash === "#/checker-mc") setRoute("checker-mc");
       else setRoute("checker");
     };
     window.addEventListener("hashchange", onHash);
@@ -5091,8 +5093,8 @@ export default function App() {
               style={{ height: 44, width: "auto", maxWidth: 340, display: "block" }}
             />
           </button>
-          {["checker", "qs", "produkt-optimierung", ...(adminToken ? ["analytics"] : []), "feedback"].map((r) => {
-            const labels = { checker: "Checker", qs: "QS/APA", feedback: "Feedback", analytics: "Analytics" };
+          {["checker", "checker-mc", "qs", "produkt-optimierung", ...(adminToken ? ["analytics"] : []), "feedback"].map((r) => {
+            const labels = { checker: "Checker", "checker-mc": "Checker MC", qs: "QS/APA", feedback: "Feedback", analytics: "Analytics" };
             const labelsWithOptimization = { ...labels, "produkt-optimierung": "Produkt Optimierung" };
             return (
               <button
@@ -6941,6 +6943,19 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <Onboarding />
+        {stickyFeedbackCta}
+      </div>
+    );
+  }
+
+  if (route === "checker-mc") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: 24, fontFamily: "ui-sans-serif, system-ui" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>Checker MC</div>
+          <p style={{ color: "#6B7280", marginTop: 8 }}>Diese Seite ist noch in Entwicklung.</p>
+        </div>
         {stickyFeedbackCta}
       </div>
     );
