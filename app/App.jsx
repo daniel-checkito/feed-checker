@@ -198,77 +198,67 @@ function normalizePreviewText(value) {
 }
 
 function buildEmail({ shopName, issues, tips, canStart }) {
-  const subject = "CHECK24 Produktdatenfeed – Ergebnisse und nächste Schritte";
+  const subject = "CHECK24 Produktdatenfeed – Ergebnisse";
 
-  // Clean issue/tip text: remove counts, deduplicate
-  const cleanText = (s) => s
-    .replace(/\s*in \d+ Artikeln[^.]*\.?/g, ".")
-    .replace(/\s*in \d+ Zeilen\.?/g, ".")
-    .replace(/\s*bei \d+ Artikeln[^.]*\.?/g, ".")
-    .replace(/\.\./g, ".")
-    .trim();
+  // Clean text: remove counts, normalize
+  const clean = (s) => s
+    .replace(/\s*in \d+[\w\s-]*\.?/g, ".")
+    .replace(/\s*bei \d+[\w\s-]*\.?/g, ".")
+    .replace(/\.\./g, ".").trim();
 
-  const cleanIssues = issues.map(cleanText);
-  const cleanTips = tips.map(cleanText);
+  // Merge issues + tips, clean, and categorize
+  const all = [...issues, ...tips].map(clean);
 
-  // Deduplicate and merge similar items
-  const seen = new Set();
-  const dedup = (items) => items.filter((item) => {
-    const key = item.toLowerCase().replace(/[^a-z]/g, "").slice(0, 40);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  const uniqueIssues = dedup(cleanIssues);
-  const uniqueTips = dedup(cleanTips);
-
-  // Group into categories
-  const categorize = (items) => {
-    const cats = { titel: [], beschreibung: [], bilder: [], versand: [], sonstiges: [] };
-    items.forEach((item) => {
-      const l = item.toLowerCase();
-      if (l.includes("titel") || l.includes("produktname") || l.includes("doppelte produkttitel")) cats.titel.push(item);
-      else if (l.includes("beschreibung") || l.includes("extern") || l.includes("platzhalter")) cats.beschreibung.push(item);
-      else if (l.includes("bild") || l.includes("image")) cats.bilder.push(item);
-      else if (l.includes("shipping") || l.includes("versand") || l.includes("lieferumfang") || l.includes("lieferzeit")) cats.versand.push(item);
-      else cats.sonstiges.push(item);
-    });
-    return cats;
-  };
-
-  const allItems = [...uniqueIssues, ...uniqueTips];
-  const cats = categorize(allItems);
+  // Detect which categories have problems
+  const has = (kw) => all.some((s) => s.toLowerCase().includes(kw));
+  const hasTitel = has("titel") || has("produktname");
+  const hasDesc = has("beschreibung") || has("extern") || has("platzhalter");
+  const hasBilder = has("bild") || has("image");
+  const hasVersand = has("shipping") || has("versand") || has("lieferumfang") || has("lieferzeit");
+  const hasMaterial = has("material") || has("farbe");
+  const hasHersteller = has("hersteller");
 
   let body = "Guten Tag,\n\n";
   body += "wir haben Ihren Feed geprüft. Bitte passen Sie folgende Punkte an:\n";
 
-  if (cats.titel.length) {
+  if (hasTitel) {
     body += "\n**Titel**\n";
-    cats.titel.forEach((item) => { body += `- ${item}\n`; });
-    body += "- Tipp: Marke + Produkttyp + Merkmal verwenden, z.B. \"IKEA KALLAX Regal 77x147 cm weiss\"\n";
+    body += "- Einige Produkttitel sind doppelt oder zu kurz.\n";
+    body += "- Bitte verwenden Sie Marke + Produkttyp + Merkmal, z.B. \"IKEA KALLAX Regal 77x147 cm weiss\" statt \"Regal weiss\".\n";
   }
 
-  if (cats.beschreibung.length) {
+  if (hasDesc) {
     body += "\n**Beschreibung**\n";
-    cats.beschreibung.forEach((item) => { body += `- ${item}\n`; });
-    body += "- Tipp: Mind. 80 Zeichen, Vorteile und Material beschreiben, keine externen Links\n";
+    if (has("zu kurz") || has("platzhalter") || has("ausführlicher")) {
+      body += "- Beschreibungen sind zu kurz oder wirken wie Platzhalter. Bitte mind. 80 Zeichen mit Vorteilen, Material und Einsatzbereich.\n";
+    }
+    if (has("extern")) {
+      body += "- Bitte keine externen Links oder Werbung in Beschreibungen verwenden.\n";
+    }
   }
 
-  if (cats.bilder.length) {
+  if (hasBilder) {
     body += "\n**Bilder**\n";
-    cats.bilder.forEach((item) => { body += `- ${item}\n`; });
-    body += "- Tipp: Mind. 3 Bilder, 1. Bild = Freisteller (weisser Hintergrund), dazu Milieu-Bilder\n";
+    body += "- Bitte mind. 3 Bilder pro Produkt liefern. 1. Bild = Freisteller (weisser Hintergrund), dazu Milieu- und Detailbilder.\n";
   }
 
-  if (cats.versand.length) {
+  if (hasVersand) {
     body += "\n**Versand & Lieferumfang**\n";
-    cats.versand.forEach((item) => { body += `- ${item}\n`; });
-    body += "- Tipp: Lieferumfang im Format \"1x Tisch, 4x Stuhl\", Versandart = Paket oder Spedition\n";
+    if (has("lieferumfang")) {
+      body += "- Lieferumfang bitte im Format \"1x Tisch, 4x Stuhl\" angeben.\n";
+    }
+    if (has("shipping")) {
+      body += "- Versandart (shipping_mode) muss \"Paket\" oder \"Spedition\" sein.\n";
+    }
+    if (has("lieferzeit")) {
+      body += "- Lieferzeit bitte als z.B. \"3-5 Werktage\" angeben.\n";
+    }
   }
 
-  if (cats.sonstiges.length) {
-    body += "\n**Sonstiges**\n";
-    cats.sonstiges.forEach((item) => { body += `- ${item}\n`; });
+  if (hasMaterial || hasHersteller) {
+    body += "\n**Weitere Angaben**\n";
+    if (hasMaterial) body += "- Material und Farbe sollten je Artikel vollständig gepflegt sein.\n";
+    if (hasHersteller) body += "- Herstellerangaben bitte ergänzen.\n";
   }
 
   body += canStart
