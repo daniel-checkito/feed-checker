@@ -6971,12 +6971,12 @@ export default function App() {
                     <div style={{ fontSize: 12, color: "#9CA3AF" }}>
                       {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
                     </div>
-                    <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
-                      <option value=""></option>
+                    <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }} />
+                    <datalist id={`attr-options-${field.label}`}>
                       {check24Attributes.map((attr) => (
-                        <option key={attr} value={attr}>{attr}</option>
+                        <option key={attr} value={attr} />
                       ))}
-                    </select>
+                    </datalist>
                     <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
                       <option value=""></option>
                     </select>
@@ -7050,7 +7050,7 @@ export default function App() {
 
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
                   const imageLabel = num === 1 ? "image_url" : `image_url ${num}`;
-                  const isAutoDetected = mappingHeaders.includes(imageLabel);
+                  const listId = `image-options-${num}`;
 
                   return (
                     <div key={num} style={{
@@ -7058,21 +7058,18 @@ export default function App() {
                       gridTemplateColumns: "240px 1fr 1fr",
                       gap: 16,
                       padding: "12px 16px",
-                      background: isAutoDetected ? "#F0FDF4" : (num % 2 === 1 ? "#F9FAFB" : "#FFFFFF"),
+                      background: num % 2 === 1 ? "#F9FAFB" : "#FFFFFF",
                       alignItems: "center",
-                      borderBottom: isAutoDetected ? "1px solid #BBF7D0" : "1px solid #E5E7EB",
-                      borderLeft: isAutoDetected ? "3px solid #16A34A" : "3px solid transparent"
+                      borderBottom: "1px solid #E5E7EB"
                     }}>
                       <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
                         {num === 1 ? "Bild 1 oder gesamter Bilder Feed" : `Bild ${num}`}
-                        {isAutoDetected && <span style={{ marginLeft: 8, fontSize: 11, background: "#16A34A", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ AUTO</span>}
                       </div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <select style={{ flex: 1, padding: "8px 10px", border: isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isAutoDetected ? "#F0FDF4" : "#FFFFFF" }}>
-                          <option value="">{imageLabel}</option>
-                          {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
-                        </select>
-                        {isAutoDetected && <button type="button" style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>}
+                        <input type="text" list={listId} placeholder="Spalte suchen..." style={{ flex: 1, padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }} />
+                        <datalist id={listId}>
+                          {mappingHeaders.map((h) => <option key={h} value={h} />)}
+                        </datalist>
                       </div>
                       <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
                         <option value=""></option>
