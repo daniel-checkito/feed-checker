@@ -3313,7 +3313,7 @@ function McAngebotsfeed() {
   const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   return (
-    <div style={{ maxWidth: issues ? "none" : 720, display: "flex", gap: 20 }}>
+    <div style={{ maxWidth: 1200, display: "flex", gap: 20 }}>
       {/* ── LEFT: Upload & Settings ── */}
       <div style={{ flex: issues ? "0 0 380px" : "1", display: "grid", gap: 16, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
@@ -3452,47 +3452,47 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {issues && (
-        <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 8, alignContent: "start" }}>
+        <div style={{ flex: 1, minWidth: 0, maxWidth: 560, display: "grid", gap: 6, alignContent: "start" }}>
           {/* Score */}
-          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "12px 14px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Analyse-Ergebnis</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: mcScore >= 70 ? "#16A34A" : "#DC2626" }}>{mcScore}/100</div>
+          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Analyse-Ergebnis</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: mcScore >= 70 ? "#16A34A" : "#DC2626" }}>{mcScore}/100</div>
             </div>
 
             {/* Score bar */}
-            <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden", marginBottom: 6 }}>
+            <div style={{ height: 5, borderRadius: 3, background: "#E5E7EB", overflow: "hidden", marginBottom: 4 }}>
               <div style={{ height: "100%", borderRadius: 3, background: mcScore >= 70 ? "#16A34A" : mcScore >= 40 ? "#D97706" : "#DC2626", width: `${mcScore}%`, transition: "width 0.3s" }} />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#6B7280", marginBottom: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#6B7280", marginBottom: 4 }}>
               <span>Mindestens 70/100</span>
               <span>{mcScore >= 70 ? "Fehlerfrei" : "Fehler vorhanden"}</span>
             </div>
 
             {/* Status */}
             {mcScore >= 70 ? (
-              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 12, flexShrink: 0 }}>✓</div>
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, flexShrink: 0 }}>✓</div>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#166534" }}>Fehlerfrei</div>
-                  <div style={{ fontSize: 10, color: "#15803D" }}>Feed kann freigeschaltet werden.</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#166534" }}>Fehlerfrei</div>
+                  <div style={{ fontSize: 9, color: "#15803D" }}>Feed kann freigeschaltet werden.</div>
                 </div>
               </div>
             ) : (
-              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 12, flexShrink: 0 }}>!</div>
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, flexShrink: 0 }}>!</div>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Fehler vorhanden</div>
-                  <div style={{ fontSize: 10, color: "#DC2626" }}>{errorCount} Fehler, {warningCount} Hinweise</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#B91C1C" }}>Fehler vorhanden</div>
+                  <div style={{ fontSize: 9, color: "#DC2626" }}>{errorCount} Fehler, {warningCount} Hinweise</div>
                 </div>
               </div>
             )}
 
             {/* How score is calculated */}
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280" }}>Scoring-Details</summary>
-              <div style={{ marginTop: 4, fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
-                <div style={{ fontWeight: 600, marginBottom: 2 }}>100 Punkte = 70 Pflicht + 30 Optional</div>
+            <details style={{ marginTop: 4 }}>
+              <summary style={{ cursor: "pointer", fontSize: 9, color: "#6B7280" }}>Scoring-Details</summary>
+              <div style={{ marginTop: 3, fontSize: 9, color: "#6B7280", lineHeight: "12px" }}>
+                <div style={{ fontWeight: 600, marginBottom: 1 }}>100 Punkte = 70 Pflicht + 30 Optional</div>
                 <div>Pflicht: {issues.pflichtOkCount}/{issues.totalRows} OK = {issues.pflichtScore}/70</div>
                 <div style={{ marginTop: 1 }}>Duplikate: -{issues.dupPenalty} Punkte</div>
                 <div style={{ marginTop: 1 }}>Optional: {issues.optionalOkCount}/{issues.totalRows} OK = {issues.optionalScore}/30</div>
@@ -3501,15 +3501,15 @@ function McAngebotsfeed() {
           </div>
 
           {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5 }}>
             {[
               { label: "Artikel", val: issues.totalRows, bg: "#F9FAFB", border: "#E5E7EB", color: "#111827" },
               { label: "Fehler", val: errorCount, bg: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", border: errorCount > 0 ? "#FECACA" : "#BBF7D0", color: errorCount > 0 ? "#B91C1C" : "#166534" },
               { label: "Hinweise", val: warningCount, bg: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", border: warningCount > 0 ? "#FCD34D" : "#BBF7D0", color: warningCount > 0 ? "#92400E" : "#166534" },
             ].map((c) => (
-              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 6, padding: "8px 10px" }}>
-                <div style={{ fontSize: 9, color: c.color, fontWeight: 500, marginBottom: 2 }}>{c.label}</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: c.color }}>{c.val}</div>
+              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 6, padding: "6px 8px" }}>
+                <div style={{ fontSize: 8, color: c.color, fontWeight: 500, marginBottom: 1 }}>{c.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: c.color }}>{c.val}</div>
               </div>
             ))}
           </div>
@@ -3522,8 +3522,8 @@ function McAngebotsfeed() {
             const entries = Object.entries(byField);
             if (!entries.length && !issues.missingPflichtCols.length && !issues.dupEanCount && !issues.dupNameCount && !issues.dupOfferIdCount) return null;
             return (
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Pflichtfehler</div>
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Pflichtfehler</div>
                 {issues.missingPflichtCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder-Spalten" severity="error" description="Diese Spalten fehlen im Feed:" items={issues.missingPflichtCols.map((c) => ({ label: fieldLabels[c] || c, hint: "Spalte fehlt" }))} />}
                 {entries.map(([field, errs]) => (
                   <McIssueCard key={field} title={`${fieldLabels[field] || field} fehlerhaft`} severity="error" description={`${errs.length} Artikel betroffen.`}
@@ -3544,8 +3544,8 @@ function McAngebotsfeed() {
             const entries = Object.entries(byField);
             if (!entries.length && !issues.missingOptionalCols.length) return null;
             return (
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Hinweise</div>
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>Hinweise</div>
                 {issues.missingOptionalCols.length > 0 && <McIssueCard title="Fehlende optionale Spalten" severity="warning" description="Diese Spalten fehlen:" items={issues.missingOptionalCols.map((c) => ({ label: c, hint: "Spalte nicht erkannt" }))} />}
                 {entries.map(([field, hints]) => (
                   <McIssueCard key={field} title={`${field} fehlt`} severity="warning" description={`${hints.length} Artikel betroffen.`}
@@ -3557,9 +3557,9 @@ function McAngebotsfeed() {
           })()}
 
           {/* CSV Download - split columns */}
-          <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Fehlerliste herunterladen</div>
-            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10 }}>CSV mit getrennten Spalten für Pflichtfehler und optionale Hinweise.</div>
+          <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 3 }}>Fehlerliste herunterladen</div>
+            <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 8 }}>CSV mit getrennten Spalten für Pflichtfehler und optionale Hinweise.</div>
             <button
               onClick={() => {
                 const pflichtByRow = {}, optionalByRow = {};
@@ -3899,7 +3899,7 @@ function CheckerMCPage() {
 }
 
 function McIssueCard({ title, severity, description, items, more }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const isError = severity === "error";
   const accent = isError ? "#B91C1C" : "#92400E";
   const bg = isError ? "#FEF2F2" : "#FFFBEB";
@@ -3912,31 +3912,31 @@ function McIssueCard({ title, severity, description, items, more }) {
         onClick={() => setExpanded((v) => !v)}
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 16px", cursor: "pointer", borderLeft: `4px solid ${accent}`,
+          padding: "10px 12px", cursor: "pointer", borderLeft: `4px solid ${accent}`,
           background: bg, borderBottom: expanded ? `1px solid ${border}` : "none",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span>{icon}</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: accent }}>{title}</span>
-          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14 }}>{icon}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: accent }}>{title}</span>
+          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600 }}>
             {items.length + (more || 0)} Artikel
           </span>
         </div>
-        <span style={{ fontSize: 12, color: "#9CA3AF" }}>{expanded ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 11, color: "#9CA3AF" }}>{expanded ? "▲" : "▼"}</span>
       </div>
       {expanded ? (
-        <div style={{ padding: "12px 16px" }}>
-          <p style={{ fontSize: 13, color: "#374151", margin: "0 0 10px" }}>{description}</p>
-          <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ padding: "10px 12px" }}>
+          <p style={{ fontSize: 12, color: "#374151", margin: "0 0 8px" }}>{description}</p>
+          <div style={{ display: "grid", gap: 5 }}>
             {items.map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{item.label}</span>
-                <span style={{ fontSize: 11, color: "#6B7280" }}>{item.hint}</span>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#111827" }}>{item.label}</span>
+                <span style={{ fontSize: 10, color: "#6B7280" }}>{item.hint}</span>
               </div>
             ))}
             {more > 0 ? (
-              <div style={{ fontSize: 12, color: "#6B7280", padding: "4px 10px" }}>
+              <div style={{ fontSize: 11, color: "#6B7280", padding: "3px 8px" }}>
                 … und {more} weitere Artikel
               </div>
             ) : null}
