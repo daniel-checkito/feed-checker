@@ -6815,17 +6815,20 @@ export default function App() {
         {topNav}
         <div style={{ flex: 1, overflowY: "auto", padding: "32px 48px" }}>
           {/* File Upload */}
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ marginBottom: 40, paddingBottom: 24, borderBottom: "2px solid #E5E7EB" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Feed-Datei</div>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
               <button
                 type="button"
                 onClick={() => mappingFileInputRef.current?.click()}
-                style={{ padding: "8px 12px", borderRadius: 4, border: "1px solid #D1D5DB", background: "#FFFFFF", fontSize: 12, fontWeight: 600, color: "#111827", cursor: "pointer" }}
+                style={{ padding: "10px 20px", borderRadius: 6, border: "none", background: "#1E40AF", fontSize: 13, fontWeight: 600, color: "#FFFFFF", cursor: "pointer", transition: "background 0.2s" }}
+                onMouseOver={(e) => e.target.style.background = "#1a37a0"}
+                onMouseOut={(e) => e.target.style.background = "#1E40AF"}
               >
-                Datei auswählen
+                📁 Datei auswählen
               </button>
-              <span style={{ fontSize: 12, color: "#6B7280" }}>
-                {mappingFileName ? `${mappingFileName}` : "Keine Datei"}
+              <span style={{ fontSize: 13, color: mappingFileName ? "#111827" : "#9CA3AF", fontWeight: mappingFileName ? 600 : 400 }}>
+                {mappingFileName ? mappingFileName : "Noch keine Datei geladen"}
               </span>
               <input
                 ref={mappingFileInputRef}
