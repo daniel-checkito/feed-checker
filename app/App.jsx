@@ -3239,14 +3239,18 @@ function McAngebotsfeed() {
     const pflichtErrors = []; // { row, ean, field, value }
     const optionalHints = []; // { row, ean, field }
     const duplicateEans = {}, duplicateNames = {}, duplicateOfferIds = {};
-    let pflichtOkCount = 0, optionalOkCount = 0;
+    let pflichtOkCount = 0, totalOptionalFieldsPresent = 0;
+
+    // Count total optional fields (including size and 3+ images check)
+    const optionalFieldCount = MC_OPTIONAL_COLS.length + 1 + 1; // +1 for size, +1 for 3+ images
 
     rows.forEach((row, i) => {
       const rn = i + 1;
       const ean = pflichtMapping.ean ? String(row[pflichtMapping.ean] ?? "").trim() : "";
       const name = pflichtMapping.name ? String(row[pflichtMapping.name] ?? "").trim() : "";
       const offerId = pflichtMapping.seller_offer_id ? String(row[pflichtMapping.seller_offer_id] ?? "").trim() : "";
-      let pflichtOk = true, optionalOk = true;
+      let pflichtOk = true;
+      let optionalFieldsPresent = 0;
 
       // Pflichtfeld checks
       for (const key of MC_PFLICHT_COLS) {
@@ -3263,15 +3267,23 @@ function McAngebotsfeed() {
         if (imgCount === 0) { pflichtErrors.push({ row: rn, ean, field: "image_url", type: "missing" }); pflichtOk = false; }
       }
 
-      // Optional field checks
+      // Optional field checks - count how many are present
       for (const key of [...MC_OPTIONAL_COLS, "size"]) {
         const col = optionalMapping[key];
         if (!col) continue;
-        if (!String(row[col] ?? "").trim()) { optionalHints.push({ row: rn, ean, field: key }); optionalOk = false; }
+        if (!String(row[col] ?? "").trim()) {
+          optionalHints.push({ row: rn, ean, field: key });
+        } else {
+          optionalFieldsPresent++;
+        }
       }
       // Check 3+ images
       const totalImgs = imageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
-      if (totalImgs < 3) { optionalHints.push({ row: rn, ean, field: "3+ Bilder" }); optionalOk = false; }
+      if (totalImgs < 3) {
+        optionalHints.push({ row: rn, ean, field: "3+ Bilder" });
+      } else {
+        optionalFieldsPresent++;
+      }
 
       // Track duplicates
       if (ean) { if (!duplicateEans[ean]) duplicateEans[ean] = []; duplicateEans[ean].push(rn); }
@@ -3279,7 +3291,7 @@ function McAngebotsfeed() {
       if (offerId) { if (!duplicateOfferIds[offerId]) duplicateOfferIds[offerId] = []; duplicateOfferIds[offerId].push(rn); }
 
       if (pflichtOk) pflichtOkCount++;
-      if (optionalOk) optionalOkCount++;
+      totalOptionalFieldsPresent += optionalFieldsPresent;
     });
 
     const dupEanCount = Object.values(duplicateEans).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
@@ -3287,10 +3299,11 @@ function McAngebotsfeed() {
     const dupOfferIdCount = Object.values(duplicateOfferIds).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
     const totalDups = dupEanCount + dupNameCount + dupOfferIdCount;
 
-    // Score: 70 pts for Pflichtfelder + 30 pts for optionale
+    // Score: 70 pts for Pflichtfelder + 30 pts for optionale (proportional)
     const pflichtScore = rows.length ? Math.round((pflichtOkCount / rows.length) * 70) : 0;
     const dupPenalty = rows.length ? Math.min(10, Math.round((totalDups / rows.length) * 70)) : 0;
-    const optionalScore = rows.length ? Math.round((optionalOkCount / rows.length) * 30) : 0;
+    // Proportional optional score: average of optional fields present per row * 30
+    const optionalScore = rows.length && optionalFieldCount > 0 ? Math.round((totalOptionalFieldsPresent / (rows.length * optionalFieldCount)) * 30) : 0;
     const totalScore = Math.max(0, pflichtScore - dupPenalty + optionalScore);
 
     setIssues({
@@ -3298,7 +3311,7 @@ function McAngebotsfeed() {
       pflichtMapping, optionalMapping, imageColumns,
       missingPflichtCols, missingOptionalCols,
       pflichtErrors, optionalHints,
-      pflichtOkCount, optionalOkCount,
+      pflichtOkCount, totalOptionalFieldsPresent, optionalFieldCount,
       dupEanCount, dupNameCount, dupOfferIdCount,
       pflichtScore, dupPenalty, optionalScore, totalScore,
     });
@@ -3495,7 +3508,7 @@ function McAngebotsfeed() {
                 <div style={{ fontWeight: 600, marginBottom: 1 }}>100 Punkte = 70 Pflicht + 30 Optional</div>
                 <div>Pflicht: {issues.pflichtOkCount}/{issues.totalRows} OK = {issues.pflichtScore}/70</div>
                 <div style={{ marginTop: 1 }}>Duplikate: -{issues.dupPenalty} Punkte</div>
-                <div style={{ marginTop: 1 }}>Optional: {issues.optionalOkCount}/{issues.totalRows} OK = {issues.optionalScore}/30</div>
+                <div style={{ marginTop: 1 }}>Optional: {Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100)}% = {issues.optionalScore}/30</div>
               </div>
             </details>
           </div>
