@@ -3326,7 +3326,7 @@ function McAngebotsfeed() {
   const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "start" }}>
+    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1400, margin: "0 auto", paddingLeft: 40, paddingRight: 40 }}>
       {/* ── LEFT: Upload & Settings ── */}
       <div style={{ flex: "0 0 50%", display: "grid", gap: 12, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
@@ -6872,9 +6872,10 @@ export default function App() {
                   {produktIdentifikationFields.map((field, idx) => {
                     const autoDetectedValue = mappingHeaders.find(h => h.toLowerCase().includes(field.label.split("_")[0])) || "";
                     const userSetValue = produktIdentifikationMappings[field.label];
+                    const isUserExplicitlyClearedIt = userSetValue === "";
                     const selectedValue = userSetValue !== undefined ? userSetValue : autoDetectedValue;
                     const isUserSet = userSetValue !== undefined && userSetValue !== "";
-                    const isAutoDetected = !isUserSet && autoDetectedValue;
+                    const isAutoDetected = !isUserSet && !isUserExplicitlyClearedIt && autoDetectedValue;
 
                     return (
                       <div key={field.label} style={{
@@ -6882,21 +6883,21 @@ export default function App() {
                         gridTemplateColumns: "200px 1fr 80px 1fr 40px",
                         gap: 16,
                         padding: "12px 16px",
-                        background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"),
+                        background: isUserSet ? "#F0F4FF" : isAutoDetected && !isUserExplicitlyClearedIt ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"),
                         alignItems: "center",
-                        borderBottom: isUserSet ? "1px solid #BFDBFE" : isAutoDetected ? "1px solid #BBF7D0" : "1px solid #E5E7EB",
-                        borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent"
+                        borderBottom: isUserSet ? "1px solid #BFDBFE" : isAutoDetected && !isUserExplicitlyClearedIt ? "1px solid #BBF7D0" : "1px solid #E5E7EB",
+                        borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected && !isUserExplicitlyClearedIt ? "3px solid #16A34A" : "3px solid transparent"
                       }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
                           {field.label} {field.required ? <span style={{ color: "#DC2626" }}>*</span> : ""} <span style={{ marginLeft: 4, cursor: "pointer" }}>ⓘ</span>
                           {isUserSet && <span style={{ marginLeft: 8, fontSize: 11, background: "#1E40AF", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ SET</span>}
-                          {isAutoDetected && <span style={{ marginLeft: 8, fontSize: 11, background: "#16A34A", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ AUTO</span>}
+                          {isAutoDetected && !isUserExplicitlyClearedIt && <span style={{ marginLeft: 8, fontSize: 11, background: "#16A34A", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ AUTO</span>}
                         </div>
                         <select value={selectedValue || ""} onChange={(e) => setProduktIdentifikationMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 12px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", fontWeight: selectedValue ? 600 : 400, color: selectedValue ? "#111827" : "#9CA3AF" }}>
-                          <option value="">{autoDetectedValue || "-- Wählen --"}</option>
+                          <option value="">{isUserExplicitlyClearedIt ? "-- Wählen --" : (autoDetectedValue || "-- Wählen --")}</option>
                           {mappingHeaders.map((h) => <option key={h} value={h}>{h}</option>)}
                         </select>
-                        {selectedValue && <button type="button" onClick={() => setProduktIdentifikationMappings(prev => { const next = { ...prev }; delete next[field.label]; return next; })} style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>}
+                        {selectedValue && <button type="button" onClick={() => setProduktIdentifikationMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>}
                         {!selectedValue && <div></div>}
                         <select style={{ padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
                           <option value=""></option>
