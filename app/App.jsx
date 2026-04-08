@@ -6867,7 +6867,12 @@ export default function App() {
 
                 {/* Produktidentifikation */}
                 <div style={{ marginBottom: 40 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>Produktidentifikation</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Produktidentifikation</div>
+                    <button type="button" onClick={() => setProduktIdentifikationMappings({})} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid #D1D5DB", background: "#FFFFFF", borderRadius: 4, cursor: "pointer", color: "#6B7280", fontWeight: 500 }}>
+                      ↻ Reset zu Auto-Erkennung
+                    </button>
+                  </div>
 
                   {produktIdentifikationFields.map((field, idx) => {
                     const autoDetectedValue = mappingHeaders.find(h => h.toLowerCase().includes(field.label.split("_")[0])) || "";
