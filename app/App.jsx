@@ -3187,6 +3187,9 @@ function McAngebotsfeed() {
   const [issues, setIssues] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState([]);
+  const [headers, setHeaders] = useState([]);
+  const [showManualMapping, setShowManualMapping] = useState(false);
+  const [manualMappings, setManualMappings] = useState({});
   const fileRef = useRef(null);
 
   function parseFile(f) {
@@ -3209,7 +3212,9 @@ function McAngebotsfeed() {
             const r = Array.isArray(res.data) ? res.data : [];
             const h = res.meta?.fields || Object.keys(r[0] || {});
             setRows(r);
-            analyzeFile(r, h);
+            setHeaders(h);
+            setManualMappings({});
+            analyzeFile(r, h, {});
           },
         });
       };
@@ -3218,14 +3223,20 @@ function McAngebotsfeed() {
     tryParseMc("UTF-8");
   }
 
-  function analyzeFile(rows, headers) {
+  function analyzeFile(rows, headers, manualMap = {}) {
     const hl = headers.map((h) => h.toLowerCase().trim());
-    // Map columns using aliases
-    const mapCol = (aliases) => { for (const a of aliases) { const c = headers.find((h) => h.toLowerCase().trim() === a || h.toLowerCase().includes(a)); if (c) return c; } return null; };
+    // Map columns using aliases or manual mappings
+    const mapCol = (aliases, key) => {
+      // First check if there's a manual mapping
+      if (manualMap[key]) return manualMap[key];
+      // Otherwise try auto-detection
+      for (const a of aliases) { const c = headers.find((h) => h.toLowerCase().trim() === a || h.toLowerCase().includes(a)); if (c) return c; }
+      return null;
+    };
     const pflichtMapping = {};
-    for (const key of MC_PFLICHT_COLS) pflichtMapping[key] = mapCol(MC_PFLICHT_ALIASES[key] || [key]);
+    for (const key of MC_PFLICHT_COLS) pflichtMapping[key] = mapCol(MC_PFLICHT_ALIASES[key] || [key], key);
     const optionalMapping = {};
-    for (const key of MC_OPTIONAL_COLS) optionalMapping[key] = mapCol(MC_OPTIONAL_ALIASES[key] || [key]);
+    for (const key of MC_OPTIONAL_COLS) optionalMapping[key] = mapCol(MC_OPTIONAL_ALIASES[key] || [key], key);
     // Also detect size columns
     const sizeCol = headers.find((h) => { const l = h.toLowerCase(); return l.includes("size") || l.includes("abmessung") || l.includes("dimension") || l.includes("größe") || l.includes("groesse") || l.includes("maße"); });
     if (sizeCol) optionalMapping.size = sizeCol;
@@ -3501,6 +3512,30 @@ function McAngebotsfeed() {
               </div>
             )}
 
+            {/* Manual Mapping Button */}
+            {issues && (mcScore < 70 || issues.missingPflichtCols.length > 0) && (
+              <button
+                onClick={() => setShowManualMapping(true)}
+                style={{
+                  width: "100%",
+                  marginTop: 8,
+                  padding: "8px 0",
+                  borderRadius: 6,
+                  border: "1px solid #D97706",
+                  background: "#FEF3C7",
+                  color: "#92400E",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onMouseOver={(e) => { e.target.style.background = "#FCD34D"; }}
+                onMouseOut={(e) => { e.target.style.background = "#FEF3C7"; }}
+              >
+                🔧 Spalten manuell zuordnen
+              </button>
+            )}
+
             {/* How score is calculated */}
             <details style={{ marginTop: 4 }}>
               <summary style={{ cursor: "pointer", fontSize: 9, color: "#6B7280" }}>Scoring-Details</summary>
@@ -3653,6 +3688,125 @@ function McAngebotsfeed() {
             >
               CSV herunterladen
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Column Mapping Modal */}
+      {showManualMapping && headers.length > 0 && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+          <div style={{ background: "#FFF", borderRadius: 12, boxShadow: "0 20px 25px rgba(0,0,0,0.15)", padding: "24px", width: "90%", maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>Spalten manuell zuordnen</div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>Ordnen Sie die Spalten Ihres Feeds manuell zu, um die Analyse neu zu berechnen.</div>
+              </div>
+              <button
+                onClick={() => setShowManualMapping(false)}
+                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#6B7280" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Pflichtfelder */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 12 }}>Pflichtfelder</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {MC_PFLICHT_COLS.map((col) => (
+                  <div key={col} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 12, alignItems: "center" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{col}</div>
+                    <select
+                      value={manualMappings[col] || ""}
+                      onChange={(e) => setManualMappings(prev => ({ ...prev, [col]: e.target.value || undefined }))}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        fontSize: 12,
+                        background: "#FFF",
+                        cursor: "pointer",
+                        color: manualMappings[col] ? "#111827" : "#9CA3AF",
+                      }}
+                    >
+                      <option value="">-- Spalte wählen --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Optionale Felder */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 12 }}>Optionale Felder (wichtig für Score)</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {MC_OPTIONAL_COLS.map((col) => (
+                  <div key={col} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 12, alignItems: "center" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{col}</div>
+                    <select
+                      value={manualMappings[col] || ""}
+                      onChange={(e) => setManualMappings(prev => ({ ...prev, [col]: e.target.value || undefined }))}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        fontSize: 12,
+                        background: "#FFF",
+                        cursor: "pointer",
+                        color: manualMappings[col] ? "#111827" : "#9CA3AF",
+                      }}
+                    >
+                      <option value="">-- Spalte wählen --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <button
+                onClick={() => setShowManualMapping(false)}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 6,
+                  border: "1px solid #D1D5DB",
+                  background: "#FFF",
+                  color: "#374151",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  if (rows.length > 0 && headers.length > 0) {
+                    analyzeFile(rows, headers, manualMappings);
+                    setShowManualMapping(false);
+                  }
+                }}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: MC_BLUE,
+                  color: "#FFF",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Analyse neu berechnen
+              </button>
+            </div>
           </div>
         </div>
       )}
