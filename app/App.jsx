@@ -3452,68 +3452,64 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {issues && (
-        <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 8, alignContent: "start" }}>
           {/* Score */}
-          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Analyse-Ergebnis</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: mcScore >= 70 ? "#16A34A" : "#DC2626" }}>{mcScore}/100</div>
+          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "12px 14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Analyse-Ergebnis</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: mcScore >= 70 ? "#16A34A" : "#DC2626" }}>{mcScore}/100</div>
             </div>
 
             {/* Score bar */}
-            <div style={{ height: 8, borderRadius: 4, background: "#E5E7EB", overflow: "hidden", marginBottom: 8 }}>
-              <div style={{ height: "100%", borderRadius: 4, background: mcScore >= 70 ? "#16A34A" : mcScore >= 40 ? "#D97706" : "#DC2626", width: `${mcScore}%`, transition: "width 0.3s" }} />
+            <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden", marginBottom: 6 }}>
+              <div style={{ height: "100%", borderRadius: 3, background: mcScore >= 70 ? "#16A34A" : mcScore >= 40 ? "#D97706" : "#DC2626", width: `${mcScore}%`, transition: "width 0.3s" }} />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#6B7280" }}>
-              <span>Mindestens 70/100 für Freischaltung</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#6B7280", marginBottom: 6 }}>
+              <span>Mindestens 70/100</span>
               <span>{mcScore >= 70 ? "Fehlerfrei" : "Fehler vorhanden"}</span>
             </div>
 
             {/* Status */}
             {mcScore >= 70 ? (
-              <div style={{ marginTop: 10, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 14, flexShrink: 0 }}>✓</div>
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 12, flexShrink: 0 }}>✓</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>Fehlerfrei</div>
-                  <div style={{ fontSize: 11, color: "#15803D" }}>Feed kann freigeschaltet werden.</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#166534" }}>Fehlerfrei</div>
+                  <div style={{ fontSize: 10, color: "#15803D" }}>Feed kann freigeschaltet werden.</div>
                 </div>
               </div>
             ) : (
-              <div style={{ marginTop: 10, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 14, flexShrink: 0 }}>!</div>
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 12, flexShrink: 0 }}>!</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C" }}>Fehler vorhanden</div>
-                  <div style={{ fontSize: 11, color: "#DC2626" }}>{errorCount} Pflichtfehler, {warningCount} Hinweise. Score: {mcScore}/100.</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Fehler vorhanden</div>
+                  <div style={{ fontSize: 10, color: "#DC2626" }}>{errorCount} Fehler, {warningCount} Hinweise</div>
                 </div>
               </div>
             )}
 
             {/* How score is calculated */}
-            <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: "pointer", fontSize: 11, color: "#6B7280" }}>Wie wird der Score berechnet?</summary>
-              <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280", lineHeight: "17px" }}>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Insgesamt: 100 Punkte</div>
-                <div>70 Punkte: Pflichtfelder (EAN, Offer ID, Name, Preis, Bestand, Lieferzeit, mind. 1 Bild, Versandart)</div>
-                <div style={{ marginTop: 2 }}>Ihr Feed: {issues.pflichtOkCount}/{issues.totalRows} Zeilen fehlerfrei = {issues.pflichtScore}/70 Punkte</div>
-                <div style={{ marginTop: 2 }}>Abzug für Duplikate (EAN, Offer ID, Name): -{issues.dupPenalty} Punkte</div>
-                <div style={{ marginTop: 6 }}>30 Punkte: Optionale Felder (3+ Bilder, Kategorie, Farbe, Material, Marke, Größe, Beschreibung, Hersteller, Lieferumfang)</div>
-                <div style={{ marginTop: 2 }}>Ihr Feed: {issues.optionalOkCount}/{issues.totalRows} Zeilen vollständig = {issues.optionalScore}/30 Punkte</div>
-                <div style={{ marginTop: 6, fontWeight: 600 }}>Gesamt: {issues.pflichtScore} - {issues.dupPenalty} + {issues.optionalScore} = {mcScore}/100</div>
-                <div style={{ marginTop: 4 }}>Ab 70/100 gilt der Feed als fehlerfrei und kann freigeschaltet werden.</div>
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280" }}>Scoring-Details</summary>
+              <div style={{ marginTop: 4, fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
+                <div style={{ fontWeight: 600, marginBottom: 2 }}>100 Punkte = 70 Pflicht + 30 Optional</div>
+                <div>Pflicht: {issues.pflichtOkCount}/{issues.totalRows} OK = {issues.pflichtScore}/70</div>
+                <div style={{ marginTop: 1 }}>Duplikate: -{issues.dupPenalty} Punkte</div>
+                <div style={{ marginTop: 1 }}>Optional: {issues.optionalOkCount}/{issues.totalRows} OK = {issues.optionalScore}/30</div>
               </div>
             </details>
           </div>
 
           {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
             {[
               { label: "Artikel", val: issues.totalRows, bg: "#F9FAFB", border: "#E5E7EB", color: "#111827" },
-              { label: "Pflichtfehler", val: errorCount, bg: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", border: errorCount > 0 ? "#FECACA" : "#BBF7D0", color: errorCount > 0 ? "#B91C1C" : "#166534" },
+              { label: "Fehler", val: errorCount, bg: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", border: errorCount > 0 ? "#FECACA" : "#BBF7D0", color: errorCount > 0 ? "#B91C1C" : "#166534" },
               { label: "Hinweise", val: warningCount, bg: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", border: warningCount > 0 ? "#FCD34D" : "#BBF7D0", color: warningCount > 0 ? "#92400E" : "#166534" },
             ].map((c) => (
-              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 6, padding: "10px 12px" }}>
-                <div style={{ fontSize: 10, color: c.color, fontWeight: 500, marginBottom: 2 }}>{c.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.val}</div>
+              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 6, padding: "8px 10px" }}>
+                <div style={{ fontSize: 9, color: c.color, fontWeight: 500, marginBottom: 2 }}>{c.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: c.color }}>{c.val}</div>
               </div>
             ))}
           </div>
@@ -3596,10 +3592,6 @@ function McAngebotsfeed() {
               CSV herunterladen
             </button>
           </div>
-
-          <button onClick={() => { setFile(null); setIssues(null); setRows([]); }} style={{ padding: "9px 20px", borderRadius: 6, border: `1px solid ${MC_BLUE}`, background: "#FFF", color: MC_BLUE, fontSize: 13, fontWeight: 600, cursor: "pointer", width: "fit-content" }}>
-            Neue Datei prüfen
-          </button>
         </div>
       )}
     </div>
