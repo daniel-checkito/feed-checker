@@ -6798,6 +6798,17 @@ export default function App() {
     // Auto-detect CHECK24 attribute for a feed column name
     function autoDetectCheck24Attr(col) {
       const n = col.toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/[^a-z0-9]/g,"_").replace(/_+/g,"_");
+      // Offer ID / Seller Offer ID
+      if (/^(offer_id|seller_offer_id|offerId|angebotsid)$/.test(n)) return "offer_id";
+      // EAN / GTIN14
+      if (/^(ean|gtin|gtin14|gtin_14|ean14|ean_14|barcode)$/.test(n)) return "EAN (GTIN14)";
+      // Price / Supplied Price
+      if (/^(price|preis|seller_supplied_price|supplied_price|verkaufspreis)$/.test(n)) return "price";
+      // Category / Deeplink
+      if (/^(category|kategorie|seller_category|category_path|warengruppe)$/.test(n)) return "category_path";
+      if (/^(deeplink|link|seller_deeplink|url|product_url|shop_url)$/.test(n)) return "deeplink";
+      // Delivery time
+      if (/^(delivery_time|lieferzeit|versandzeit|delivery_speed)$/.test(n)) return "delivery_time";
       // Name / Title
       if (/^(name|title|product_name|produkt_name|produktname|bezeichnung|artikelname)$/.test(n)) return "Allgemein > Name (1) text";
       // Description
