@@ -6795,9 +6795,56 @@ export default function App() {
       "Eigenschaften > Geeignet für Allergiker (120) text",
     ];
 
+    // Auto-detect CHECK24 attribute for a feed column name
+    function autoDetectCheck24Attr(col) {
+      const n = col.toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/[^a-z0-9]/g,"_").replace(/_+/g,"_");
+      // Name / Title
+      if (/^(name|title|product_name|produkt_name|produktname|bezeichnung|artikelname)$/.test(n)) return "Allgemein > Name (1) text";
+      // Description
+      if (/beschreibung|description|produktbeschreibung|produkt_beschreibung/.test(n)) return "Allgemein > Beschreibung (2) text";
+      // Model
+      if (/^(modell|model|model_number|modellnummer)$/.test(n)) return "Allgemein > Modell (3) text";
+      // Manufacturer number
+      if (/herstellernummer|hersteller_nummer|manufacturer_number|mpn|sku/.test(n)) return "Allgemein > Herstellernummer (4) text";
+      // Delivery includes
+      if (/delivery_includes|lieferumfang|lieferinhalt|lieferung_inhalt|scope_of_delivery/.test(n)) return "Lieferung > Lieferumfang (11) text";
+      // Color
+      if (/^(farbe|color|colour|product_color|produktfarbe)$/.test(n)) return "Farbe & Design > Farbe (12) text";
+      // Brand / Marke
+      if (/^(brand|marke|hersteller|manufacturer|manufacturer_name)$/.test(n)) return "Allgemein > Marke (50) text";
+      // Material
+      if (/^(material|materials|werkstoff)$/.test(n)) return "Material > Material (23) text";
+      // Dimensions combined
+      if (/abmessungen|dimensions|abmessung|masse$|maße$|groesse$|groesse_produkt/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
+      // Height
+      if (/^(hoehe|height|height_mm|product_height|h_mm|hoehe_mm)$/.test(n) || /^h$/.test(n)) return "Maße & Gewicht > Höhe (5) in mm";
+      // Depth
+      if (/^(tiefe|depth|depth_mm|product_depth|t_mm|tiefe_mm)$/.test(n) || /^t$/.test(n)) return "Maße & Gewicht > Tiefe (6) in mm";
+      // Width
+      if (/^(breite|width|width_mm|product_width|b_mm|breite_mm)$/.test(n) || /^b$/.test(n)) return "Maße & Gewicht > Breite (7) in mm";
+      // Diameter
+      if (/durchmesser|diameter|diameter_mm/.test(n)) return "Maße & Gewicht > Durchmesser (8) in mm";
+      // Weight
+      if (/^(gewicht|weight|weight_kg|product_weight|g_kg)$/.test(n)) return "Maße & Gewicht > Gewicht (9) in kg";
+      // Volume
+      if (/^(volumen|volume|capacity|inhalt_l)$/.test(n)) return "Maße & Gewicht > Volumen (10) in l";
+      // Style
+      if (/^(stil|style|design_stil)$/.test(n)) return "Farbe & Design > Stil (13) text";
+      // Surface
+      if (/oberflaeche$|oberflaechenbehandlung/.test(n)) return "Material > Oberflächenbehandlung (27) text";
+      // Care
+      if (/pflegehinweis|pflege_hinweis|care_instruction/.test(n)) return "Allgemein > Pfleghinweis (109) text";
+      // Series
+      if (/^(serie|series|produktserie|product_series)$/.test(n)) return "Allgemein > Serie (21) text";
+      // Country of origin
+      if (/herstellungsland|country_of_origin|made_in/.test(n)) return "Allgemein > Herstellungsland (22) text";
+      return null;
+    }
+
     const attributeMappingFields = mappingHeaders.length > 0 ? mappingHeaders.map((header, idx) => ({
       label: header,
       feedValue: mappingRows[0] ? mappingRows[0][idx] : "",
+      autoAttr: autoDetectCheck24Attr(header),
     })) : [];
 
     const produktIdentifikationFields = [
@@ -7057,21 +7104,39 @@ export default function App() {
 
                 {/* Table Rows */}
                 {attributeMappingFields.length > 0 ? (
-                  attributeMappingFields.map((field, idx) => (
+                  attributeMappingFields.map((field, idx) => {
+                    const userVal = attributeMappings[field.label];
+                    const isUserSet = userVal !== undefined && userVal !== "";
+                    const isCleared = userVal === "";
+                    const displayVal = isUserSet ? userVal : (!isCleared && field.autoAttr) ? field.autoAttr : "";
+                    const isAutoDetected = !isUserSet && !isCleared && !!field.autoAttr;
+                    return (
                   <div key={field.label} style={{
                     display: "grid",
                     gridTemplateColumns: "200px 140px 1fr 180px 40px",
                     gap: 16,
                     padding: "12px 16px",
-                    background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                    background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"),
                     alignItems: "center",
-                    borderBottom: "1px solid #E5E7EB"
+                    borderBottom: "1px solid #E5E7EB",
+                    borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent",
                   }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>{field.label}</div>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
+                      {field.label}
+                      {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
+                      {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
+                    </div>
                     <div style={{ fontSize: 12, color: "#9CA3AF" }}>
                       {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
                     </div>
-                    <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }} />
+                    <input
+                      type="text"
+                      list={`attr-options-${field.label}`}
+                      placeholder="CHECK24 Attribut suchen..."
+                      value={displayVal}
+                      onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))}
+                      style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }}
+                    />
                     <datalist id={`attr-options-${field.label}`}>
                       {check24Attributes.map((attr) => (
                         <option key={attr} value={attr} />
@@ -7080,9 +7145,14 @@ export default function App() {
                     <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
                       <option value=""></option>
                     </select>
-                    <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 14 }}>ⓘ</span>
+                    <span
+                      onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))}
+                      style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }}
+                      title="Mapping zurücksetzen"
+                    >{displayVal ? "✕" : ""}</span>
                   </div>
-                ))
+                    );
+                  }))
                 ) : (
                   // Placeholder rows when no file is uploaded
                   [1, 2, 3, 4, 5].map((idx) => (
