@@ -3974,6 +3974,7 @@ export default function App() {
     if (hash === "#/rules") return "rules";
     if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") return "feed-analyse";
     if (hash === "#/produkt-optimierung") return "produkt-optimierung";
+    if (hash === "#/mapping") return "mapping";
     if (hash === "#/analytics") return "analytics";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
@@ -3996,6 +3997,7 @@ export default function App() {
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") setRoute("feed-analyse");
       else if (hash === "#/produkt-optimierung") setRoute("produkt-optimierung");
+      else if (hash === "#/mapping") setRoute("mapping");
       else if (hash === "#/analytics") setRoute("analytics");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
@@ -4053,6 +4055,54 @@ export default function App() {
   const [analyticsStats, setAnalyticsStats] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState("");
+
+  // Mapping page state
+  const [mappingFileName, setMappingFileName] = useState("");
+  const [mappingHeaders, setMappingHeaders] = useState([]);
+  const [mappingRows, setMappingRows] = useState([]);
+  const [mappingError, setMappingError] = useState("");
+  const mappingFileInputRef = useRef(null);
+
+  function onPickMappingFile(file) {
+    if (!file) {
+      setMappingFileName("");
+      setMappingHeaders([]);
+      setMappingRows([]);
+      setMappingError("");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
+        if (!parsed.data || parsed.data.length < 1) {
+          setMappingError("Datei ist leer");
+          setMappingFileName("");
+          setMappingHeaders([]);
+          setMappingRows([]);
+          return;
+        }
+        setMappingFileName(file.name);
+        setMappingHeaders(parsed.data[0] || []);
+        setMappingRows(parsed.data.slice(1) || []);
+        setMappingError("");
+      } catch (err) {
+        setMappingError(String(err?.message || err || "Parse error"));
+        setMappingFileName("");
+        setMappingHeaders([]);
+        setMappingRows([]);
+      }
+    };
+    reader.onerror = () => {
+      setMappingError("Datei konnte nicht gelesen werden");
+      setMappingFileName("");
+      setMappingHeaders([]);
+      setMappingRows([]);
+    };
+    reader.readAsText(file);
+  }
 
   async function loadProductOptimizationAnalytics() {
     setAnalyticsError("");
@@ -5510,6 +5560,7 @@ export default function App() {
     { id: "feed-analyse",         label: "Feed Analyse",       icon: "🔍" },
     { id: "checker-mc",           label: "Merchant Center Prototype", icon: "🏪" },
     { id: "produkt-optimierung",  label: "Produkt Optimierung",icon: "⚡" },
+    { id: "mapping",              label: "Mapping",            icon: "🗂️" },
     ...(adminToken ? [{ id: "analytics", label: "Analytics", icon: "📈" }] : []),
   ];
 
@@ -6592,6 +6643,277 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <Onboarding />
+      </div>
+    );
+  }
+
+  if (route === "mapping") {
+    const check24Attributes = [
+      "Allgemein > Name (1)",
+      "Allgemein > Beschreibung (2)",
+      "Allgemein > Marke (50)",
+      "Allgemein > Preis",
+    ];
+
+    const allNormalizers = [
+      "Auswahl Normalizer",
+      "HTML in Markdown u...",
+      "Interpretiere als Preis",
+      "Versanddienst ermitteln",
+      "Versanddiensteister",
+    ];
+
+    const attributeMappingFields = mappingHeaders.length > 0 ? mappingHeaders.map((header) => ({
+      label: header,
+      feedValue: mappingRows[0] ? mappingRows[0][mappingHeaders.indexOf(header)] : "",
+      mapped: false,
+      normalizer: "",
+    })) : [];
+
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
+        {topNav}
+        <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ padding: "24px", maxWidth: "100%", boxSizing: "border-box" }}>
+            {/* File Upload Section */}
+            <div style={{ marginBottom: 32, backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8, border: "1px solid #E5E7EB" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => mappingFileInputRef.current?.click()}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #1553B6",
+                    background: "#FFFFFF",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#1553B6",
+                    cursor: "pointer",
+                  }}
+                >
+                  Datei auswählen
+                </button>
+                <div style={{ fontSize: 12, color: "#6B7280" }}>
+                  {mappingFileName ? `Aktuelle Datei: ${mappingFileName}` : "Keine Datei ausgewählt"}
+                </div>
+                <input
+                  ref={mappingFileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => onPickMappingFile(e.target.files?.[0] || null)}
+                  style={{ display: "none" }}
+                />
+              </div>
+              {mappingError && <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>{mappingError}</div>}
+            </div>
+
+            {mappingHeaders.length > 0 && (
+              <>
+                {/* Service Angebote Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Service Angebote</div>
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1E40AF", marginBottom: 16 }}>Value Added Service</div>
+                    <div style={{ fontSize: 12, color: "#6B7280" }}>
+                      <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", cursor: "pointer", padding: 0 }}>
+                        ⓘ Service hinzufügen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content Import Mapping Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Content Import Mapping</div>
+
+                  {/* Produktidentifikation */}
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8, marginBottom: 20 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 16 }}>Produktidentifikation</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr 100px", gap: 16, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Zielfeld der Offer</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer <span style={{ color: "#1E40AF" }}>Glossar</span></div>
+                    </div>
+                    {["seller_offer_id", "amazon_sales_rank", "delivery_time", "gtin14", "seller_category", "seller_deeplink", "seller_supplied_price"].map((field, idx) => (
+                      <div key={field} style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr 100px", gap: 16, marginBottom: 12, alignItems: "center" }}>
+                        <div style={{ fontSize: 13, color: "#374151" }}>{field} ⓘ</div>
+                        <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                          <option value="">{mappingHeaders.find(h => h.toLowerCase().includes(field.split("_")[0])) || ""}</option>
+                          {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                        </select>
+                        <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                          <option value=""></option>
+                          {allNormalizers.map((n) => <option key={n}>{n}</option>)}
+                        </select>
+                        <div></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Attributmapping Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Attributmapping</div>
+                  <div style={{ marginBottom: 12 }}>
+                    <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }}>
+                      ⇧ Feed laden und Spalten aktualisieren
+                    </button>
+                  </div>
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "150px 150px 1fr 200px 150px", gap: 16, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280" }}>Preview</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Mapping auf CHECK24 Attribut</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer <span style={{ color: "#1E40AF" }}>Glossar</span></div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Aktion</div>
+                    </div>
+                    {attributeMappingFields.map((field, idx) => (
+                      <div key={field.label} style={{ display: "grid", gridTemplateColumns: "150px 150px 1fr 200px 150px", gap: 16, marginBottom: 12, alignItems: "center", paddingBottom: 12, borderBottom: idx < attributeMappingFields.length - 1 ? "1px solid #F3F4F6" : "none" }}>
+                        <div style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{field.label}</div>
+                        <div style={{ fontSize: 13, color: "#6B7280" }}>{field.feedValue || "-"}</div>
+                        <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                          <option value=""></option>
+                          {check24Attributes.map((attr) => <option key={attr}>{attr}</option>)}
+                        </select>
+                        <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                          <option value=""></option>
+                          {allNormalizers.map((n) => <option key={n}>{n}</option>)}
+                        </select>
+                        <div></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bilder Mapping Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Bilder Mapping</div>
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr", gap: 16, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Offer Bild</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer <span style={{ color: "#1E40AF" }}>Glossar</span></div>
+                    </div>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                      <div key={num} style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr", gap: 16, marginBottom: 12, alignItems: "center", paddingBottom: 12, borderBottom: num < 10 ? "1px solid #F3F4F6" : "none" }}>
+                        <div style={{ fontSize: 13, color: "#374151" }}>
+                          {num === 1 ? "Bild 1 oder gesamter Bilder Feed" : `Bild ${num}`}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <select style={{ flex: 1, padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                            <option value="">
+                              {num === 1 ? "image_url" : num <= 9 ? `image_url ${num}` : ""}
+                            </option>
+                            {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                          </select>
+                          {num > 1 && (
+                            <button type="button" style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, cursor: "pointer" }}>X</button>
+                          )}
+                        </div>
+                        <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                          <option value=""></option>
+                          {allNormalizers.map((n) => <option key={n}>{n}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 16 }}>
+                      <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }}>
+                        ⊕ Weiteres Bild mappen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3D-Modelle Mapping Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 16 }}>3D-Modelle Mapping</div>
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 16, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>3D-Modell Dateiformat</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
+                    </div>
+                    {["GLB", "USDZ"].map((format) => (
+                      <div key={format} style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 16, marginBottom: 12, alignItems: "center", paddingBottom: 12, borderBottom: "1px solid #F3F4F6" }}>
+                        <div style={{ fontSize: 13, color: "#374151" }}>{format}</div>
+                        <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                          <option value=""></option>
+                          {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dokumente Mapping Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Dokumente Mapping</div>
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 16, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Dokumenttyp</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
+                    </div>
+                    {["Aufbauanleitung", "Energieeffizienzlabel", "Produktdatenblatt"].map((docType) => (
+                      <div key={docType} style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 16, marginBottom: 12, alignItems: "center", paddingBottom: 12, borderBottom: "1px solid #F3F4F6" }}>
+                        <div style={{ fontSize: 13, color: "#374151" }}>{docType}</div>
+                        <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                          <option value=""></option>
+                          {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Feed Import Filter Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 16 }}>Feed Import Filter</div>
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "80px 150px 200px 150px 80px", gap: 16, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Priorität</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Name</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Beschreibung</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Angewendet auf</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Aktionen</div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "80px 150px 200px 150px 80px", gap: 16, marginBottom: 12, alignItems: "center", paddingBottom: 12, borderBottom: "1px solid #F3F4F6" }}>
+                      <div style={{ fontSize: 13, color: "#374151" }}>1</div>
+                      <div style={{ fontSize: 13, color: "#374151" }}>uniquify_rows</div>
+                      <div style={{ fontSize: 13, color: "#374151" }}>uniquify_rows</div>
+                      <select style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12 }}>
+                        <option>1 Content</option>
+                      </select>
+                      <button type="button" style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, cursor: "pointer" }}>X</button>
+                    </div>
+                    <div style={{ marginTop: 16 }}>
+                      <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }}>
+                        ⊕ Import Filter hinzufügen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kategorie-Filter Section */}
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#1E40AF", marginBottom: 16 }}>Kategorie-Filter</div>
+                  <div style={{ backgroundColor: "#FFFFFF", padding: 20, borderRadius: 8 }}>
+                    <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" defaultChecked style={{ cursor: "pointer" }} />
+                      <label style={{ fontSize: 13, color: "#111827", cursor: "pointer" }}>Kategorie-Filter auf Fast Import anwenden</label>
+                    </div>
+                    <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="checkbox" defaultChecked style={{ cursor: "pointer" }} />
+                      <label style={{ fontSize: 13, color: "#111827", cursor: "pointer" }}>Kategorie-Filter auf Content Import anwenden</label>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 12 }}>
+                      Alle Angebote dieses Partners, deren Kategorie (seller_category) mit den folgenden Werten beginnen, werden nicht importiert.
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
