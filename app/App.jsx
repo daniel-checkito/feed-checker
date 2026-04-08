@@ -6913,7 +6913,7 @@ export default function App() {
     return (
       <div style={{ display: "flex", height: "100vh", flexDirection: "column", background: "#FFFFFF" }}>
         {topNav}
-        <div style={{ flex: 1, overflowY: "auto", padding: "32px 48px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "32px 20px" }}>
           {/* File Upload */}
           <div style={{ marginBottom: 40, paddingBottom: 24, borderBottom: "2px solid #E5E7EB" }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Feed-Datei</div>
