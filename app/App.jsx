@@ -3326,7 +3326,7 @@ function McAngebotsfeed() {
   const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1400, margin: "0 auto", paddingLeft: 40, paddingRight: 40 }}>
+    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1200, margin: "0 auto", paddingLeft: 60, paddingRight: 60 }}>
       {/* ── LEFT: Upload & Settings ── */}
       <div style={{ flex: "0 0 50%", display: "grid", gap: 12, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
