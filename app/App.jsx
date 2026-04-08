@@ -6842,27 +6842,15 @@ export default function App() {
           </div>
 
           {mappingHeaders.length === 0 && (
-            <div style={{ background: "#F0F4FF", border: "1px solid #C7D2E8", borderRadius: 8, padding: "32px 24px", marginTop: 48, textAlign: "center" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#1E40AF", marginBottom: 12 }}>📋 Content Mapping für CHECK24</div>
-              <div style={{ fontSize: 14, color: "#374151", marginBottom: 20, lineHeight: "1.6" }}>
-                Mit unserem Mapping-Tool verbinden Sie Ihre Feed-Spalten mit den CHECK24 Attributen. So stellen Sie sicher, dass Ihre Produktinformationen korrekt in unserem System ankommen.
-              </div>
-              <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 24, lineHeight: "1.6" }}>
-                <strong>Was das Tool kann:</strong>
-                <div style={{ marginTop: 12, textAlign: "left", display: "inline-block" }}>
-                  <div>✓ Automatische Spalten-Erkennung</div>
-                  <div>✓ Zuordnung zu CHECK24 Attributen</div>
-                  <div>✓ Datentyp-Normalisierung und Umwandlung</div>
-                  <div>✓ Live-Vorschau der gemappten Daten</div>
-                </div>
-              </div>
-              <div style={{ fontSize: 12, color: "#1E40AF", fontWeight: 600, padding: "12px 16px", background: "#FFFFFF", borderRadius: 6, display: "inline-block" }}>
-                ↓ Laden Sie Ihre CSV-Datei oben hoch, um zu starten
+            <div style={{ background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "16px 20px", marginBottom: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#1E40AF" }}>💡 Tipp</div>
+              <div style={{ fontSize: 12, color: "#1E40AF", marginTop: 4 }}>
+                Laden Sie Ihre CSV-Datei oben hoch, um die automatische Spalten-Erkennung zu starten und die Zuordnung zu CHECK24 Attributen vorzunehmen.
               </div>
             </div>
           )}
 
-          {mappingHeaders.length > 0 && (
+          {(mappingHeaders.length > 0 || true) && (
             <>
               {/* Content Import Mapping Section */}
               <div style={{ marginBottom: 48 }}>
@@ -6920,14 +6908,21 @@ export default function App() {
               {/* Attributmapping Section */}
               <div style={{ marginBottom: 48 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 12 }}>Attributmapping</div>
-                <div style={{ marginBottom: 16 }}>
-                  <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", fontSize: 12, cursor: "pointer", padding: 0, fontWeight: 500 }}>
-                    ⇧ Feed laden und Spalten aktualisieren
-                  </button>
-                </div>
+                {mappingHeaders.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", fontSize: 12, cursor: "pointer", padding: 0, fontWeight: 500 }}>
+                      ⇧ Feed laden und Spalten aktualisieren
+                    </button>
+                  </div>
+                )}
+                {mappingHeaders.length === 0 && (
+                  <div style={{ background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 6, padding: "12px 16px", marginBottom: 16, fontSize: 12, color: "#1E40AF" }}>
+                    Laden Sie eine CSV-Datei hoch, um Ihre Feed-Spalten zu sehen.
+                  </div>
+                )}
 
                 {/* Table Header */}
-                <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB", background: mappingHeaders.length === 0 ? "#F9FAFB" : "#FFFFFF" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
                   <div style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>Preview</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Mapping auf CHECK24 Attribut</div>
@@ -6936,7 +6931,8 @@ export default function App() {
                 </div>
 
                 {/* Table Rows */}
-                {attributeMappingFields.map((field, idx) => (
+                {attributeMappingFields.length > 0 ? (
+                  attributeMappingFields.map((field, idx) => (
                   <div key={field.label} style={{
                     display: "grid",
                     gridTemplateColumns: "200px 140px 1fr 180px 40px",
@@ -6961,10 +6957,31 @@ export default function App() {
                     </select>
                     <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 14 }}>ⓘ</span>
                   </div>
-                ))}
+                ))
+                ) : (
+                  // Placeholder rows when no file is uploaded
+                  [1, 2, 3, 4, 5].map((idx) => (
+                    <div key={`placeholder-${idx}`} style={{
+                      display: "grid",
+                      gridTemplateColumns: "200px 140px 1fr 180px 40px",
+                      gap: 16,
+                      padding: "12px 16px",
+                      background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                      alignItems: "center",
+                      borderBottom: "1px solid #E5E7EB",
+                      opacity: 0.5
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF" }}>-</div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
+                      <span style={{ cursor: "default", color: "#D1D5DB" }}>ⓘ</span>
+                    </div>
+                  ))
+                )}
 
                 {/* Additional image_url fields (not in feed headers) */}
-                {mappingHeaders && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => {
+                {mappingHeaders.length > 0 && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => {
                   const imageLabel = num === 1 ? "image_url" : `image_url ${num}`;
                   const isInHeaders = mappingHeaders.includes(imageLabel);
                   if (isInHeaders) return null; // Skip if already shown above
