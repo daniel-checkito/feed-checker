@@ -3143,7 +3143,27 @@ const MC_NAV_ITEMS = [
   { id: "faq",           label: "FAQ",             icon: "faq" },
 ];
 
-const MC_REQUIRED_COLS = ["ean", "name", "price", "brand", "description", "image_url"];
+const MC_PFLICHT_COLS = ["ean", "seller_offer_id", "name", "price", "stock_amount", "delivery_time", "image_url", "shipping_mode"];
+const MC_OPTIONAL_COLS = ["description", "brand", "material", "color", "category_path", "delivery_includes", "manufacturer_name"];
+const MC_PFLICHT_ALIASES = {
+  ean: ["ean", "gtin", "gtin14", "ean13", "barcode"],
+  seller_offer_id: ["seller_offer_id", "offer_id", "sku", "merchant_sku", "eindeutige_id", "eindeutige id", "unique_id"],
+  name: ["name", "title", "titel", "product_name", "produktname"],
+  price: ["price", "preis", "vk", "selling_price"],
+  stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit"],
+  delivery_time: ["delivery_time", "lieferzeit", "delivery time"],
+  image_url: ["image_url", "image", "img_url", "bild", "bild_url"],
+  shipping_mode: ["shipping_mode", "versandart", "shipping", "shipping_type"],
+};
+const MC_OPTIONAL_ALIASES = {
+  description: ["description", "beschreibung", "desc"],
+  brand: ["brand", "marke", "manufacturer", "hersteller"],
+  material: ["material", "materials"],
+  color: ["color", "farbe"],
+  category_path: ["category_path", "kategorie", "category"],
+  delivery_includes: ["delivery_includes", "lieferumfang"],
+  manufacturer_name: ["manufacturer_name", "manufacturer", "hersteller"],
+};
 
 // Tiny SVG sparkline helper
 function Sparkline({ values, color = "#1553B6" }) {
@@ -3200,34 +3220,97 @@ function McAngebotsfeed() {
 
   function analyzeFile(rows, headers) {
     const hl = headers.map((h) => h.toLowerCase().trim());
-    const missingCols = MC_REQUIRED_COLS.filter((c) => !hl.some((h) => h === c || h.includes(c)));
-    const findCol = (key) => headers.find((h) => h.toLowerCase().trim() === key || h.toLowerCase().includes(key));
-    const colEan = findCol("ean"), colName = findCol("name"), colPrice = findCol("price");
-    const colDesc = findCol("description") || findCol("desc"), colImage = findCol("image_url") || findCol("image"), colBrand = findCol("brand");
-    const missingEan = [], invalidPrice = [], shortName = [], shortDesc = [], missingImage = [], emptyRequired = [];
+    // Map columns using aliases
+    const mapCol = (aliases) => { for (const a of aliases) { const c = headers.find((h) => h.toLowerCase().trim() === a || h.toLowerCase().includes(a)); if (c) return c; } return null; };
+    const pflichtMapping = {};
+    for (const key of MC_PFLICHT_COLS) pflichtMapping[key] = mapCol(MC_PFLICHT_ALIASES[key] || [key]);
+    const optionalMapping = {};
+    for (const key of MC_OPTIONAL_COLS) optionalMapping[key] = mapCol(MC_OPTIONAL_ALIASES[key] || [key]);
+    // Also detect size columns
+    const sizeCol = headers.find((h) => { const l = h.toLowerCase(); return l.includes("size") || l.includes("abmessung") || l.includes("dimension") || l.includes("größe") || l.includes("groesse") || l.includes("maße"); });
+    if (sizeCol) optionalMapping.size = sizeCol;
+    // Check for 3+ image columns
+    const imageColumns = headers.filter((h) => { const n = h.toLowerCase(); return n.includes("image") || n.includes("bild") || n.includes("img"); });
+
+    const missingPflichtCols = MC_PFLICHT_COLS.filter((c) => !pflichtMapping[c]);
+    const missingOptionalCols = [...MC_OPTIONAL_COLS, "size"].filter((c) => !optionalMapping[c]);
+
+    // Per-row analysis
+    const pflichtErrors = []; // { row, ean, field, value }
+    const optionalHints = []; // { row, ean, field }
+    const duplicateEans = {}, duplicateNames = {}, duplicateOfferIds = {};
+    let pflichtOkCount = 0, optionalOkCount = 0;
+
     rows.forEach((row, i) => {
       const rn = i + 1;
-      const ean = colEan ? String(row[colEan] ?? "").trim() : "";
-      const name = colName ? String(row[colName] ?? "").trim() : "";
-      const price = colPrice ? String(row[colPrice] ?? "").trim() : "";
-      const desc = colDesc ? String(row[colDesc] ?? "").trim() : "";
-      const image = colImage ? String(row[colImage] ?? "").trim() : "";
-      const brand = colBrand ? String(row[colBrand] ?? "").trim() : "";
-      if (colEan && !ean) missingEan.push(rn);
-      if (colPrice && price) { const n = parseFloat(price.replace(",", ".")); if (isNaN(n) || n <= 0) invalidPrice.push({ row: rn, ean, value: price }); }
-      if (colName && name && name.length < 10) shortName.push({ row: rn, ean, value: name });
-      if (colDesc && desc && desc.length < 30) shortDesc.push({ row: rn, ean, value: desc.slice(0, 60) });
-      if (colImage && !image) missingImage.push({ row: rn, ean });
-      if (colBrand && !brand) emptyRequired.push({ row: rn, ean, field: "brand" });
+      const ean = pflichtMapping.ean ? String(row[pflichtMapping.ean] ?? "").trim() : "";
+      const name = pflichtMapping.name ? String(row[pflichtMapping.name] ?? "").trim() : "";
+      const offerId = pflichtMapping.seller_offer_id ? String(row[pflichtMapping.seller_offer_id] ?? "").trim() : "";
+      let pflichtOk = true, optionalOk = true;
+
+      // Pflichtfeld checks
+      for (const key of MC_PFLICHT_COLS) {
+        const col = pflichtMapping[key];
+        if (!col) continue;
+        const val = String(row[col] ?? "").trim();
+        if (!val) { pflichtErrors.push({ row: rn, ean, field: key, type: "missing" }); pflichtOk = false; continue; }
+        if (key === "price") { const n = parseFloat(val.replace(",", ".")); if (isNaN(n) || n <= 0) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; } }
+        if (key === "shipping_mode" && val.toLowerCase() !== "paket" && val.toLowerCase() !== "spedition") { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
+      }
+      // Check min 1 image
+      if (pflichtMapping.image_url) {
+        const imgCount = imageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
+        if (imgCount === 0) { pflichtErrors.push({ row: rn, ean, field: "image_url", type: "missing" }); pflichtOk = false; }
+      }
+
+      // Optional field checks
+      for (const key of [...MC_OPTIONAL_COLS, "size"]) {
+        const col = optionalMapping[key];
+        if (!col) continue;
+        if (!String(row[col] ?? "").trim()) { optionalHints.push({ row: rn, ean, field: key }); optionalOk = false; }
+      }
+      // Check 3+ images
+      const totalImgs = imageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
+      if (totalImgs < 3) { optionalHints.push({ row: rn, ean, field: "3+ Bilder" }); optionalOk = false; }
+
+      // Track duplicates
+      if (ean) { if (!duplicateEans[ean]) duplicateEans[ean] = []; duplicateEans[ean].push(rn); }
+      if (name) { if (!duplicateNames[name]) duplicateNames[name] = []; duplicateNames[name].push(rn); }
+      if (offerId) { if (!duplicateOfferIds[offerId]) duplicateOfferIds[offerId] = []; duplicateOfferIds[offerId].push(rn); }
+
+      if (pflichtOk) pflichtOkCount++;
+      if (optionalOk) optionalOkCount++;
     });
-    setIssues({ totalRows: rows.length, missingCols, missingEan, invalidPrice, shortName, shortDesc, missingImage, emptyRequired });
+
+    const dupEanCount = Object.values(duplicateEans).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
+    const dupNameCount = Object.values(duplicateNames).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
+    const dupOfferIdCount = Object.values(duplicateOfferIds).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
+    const totalDups = dupEanCount + dupNameCount + dupOfferIdCount;
+
+    // Score: 70 pts for Pflichtfelder + 30 pts for optionale
+    const pflichtScore = rows.length ? Math.round((pflichtOkCount / rows.length) * 70) : 0;
+    const dupPenalty = rows.length ? Math.min(10, Math.round((totalDups / rows.length) * 70)) : 0;
+    const optionalScore = rows.length ? Math.round((optionalOkCount / rows.length) * 30) : 0;
+    const totalScore = Math.max(0, pflichtScore - dupPenalty + optionalScore);
+
+    setIssues({
+      totalRows: rows.length,
+      pflichtMapping, optionalMapping, imageColumns,
+      missingPflichtCols, missingOptionalCols,
+      pflichtErrors, optionalHints,
+      pflichtOkCount, optionalOkCount,
+      dupEanCount, dupNameCount, dupOfferIdCount,
+      pflichtScore, dupPenalty, optionalScore, totalScore,
+    });
   }
 
-  const errorCount = issues ? issues.missingCols.length + issues.missingEan.length + issues.invalidPrice.length + issues.missingImage.length : 0;
-  const warningCount = issues ? issues.shortName.length + issues.shortDesc.length + issues.emptyRequired.length : 0;
-
-  const mcScore = issues ? Math.round(((issues.totalRows - errorCount - warningCount) / Math.max(issues.totalRows, 1)) * 100) : 0;
+  const errorCount = issues ? issues.pflichtErrors.length : 0;
+  const warningCount = issues ? issues.optionalHints.length : 0;
+  const mcScore = issues ? issues.totalScore : 0;
   const [uploadMethod, setUploadMethod] = useState("upload");
+  const [feedFormat, setFeedFormat] = useState("CSV");
+  const [feedDelimiter, setFeedDelimiter] = useState("semicolon");
+  const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   return (
     <div style={{ maxWidth: issues ? "none" : 720, display: "flex", gap: 20 }}>
@@ -3303,11 +3386,31 @@ function McAngebotsfeed() {
             Feed-Einstellungen
           </summary>
           <div style={{ padding: "0 16px 16px", display: "grid", gap: 8 }}>
-            <div style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#111827" }}>CSV</span><span style={{ fontSize: 10, color: "#9CA3AF" }}>Format</span>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4 }}>Format</div>
+              <select value={feedFormat} onChange={(e) => setFeedFormat(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 12, color: "#111827", background: "#FFF", cursor: "pointer" }}>
+                <option value="CSV">CSV</option>
+                <option value="CSV (UTF-8)">CSV (UTF-8)</option>
+                <option value="CSV (Windows-1252)">CSV (Windows-1252)</option>
+                <option value="TSV">TSV (Tab-getrennt)</option>
+                <option value="TXT">TXT</option>
+              </select>
             </div>
-            <div style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#111827" }}>Semikolon</span><span style={{ fontSize: 10, color: "#9CA3AF" }}>Trennzeichen</span>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4 }}>Trennzeichen</div>
+              <select value={feedDelimiter} onChange={(e) => setFeedDelimiter(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 12, color: "#111827", background: "#FFF", cursor: "pointer" }}>
+                <option value="semicolon">Semikolon ( ; )</option>
+                <option value="comma">Komma ( , )</option>
+                <option value="tab">Tab</option>
+                <option value="pipe">Pipe ( | )</option>
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4 }}>Umschließungszeichen (optional)</div>
+              <input value={feedQuoteChar} onChange={(e) => setFeedQuoteChar(e.target.value)} placeholder="z.B. &quot;"
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 12, color: "#111827", boxSizing: "border-box" }} />
             </div>
           </div>
         </details>
@@ -3389,7 +3492,14 @@ function McAngebotsfeed() {
             <details style={{ marginTop: 8 }}>
               <summary style={{ cursor: "pointer", fontSize: 11, color: "#6B7280" }}>Wie wird der Score berechnet?</summary>
               <div style={{ marginTop: 6, fontSize: 11, color: "#6B7280", lineHeight: "17px" }}>
-                Der Score zeigt den prozentualen Anteil fehlerfreier Zeilen. Bei {issues.totalRows} Zeilen und {errorCount + warningCount} Zeilen mit Problemen ergibt sich ein Score von {mcScore}/100. Ab 70/100 gilt der Feed als fehlerfrei.
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Insgesamt: 100 Punkte</div>
+                <div>70 Punkte: Pflichtfelder (EAN, Offer ID, Name, Preis, Bestand, Lieferzeit, mind. 1 Bild, Versandart)</div>
+                <div style={{ marginTop: 2 }}>Ihr Feed: {issues.pflichtOkCount}/{issues.totalRows} Zeilen fehlerfrei = {issues.pflichtScore}/70 Punkte</div>
+                <div style={{ marginTop: 2 }}>Abzug für Duplikate (EAN, Offer ID, Name): -{issues.dupPenalty} Punkte</div>
+                <div style={{ marginTop: 6 }}>30 Punkte: Optionale Felder (3+ Bilder, Kategorie, Farbe, Material, Marke, Größe, Beschreibung, Hersteller, Lieferumfang)</div>
+                <div style={{ marginTop: 2 }}>Ihr Feed: {issues.optionalOkCount}/{issues.totalRows} Zeilen vollständig = {issues.optionalScore}/30 Punkte</div>
+                <div style={{ marginTop: 6, fontWeight: 600 }}>Gesamt: {issues.pflichtScore} - {issues.dupPenalty} + {issues.optionalScore} = {mcScore}/100</div>
+                <div style={{ marginTop: 4 }}>Ab 70/100 gilt der Feed als fehlerfrei und kann freigeschaltet werden.</div>
               </div>
             </details>
           </div>
@@ -3408,26 +3518,47 @@ function McAngebotsfeed() {
             ))}
           </div>
 
-          {/* Issue cards - Rot = Pflichtfehler */}
-          {(issues.missingCols.length > 0 || issues.missingEan.length > 0 || issues.invalidPrice.length > 0 || issues.missingImage.length > 0) && (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Pflichtfehler (Rot)</div>
-              {issues.missingCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder" severity="error" description="Diese Spalten fehlen:" items={issues.missingCols.map((c) => ({ label: c, hint: "Spalte fehlt" }))} />}
-              {issues.missingEan.length > 0 && <McIssueCard title="Fehlende EAN" severity="error" description={`${issues.missingEan.length} Artikel ohne EAN.`} items={issues.missingEan.slice(0,8).map((r) => ({ label: `Zeile ${r}`, hint: "EAN fehlt" }))} more={Math.max(0, issues.missingEan.length - 8)} />}
-              {issues.invalidPrice.length > 0 && <McIssueCard title="Ungültiger Preis" severity="error" description={`${issues.invalidPrice.length} Artikel.`} items={issues.invalidPrice.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.invalidPrice.length - 8)} />}
-              {issues.missingImage.length > 0 && <McIssueCard title="Fehlende Bilder" severity="error" description={`${issues.missingImage.length} Artikel.`} items={issues.missingImage.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: "Bild fehlt" }))} more={Math.max(0, issues.missingImage.length - 8)} />}
-            </div>
-          )}
+          {/* Pflichtfehler (Rot) */}
+          {(() => {
+            const byField = {};
+            issues.pflichtErrors.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
+            const fieldLabels = { ean: "EAN", seller_offer_id: "Offer ID", name: "Name", price: "Preis", stock_amount: "Bestand/Verfügbarkeit", delivery_time: "Lieferzeit", image_url: "Bilder", shipping_mode: "Versandart" };
+            const entries = Object.entries(byField);
+            if (!entries.length && !issues.missingPflichtCols.length && !issues.dupEanCount && !issues.dupNameCount && !issues.dupOfferIdCount) return null;
+            return (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>Pflichtfehler</div>
+                {issues.missingPflichtCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder-Spalten" severity="error" description="Diese Spalten fehlen im Feed:" items={issues.missingPflichtCols.map((c) => ({ label: fieldLabels[c] || c, hint: "Spalte fehlt" }))} />}
+                {entries.map(([field, errs]) => (
+                  <McIssueCard key={field} title={`${fieldLabels[field] || field} fehlerhaft`} severity="error" description={`${errs.length} Artikel betroffen.`}
+                    items={errs.slice(0, 8).map((e) => ({ label: `Zeile ${e.row}${e.ean ? ` · ${e.ean}` : ""}`, hint: e.type === "invalid" ? `"${e.value}"` : "fehlt" }))}
+                    more={Math.max(0, errs.length - 8)} />
+                ))}
+                {issues.dupEanCount > 0 && <McIssueCard title="Doppelte EAN" severity="error" description={`${issues.dupEanCount} doppelte EAN-Werte.`} items={[{ label: "Duplikate", hint: "EAN muss eindeutig sein" }]} />}
+                {issues.dupOfferIdCount > 0 && <McIssueCard title="Doppelte Offer ID" severity="error" description={`${issues.dupOfferIdCount} doppelte Offer IDs.`} items={[{ label: "Duplikate", hint: "Offer ID muss eindeutig sein" }]} />}
+                {issues.dupNameCount > 0 && <McIssueCard title="Doppelte Produktnamen" severity="error" description={`${issues.dupNameCount} doppelte Namen.`} items={[{ label: "Duplikate", hint: "Produktname sollte eindeutig sein" }]} />}
+              </div>
+            );
+          })()}
 
-          {/* Issue cards - Gelb = Hinweise */}
-          {(issues.shortName.length > 0 || issues.shortDesc.length > 0 || issues.emptyRequired.length > 0) && (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Hinweise (Gelb)</div>
-              {issues.shortName.length > 0 && <McIssueCard title="Produktname zu kurz" severity="warning" description={`${issues.shortName.length} Artikel.`} items={issues.shortName.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortName.length - 8)} />}
-              {issues.shortDesc.length > 0 && <McIssueCard title="Beschreibung zu kurz" severity="warning" description={`${issues.shortDesc.length} Artikel.`} items={issues.shortDesc.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.value}"` }))} more={Math.max(0, issues.shortDesc.length - 8)} />}
-              {issues.emptyRequired.length > 0 && <McIssueCard title="Fehlende Angaben" severity="warning" description={`${issues.emptyRequired.length} Artikel.`} items={issues.emptyRequired.slice(0,8).map((x) => ({ label: `Zeile ${x.row}`, hint: `"${x.field}" fehlt` }))} more={Math.max(0, issues.emptyRequired.length - 8)} />}
-            </div>
-          )}
+          {/* Optionale Hinweise (Gelb) */}
+          {(() => {
+            const byField = {};
+            issues.optionalHints.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
+            const entries = Object.entries(byField);
+            if (!entries.length && !issues.missingOptionalCols.length) return null;
+            return (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Hinweise</div>
+                {issues.missingOptionalCols.length > 0 && <McIssueCard title="Fehlende optionale Spalten" severity="warning" description="Diese Spalten fehlen:" items={issues.missingOptionalCols.map((c) => ({ label: c, hint: "Spalte nicht erkannt" }))} />}
+                {entries.map(([field, hints]) => (
+                  <McIssueCard key={field} title={`${field} fehlt`} severity="warning" description={`${hints.length} Artikel betroffen.`}
+                    items={hints.slice(0, 6).map((e) => ({ label: `Zeile ${e.row}`, hint: e.ean || "" }))}
+                    more={Math.max(0, hints.length - 6)} />
+                ))}
+              </div>
+            );
+          })()}
 
           {/* CSV Download - split columns */}
           <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
@@ -3435,30 +3566,19 @@ function McAngebotsfeed() {
             <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10 }}>CSV mit getrennten Spalten für Pflichtfehler und optionale Hinweise.</div>
             <button
               onClick={() => {
-                const findCol = (key) => { const h = Object.keys(rows[0] || {}); return h.find((c) => c.toLowerCase().includes(key)) || ""; };
-                const colEan = findCol("ean"), colName = findCol("name");
-                const colOfferId = findCol("offer_id") || findCol("seller_offer_id") || findCol("eindeutige") || findCol("sku");
-                const missingEanSet = new Set(issues.missingEan || []);
-                const invalidPriceSet = new Set((issues.invalidPrice || []).map((x) => x.row));
-                const missingImageSet = new Set((issues.missingImage || []).map((x) => x.row));
-                const shortNameSet = new Set((issues.shortName || []).map((x) => x.row));
-                const shortDescSet = new Set((issues.shortDesc || []).map((x) => x.row));
-                const emptyReqSet = new Set((issues.emptyRequired || []).map((x) => x.row));
+                const pflichtByRow = {}, optionalByRow = {};
+                issues.pflichtErrors.forEach((e) => { if (!pflichtByRow[e.row]) pflichtByRow[e.row] = []; pflichtByRow[e.row].push(e.field + (e.type === "invalid" ? ` ungültig` : " fehlt")); });
+                issues.optionalHints.forEach((e) => { if (!optionalByRow[e.row]) optionalByRow[e.row] = []; optionalByRow[e.row].push(e.field + " fehlt"); });
+                const colEan = issues.pflichtMapping.ean, colName = issues.pflichtMapping.name, colOfferId = issues.pflichtMapping.seller_offer_id;
                 const csvRows = [];
                 rows.forEach((r, i) => {
                   const rn = i + 1;
-                  const pflicht = [], optional = [];
-                  if (missingEanSet.has(rn)) pflicht.push("EAN fehlt");
-                  if (invalidPriceSet.has(rn)) pflicht.push("Ungültiger Preis");
-                  if (missingImageSet.has(rn)) pflicht.push("Bild fehlt");
-                  if (shortNameSet.has(rn)) optional.push("Name zu kurz");
-                  if (shortDescSet.has(rn)) optional.push("Beschreibung zu kurz");
-                  if (emptyReqSet.has(rn)) optional.push("Pflichtfeld fehlt");
-                  if (!pflicht.length && !optional.length) return;
+                  const p = pflichtByRow[rn] || [], o = optionalByRow[rn] || [];
+                  if (!p.length && !o.length) return;
                   const ean = colEan ? String(r[colEan] ?? "").trim() : "";
                   const name = colName ? String(r[colName] ?? "").trim() : "";
                   const offerId = colOfferId ? String(r[colOfferId] ?? "").trim() : "";
-                  csvRows.push({ ean, offerId, name, pflicht: pflicht.join("; "), optional: optional.join("; ") });
+                  csvRows.push({ ean, offerId, name, pflicht: [...new Set(p)].join("; "), optional: [...new Set(o)].join("; ") });
                 });
                 const header = "EAN;Offer_ID;Name;Pflichtfehler;Optionale Hinweise";
                 const lines = csvRows.map((r) => `"${r.ean}";"${r.offerId}";"${r.name.replace(/"/g, '""')}";"${r.pflicht}";"${r.optional}"`);
@@ -4014,11 +4134,11 @@ export default function App() {
   const [optionalFields] = useState([
     "category_path",
     "description",
-    "stock_amount",
-    "shipping_mode",
-    "delivery_time",
-    "price",
     "brand",
+    "material",
+    "color",
+    "delivery_includes",
+    "manufacturer_name",
     "washable_cover",
     "mounting_side",
   ]);
@@ -4027,9 +4147,10 @@ export default function App() {
     "ean",
     "seller_offer_id",
     "name",
-    "material",
-    "color",
-    "delivery_includes",
+    "price",
+    "stock_amount",
+    "delivery_time",
+    "shipping_mode",
   ]);
 
   const mapping = useMemo(() => {
@@ -4040,7 +4161,7 @@ export default function App() {
       name: ["name", "product_name", "title", "produktname", "produkt titel"],
       category_path: ["category_path", "category", "kategorie", "kategoriepfad"],
       description: ["description", "beschreibung", "desc"],
-      stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty"],
+      stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit", "verfuegbarkeit"],
       shipping_mode: ["shipping_mode", "shipping", "versandart", "shipping type"],
       delivery_time: ["delivery_time", "lieferzeit", "lead_time", "lead time"],
       price: ["price", "preis", "amount"],
