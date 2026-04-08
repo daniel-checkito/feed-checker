@@ -6816,6 +6816,7 @@ export default function App() {
       if (/size_height|size_h$|^h$/.test(n)) return "Maße & Gewicht > Höhe (5) in mm";
       if (/size_depth|size_tiefe|size_t$|^t$/.test(n)) return "Maße & Gewicht > Tiefe (6) in mm";
       if (/size_width|size_breite|size_b$|^b$/.test(n)) return "Maße & Gewicht > Breite (7) in mm";
+      if (/size_seat_height|seat_height|sitzhoeche|sitzhöhe/.test(n)) return "Maße & Gewicht > Sitzhöhe (19) in mm";
       if (/size_lying_surface|lying_surface|liegeflaeche|liegeflache/.test(n)) return "Maße & Gewicht > Liegefläche (15) text";
       // Name / Title
       if (/^(name|title|product_name|produkt_name|produktname|bezeichnung|artikelname)$/.test(n)) return "Allgemein > Name (1) text";
@@ -6833,6 +6834,8 @@ export default function App() {
       if (/^(brand|marke|hersteller|manufacturer|manufacturer_name)$/.test(n)) return "Allgemein > Marke (50) text";
       // Material
       if (/^(material|materials|werkstoff)$/.test(n)) return "Material > Material (23) text";
+      // Material Surface
+      if (/material_surface|oberflaeche|oberfläche/.test(n)) return "Material > Oberfläche (26) text";
       // Dimensions combined
       if (/abmessungen|dimensions|abmessung|masse$|maße$|groesse$|groesse_produkt/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
       // Height
