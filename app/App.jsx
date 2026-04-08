@@ -6858,6 +6858,21 @@ export default function App() {
       autoAttr: autoDetectCheck24Attr(header),
     })) : [];
 
+    // Get contextual normalizer tip for a field
+    function getNormalizerTip(fieldLabel) {
+      const n = fieldLabel.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      if (/beschreibung|description/.test(n)) {
+        return { text: "HTML vorhanden? → \"HTML in Markdown umwandeln\" (formatiert besser) · Nur Text? → \"HTML entfernen\"", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
+      }
+      if (/abmessungen|dimensions|masse|maße|hoehe|height|tiefe|depth|breite|width|durchmesser|diameter|groesse|gewicht|weight|volumen|volume/.test(n)) {
+        return { text: "\"Interpretiere als numerisch\" (konvertiert in mm)", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
+      }
+      if (/versand|delivery|lieferzeit|liefermode|shipping/.test(n)) {
+        return { text: "\"Versandart ermitteln\" (für delivery_mode)", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
+      }
+      return null;
+    }
+
     const produktIdentifikationFields = [
       { label: "seller_offer_id", required: true },
       { label: "amazon_sales_rank", required: false },
@@ -7090,19 +7105,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Helper text for normalizers */}
-                {mappingHeaders.length > 0 && (
-                  <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 6, padding: "12px 14px", marginBottom: 12, fontSize: 11, color: "#92400E" }}>
-                    <div style={{ fontWeight: 600, marginBottom: 6 }}>💡 Normalizer-Tipps:</div>
-                    <div style={{ display: "grid", gap: 4, lineHeight: "1.4" }}>
-                      <div><strong>Beschreibung:</strong></div>
-                      <div style={{ marginLeft: 8 }}>• HTML vorhanden? → "HTML in Markdown umwandeln" (formatiert besser)</div>
-                      <div style={{ marginLeft: 8 }}>• Nur Text? → "HTML entfernen"</div>
-                      <div style={{ marginTop: 6 }}><strong>Maße:</strong> "Interpretiere als numerisch" (konvertiert in mm)</div>
-                      <div style={{ marginTop: 6 }}><strong>Versand:</strong> "Versandart ermitteln" (für delivery_mode)</div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Table Header */}
                 <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB", background: mappingHeaders.length === 0 ? "#F9FAFB" : "#FFFFFF" }}>
@@ -7120,24 +7122,32 @@ export default function App() {
                   const isCleared = userVal === "";
                   const displayVal = isUserSet ? userVal : (!isCleared && field.autoAttr) ? field.autoAttr : "";
                   const isAutoDetected = !isUserSet && !isCleared && !!field.autoAttr;
+                  const tip = getNormalizerTip(field.label);
                   return (
-                    <div key={field.label} style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"), alignItems: "center", borderBottom: "1px solid #E5E7EB", borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent" }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
-                        {field.label}
-                        {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
-                        {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
+                    <div key={field.label}>
+                      <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"), alignItems: "center", borderBottom: "1px solid #E5E7EB", borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent" }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
+                          {field.label}
+                          {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
+                          {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+                          {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
+                        </div>
+                        <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." value={displayVal} onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }} />
+                        <datalist id={`attr-options-${field.label}`}>
+                          {check24Attributes.map((attr) => <option key={attr} value={attr} />)}
+                        </datalist>
+                        <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
+                          <option value=""></option>
+                        </select>
+                        <span onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }} title="Mapping zurücksetzen">{displayVal ? "✕" : ""}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-                        {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
-                      </div>
-                      <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." value={displayVal} onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }} />
-                      <datalist id={`attr-options-${field.label}`}>
-                        {check24Attributes.map((attr) => <option key={attr} value={attr} />)}
-                      </datalist>
-                      <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
-                        <option value=""></option>
-                      </select>
-                      <span onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }} title="Mapping zurücksetzen">{displayVal ? "✕" : ""}</span>
+                      {tip && (
+                        <div style={{ background: tip.bg, borderLeft: `3px solid ${tip.border}`, borderRight: `1px solid ${tip.border}`, borderBottom: `1px solid ${tip.border}`, padding: "8px 12px", fontSize: 11, color: tip.color, marginBottom: 0 }}>
+                          💡 {tip.text}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
