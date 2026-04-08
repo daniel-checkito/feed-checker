@@ -3512,25 +3512,26 @@ function McAngebotsfeed() {
               </div>
             )}
 
-            {/* Manual Mapping Button */}
-            {issues && (mcScore < 70 || issues.missingPflichtCols.length > 0) && (
+            {/* Manual Mapping Link - Always visible */}
+            {issues && (
               <button
                 onClick={() => setShowManualMapping(true)}
                 style={{
                   width: "100%",
-                  marginTop: 8,
-                  padding: "8px 0",
-                  borderRadius: 6,
-                  border: "1px solid #D97706",
-                  background: "#FEF3C7",
-                  color: "#92400E",
-                  fontSize: 11,
-                  fontWeight: 600,
+                  marginTop: 6,
+                  padding: "6px 0",
+                  borderRadius: 4,
+                  border: "none",
+                  background: "transparent",
+                  color: "#6B7280",
+                  fontSize: 10,
+                  fontWeight: 500,
                   cursor: "pointer",
                   transition: "all 0.2s",
+                  textDecoration: "underline",
                 }}
-                onMouseOver={(e) => { e.target.style.background = "#FCD34D"; }}
-                onMouseOut={(e) => { e.target.style.background = "#FEF3C7"; }}
+                onMouseOver={(e) => { e.target.style.color = MC_BLUE; }}
+                onMouseOut={(e) => { e.target.style.color = "#6B7280"; }}
               >
                 🔧 Spalten manuell zuordnen
               </button>
