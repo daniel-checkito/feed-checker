@@ -3467,7 +3467,7 @@ function McAngebotsfeed() {
       {issues && (
         <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 6, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
           {/* Score */}
-          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", marginTop: 20 }}>
+          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", marginTop: 44 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Analyse-Ergebnis</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: mcScore >= 70 ? "#16A34A" : "#DC2626" }}>{mcScore}/100</div>
