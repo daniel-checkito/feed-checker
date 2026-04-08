@@ -4133,6 +4133,7 @@ export default function App() {
   const [mappingError, setMappingError] = useState("");
   const [produktIdentifikationMappings, setProduktIdentifikationMappings] = useState({});
   const [attributeMappings, setAttributeMappings] = useState({});
+  const [imageMappings, setImageMappings] = useState({});
   const mappingFileInputRef = useRef(null);
 
   function onPickMappingFile(file) {
@@ -4143,6 +4144,7 @@ export default function App() {
       setMappingError("");
       setProduktIdentifikationMappings({});
       setAttributeMappings({});
+      setImageMappings({});
       return;
     }
 
@@ -6795,49 +6797,61 @@ export default function App() {
       "Eigenschaften > Geeignet für Allergiker (120) text",
     ];
 
-    // Auto-detect CHECK24 attribute for a feed column name
+    // Auto-detect CHECK24 attribute for a feed column name (supports English & German)
     function autoDetectCheck24Attr(col) {
       const n = col.toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/[^a-z0-9]/g,"_").replace(/_+/g,"_");
-      // Name / Title
-      if (/^(name|title|product_name|produkt_name|produktname|bezeichnung|artikelname)$/.test(n)) return "Allgemein > Name (1) text";
-      // Description
-      if (/beschreibung|description|produktbeschreibung|produkt_beschreibung/.test(n)) return "Allgemein > Beschreibung (2) text";
-      // Model
-      if (/^(modell|model|model_number|modellnummer)$/.test(n)) return "Allgemein > Modell (3) text";
-      // Manufacturer number
-      if (/herstellernummer|hersteller_nummer|manufacturer_number|mpn|sku/.test(n)) return "Allgemein > Herstellernummer (4) text";
-      // Delivery includes
-      if (/delivery_includes|lieferumfang|lieferinhalt|lieferung_inhalt|scope_of_delivery/.test(n)) return "Lieferung > Lieferumfang (11) text";
-      // Color
-      if (/^(farbe|color|colour|product_color|produktfarbe)$/.test(n)) return "Farbe & Design > Farbe (12) text";
-      // Brand / Marke
-      if (/^(brand|marke|hersteller|manufacturer|manufacturer_name)$/.test(n)) return "Allgemein > Marke (50) text";
-      // Material
-      if (/^(material|materials|werkstoff)$/.test(n)) return "Material > Material (23) text";
-      // Dimensions combined
-      if (/abmessungen|dimensions|abmessung|masse$|maße$|groesse$|groesse_produkt/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
-      // Height
-      if (/^(hoehe|height|height_mm|product_height|h_mm|hoehe_mm)$/.test(n) || /^h$/.test(n)) return "Maße & Gewicht > Höhe (5) in mm";
-      // Depth
-      if (/^(tiefe|depth|depth_mm|product_depth|t_mm|tiefe_mm)$/.test(n) || /^t$/.test(n)) return "Maße & Gewicht > Tiefe (6) in mm";
-      // Width
-      if (/^(breite|width|width_mm|product_width|b_mm|breite_mm)$/.test(n) || /^b$/.test(n)) return "Maße & Gewicht > Breite (7) in mm";
-      // Diameter
-      if (/durchmesser|diameter|diameter_mm/.test(n)) return "Maße & Gewicht > Durchmesser (8) in mm";
-      // Weight
-      if (/^(gewicht|weight|weight_kg|product_weight|g_kg)$/.test(n)) return "Maße & Gewicht > Gewicht (9) in kg";
-      // Volume
-      if (/^(volumen|volume|capacity|inhalt_l)$/.test(n)) return "Maße & Gewicht > Volumen (10) in l";
-      // Style
-      if (/^(stil|style|design_stil)$/.test(n)) return "Farbe & Design > Stil (13) text";
-      // Surface
-      if (/oberflaeche$|oberflaechenbehandlung/.test(n)) return "Material > Oberflächenbehandlung (27) text";
-      // Care
-      if (/pflegehinweis|pflege_hinweis|care_instruction/.test(n)) return "Allgemein > Pfleghinweis (109) text";
-      // Series
-      if (/^(serie|series|produktserie|product_series)$/.test(n)) return "Allgemein > Serie (21) text";
-      // Country of origin
-      if (/herstellungsland|country_of_origin|made_in/.test(n)) return "Allgemein > Herstellungsland (22) text";
+      // Offer ID / Seller Offer ID (EN: offer_id, DE: angebotsid, angebots_id)
+      if (/^(offer_id|seller_offer_id|offerId|angebotsid|angebots_id)$/.test(n)) return "offer_id";
+      // EAN / GTIN14 (EN: ean, barcode, GTIN, DE: ean, strichcode)
+      if (/^(ean|gtin|gtin14|gtin_14|ean14|ean_14|barcode|strichcode)$/.test(n)) return "EAN (GTIN14)";
+      // Price / Supplied Price (EN: price, DE: preis, verkaufspreis)
+      if (/^(price|preis|seller_supplied_price|supplied_price|verkaufspreis|listenpreis)$/.test(n)) return "price";
+      // Category / Deeplink (EN: category, DE: kategorie, warengruppe)
+      if (/^(category|kategorie|seller_category|category_path|warengruppe|produktgruppe)$/.test(n)) return "category_path";
+      if (/^(deeplink|link|seller_deeplink|url|product_url|shop_url|produktlink|produktseite)$/.test(n)) return "deeplink";
+      // Delivery time (EN: delivery_time, DE: lieferzeit, versandzeit)
+      if (/^(delivery_time|lieferzeit|versandzeit|delivery_speed|versanddauer|lieferfrist)$/.test(n)) return "delivery_time";
+      // Size variants (using size_ prefix or standalone)
+      if (/^size$|^size_$|^groesse$|^groesse_$|^abmessungen$/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
+      if (/size_height|size_h$|^h$|hoehe|height|hoehe_mm|height_mm|produkthoehe/.test(n)) return "Maße & Gewicht > Höhe (5) in mm";
+      if (/size_depth|size_tiefe|size_t$|^t$|tiefe|depth|tiefe_mm|depth_mm|produkttiefe/.test(n)) return "Maße & Gewicht > Tiefe (6) in mm";
+      if (/size_width|size_breite|size_b$|^b$|breite|width|breite_mm|width_mm|produktbreite/.test(n)) return "Maße & Gewicht > Breite (7) in mm";
+      if (/size_seat_height|seat_height|sitzhoeche|sitzhöhe|sitzhoehe|sitzhöhe_mm/.test(n)) return "Maße & Gewicht > Sitzhöhe (19) in mm";
+      if (/size_lying_surface|lying_surface|liegeflaeche|liegeflache|liegeflaeche_mm/.test(n)) return "Maße & Gewicht > Liegefläche (15) text";
+      // Name / Title (EN: name, title, product_name, DE: name, titel, produktname, bezeichnung, artikelname)
+      if (/^(name|title|product_name|produkt_name|produktname|bezeichnung|artikelname|produktbezeichnung)$/.test(n)) return "Allgemein > Name (1) text";
+      // Description (EN: description, DE: beschreibung, produktbeschreibung)
+      if (/beschreibung|description|produktbeschreibung|produkt_beschreibung|produkttext|detailbeschreibung/.test(n)) return "Allgemein > Beschreibung (2) text";
+      // Model (EN: model, model_number, DE: modell, modellnummer)
+      if (/^(modell|model|model_number|modellnummer|modell_nummer|modellbezeichnung)$/.test(n)) return "Allgemein > Modell (3) text";
+      // Manufacturer number (EN: mpn, sku, manufacturer_number, DE: herstellernummer, sku)
+      if (/herstellernummer|hersteller_nummer|manufacturer_number|mpn|sku|herstellerartikelnummer|artikelnummer/.test(n)) return "Allgemein > Herstellernummer (4) text";
+      // Delivery includes (EN: delivery_includes, scope_of_delivery, DE: lieferumfang, lieferinhalt)
+      if (/delivery_includes|lieferumfang|lieferinhalt|lieferung_inhalt|scope_of_delivery|liefermenge|umfang/.test(n)) return "Lieferung > Lieferumfang (11) text";
+      // Color (EN: color, colour, DE: farbe, farben)
+      if (/^(farbe|farben|color|colour|product_color|produktfarbe|farbbezeichnung)$/.test(n)) return "Farbe & Design > Farbe (12) text";
+      // Brand / Marke (EN: brand, manufacturer, DE: marke, hersteller, markenname)
+      if (/^(brand|marke|hersteller|manufacturer|manufacturer_name|markenname|brand_name|herstellername)$/.test(n)) return "Allgemein > Marke (50) text";
+      // Material (EN: material, materials, DE: material, werkstoff, materialtyp)
+      if (/^(material|materials|werkstoff|materialtyp|material_type)$/.test(n)) return "Material > Material (23) text";
+      // Material Surface (EN: surface, DE: oberflaeche, oberflaechenbehandlung)
+      if (/material_surface|oberflaeche|oberflaechenbehandlung|surface|oberflachen_behandlung|oberflaechen_behandlung/.test(n)) return "Material > Oberfläche (26) text";
+      // Dimensions combined (EN: dimensions, DE: abmessungen, masse, maße)
+      if (/abmessungen|dimensions|abmessung|masse$|maße$|groesse$|groesse_produkt|massangaben/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
+      // Diameter (EN: diameter, DE: durchmesser)
+      if (/durchmesser|diameter|diameter_mm|durchmesser_mm/.test(n)) return "Maße & Gewicht > Durchmesser (8) in mm";
+      // Weight (EN: weight, DE: gewicht)
+      if (/^(gewicht|weight|weight_kg|product_weight|g_kg|gewicht_kg)$/.test(n)) return "Maße & Gewicht > Gewicht (9) in kg";
+      // Volume (EN: volume, capacity, DE: volumen, inhalt)
+      if (/^(volumen|volume|capacity|inhalt_l|inhalt|fassungsvermoegen|rauminhalt)$/.test(n)) return "Maße & Gewicht > Volumen (10) in l";
+      // Style (EN: style, design, DE: stil, design)
+      if (/^(stil|style|design_stil|design|designtyp)$/.test(n)) return "Farbe & Design > Stil (13) text";
+      // Care (EN: care_instruction, DE: pflegehinweis, pflegeanleitung)
+      if (/pflegehinweis|pflege_hinweis|care_instruction|pflegeanleitung|pflegerrichtung/.test(n)) return "Allgemein > Pfleghinweis (109) text";
+      // Series (EN: series, DE: serie, produktserie)
+      if (/^(serie|series|produktserie|product_series|serienname|produktlinie)$/.test(n)) return "Allgemein > Serie (21) text";
+      // Country of origin (EN: country_of_origin, made_in, DE: herstellungsland, produktionsland)
+      if (/herstellungsland|herstellungs_land|country_of_origin|made_in|produktionsland|fertigungsland|ursprungsland/.test(n)) return "Allgemein > Herstellungsland (22) text";
       return null;
     }
 
@@ -6846,6 +6860,36 @@ export default function App() {
       feedValue: mappingRows[0] ? mappingRows[0][idx] : "",
       autoAttr: autoDetectCheck24Attr(header),
     })) : [];
+
+    // Get contextual normalizer tip for a field
+    function getNormalizerTip(fieldLabel) {
+      const n = fieldLabel.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      if (/beschreibung|description/.test(n)) {
+        return { text: "HTML vorhanden? → \"HTML in Markdown umwandeln\" (formatiert besser) · Nur Text? → \"HTML entfernen\"", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
+      }
+      if (/size_|abmessungen|dimensions|masse|maße|hoehe|height|tiefe|depth|breite|width|durchmesser|diameter|groesse|gewicht|weight|volumen|volume|liegeflaeche|liegeflache/.test(n)) {
+        return { text: "\"Interpretiere als numerisch\" (konvertiert in mm)", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
+      }
+      if (/versand|delivery|lieferzeit|liefermode|shipping/.test(n)) {
+        return { text: "\"Versandart ermitteln\" (für delivery_mode)", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
+      }
+      return null;
+    }
+
+    // Auto-detect image column for image number
+    function autoDetectImageColumn(imgNum) {
+      const patterns = [
+        imgNum === 1 ? /^image_url$|^img_url$|^bild$|^bild_1$|^image$/ : new RegExp(`^image_url\\s+${imgNum}$|^image_url_${imgNum}$|^img_url\\s+${imgNum}$|^img_url_${imgNum}$|^bild_${imgNum}$|^bild\\s+${imgNum}$`),
+      ];
+      for (const pattern of patterns) {
+        for (const header of mappingHeaders) {
+          if (pattern.test(header.toLowerCase())) {
+            return header;
+          }
+        }
+      }
+      return null;
+    }
 
     const produktIdentifikationFields = [
       { label: "seller_offer_id", required: true },
@@ -6861,7 +6905,7 @@ export default function App() {
     return (
       <div style={{ display: "flex", height: "100vh", flexDirection: "column", background: "#FFFFFF" }}>
         {topNav}
-        <div style={{ flex: 1, overflowY: "auto", padding: "32px 48px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "32px 20px" }}>
           {/* File Upload */}
           <div style={{ marginBottom: 40, paddingBottom: 24, borderBottom: "2px solid #E5E7EB" }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Feed-Datei</div>
@@ -7079,19 +7123,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Helper text for normalizers */}
-                {mappingHeaders.length > 0 && (
-                  <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 6, padding: "12px 14px", marginBottom: 12, fontSize: 11, color: "#92400E" }}>
-                    <div style={{ fontWeight: 600, marginBottom: 6 }}>💡 Normalizer-Tipps:</div>
-                    <div style={{ display: "grid", gap: 4, lineHeight: "1.4" }}>
-                      <div><strong>Beschreibung:</strong></div>
-                      <div style={{ marginLeft: 8 }}>• HTML vorhanden? → "HTML in Markdown umwandeln" (formatiert besser)</div>
-                      <div style={{ marginLeft: 8 }}>• Nur Text? → "HTML entfernen"</div>
-                      <div style={{ marginTop: 6 }}><strong>Maße:</strong> "Interpretiere als numerisch" (konvertiert in mm)</div>
-                      <div style={{ marginTop: 6 }}><strong>Versand:</strong> "Versandart ermitteln" (für delivery_mode)</div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Table Header */}
                 <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB", background: mappingHeaders.length === 0 ? "#F9FAFB" : "#FFFFFF" }}>
@@ -7109,24 +7140,32 @@ export default function App() {
                   const isCleared = userVal === "";
                   const displayVal = isUserSet ? userVal : (!isCleared && field.autoAttr) ? field.autoAttr : "";
                   const isAutoDetected = !isUserSet && !isCleared && !!field.autoAttr;
+                  const tip = getNormalizerTip(field.label);
                   return (
-                    <div key={field.label} style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"), alignItems: "center", borderBottom: "1px solid #E5E7EB", borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent" }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
-                        {field.label}
-                        {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
-                        {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
+                    <div key={field.label}>
+                      <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"), alignItems: "center", borderBottom: "1px solid #E5E7EB", borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent" }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
+                          {field.label}
+                          {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
+                          {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+                          {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
+                        </div>
+                        <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." value={displayVal} onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }} />
+                        <datalist id={`attr-options-${field.label}`}>
+                          {check24Attributes.map((attr) => <option key={attr} value={attr} />)}
+                        </datalist>
+                        <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
+                          <option value=""></option>
+                        </select>
+                        <span onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }} title="Mapping zurücksetzen">{displayVal ? "✕" : ""}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-                        {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
-                      </div>
-                      <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." value={displayVal} onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }} />
-                      <datalist id={`attr-options-${field.label}`}>
-                        {check24Attributes.map((attr) => <option key={attr} value={attr} />)}
-                      </datalist>
-                      <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
-                        <option value=""></option>
-                      </select>
-                      <span onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }} title="Mapping zurücksetzen">{displayVal ? "✕" : ""}</span>
+                      {tip && (
+                        <div style={{ background: tip.bg, borderLeft: `3px solid ${tip.border}`, borderRight: `1px solid ${tip.border}`, borderBottom: `1px solid ${tip.border}`, padding: "8px 12px", fontSize: 11, color: tip.color, marginBottom: 0 }}>
+                          💡 {tip.text}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -7184,8 +7223,12 @@ export default function App() {
                 </div>
 
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
-                  const imageLabel = num === 1 ? "image_url" : `image_url ${num}`;
                   const listId = `image-options-${num}`;
+                  const userVal = imageMappings[num] || "";
+                  const autoDetectedCol = autoDetectImageColumn(num);
+                  const displayVal = userVal || autoDetectedCol || "";
+                  const isAutoDetected = !userVal && !!autoDetectedCol;
+                  const isUserSet = !!userVal;
 
                   return (
                     <div key={num} style={{
@@ -7193,18 +7236,24 @@ export default function App() {
                       gridTemplateColumns: "240px 1fr 1fr",
                       gap: 16,
                       padding: "12px 16px",
-                      background: num % 2 === 1 ? "#F9FAFB" : "#FFFFFF",
+                      background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (num % 2 === 1 ? "#F9FAFB" : "#FFFFFF"),
                       alignItems: "center",
-                      borderBottom: "1px solid #E5E7EB"
+                      borderBottom: "1px solid #E5E7EB",
+                      borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent"
                     }}>
                       <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
                         {num === 1 ? "Bild 1 oder gesamter Bilder Feed" : `Bild ${num}`}
+                        {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
+                        {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
                       </div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <input type="text" list={listId} placeholder="Spalte suchen..." style={{ flex: 1, padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }} />
+                        <input type="text" list={listId} placeholder="Spalte suchen..." value={displayVal} onChange={(e) => setImageMappings(prev => ({ ...prev, [num]: e.target.value }))} style={{ flex: 1, padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", fontWeight: displayVal ? 500 : 400 }} />
                         <datalist id={listId}>
                           {mappingHeaders.map((h) => <option key={h} value={h} />)}
                         </datalist>
+                        {displayVal && (
+                          <span onClick={() => setImageMappings(prev => ({ ...prev, [num]: "" }))} style={{ cursor: "pointer", color: "#DC2626", fontSize: 14, fontWeight: 700, flexShrink: 0 }} title="Mapping zurücksetzen">✕</span>
+                        )}
                       </div>
                       <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
                         <option value=""></option>
