@@ -7152,7 +7152,7 @@ export default function App() {
                     >{displayVal ? "✕" : ""}</span>
                   </div>
                     );
-                  }))
+                  })
                 ) : (
                   // Placeholder rows when no file is uploaded
                   [1, 2, 3, 4, 5].map((idx) => (
