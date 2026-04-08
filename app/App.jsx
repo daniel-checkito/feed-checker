@@ -6842,11 +6842,36 @@ export default function App() {
             {mappingError && <div style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{mappingError}</div>}
           </div>
 
+          {/* Page Intro */}
+          <div style={{ marginBottom: 40 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Content Import Mapping</div>
+            <div style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.6, maxWidth: 760 }}>
+              Dieses Tool hilft Ihnen dabei, Ihren Produktfeed mit dem CHECK24 Content-System zu verbinden. Das Mapping legt fest, welche Spalten aus Ihrem Feed welchen Feldern bei CHECK24 entsprechen — von der Produktidentifikation bis zu allen sichtbaren Attributen auf der Produktdetailseite.
+            </div>
+            <div style={{ display: "flex", gap: 24, marginTop: 20 }}>
+              {[
+                { step: "1", title: "Feed hochladen", desc: "CSV-Datei mit Ihren Produktdaten", icon: "📁" },
+                { step: "2", title: "Produktidentifikation", desc: "Technische Pflichtfelder mappen", icon: "🔑" },
+                { step: "3", title: "Attributmapping", desc: "Sichtbare Produktattribute zuordnen", icon: "🏷️" },
+                { step: "4", title: "Bilder & Dokumente", desc: "Bildquellen und Dateien mappen", icon: "🖼️" },
+              ].map((s) => (
+                <div key={s.step} style={{ display: "flex", alignItems: "flex-start", gap: 10, flex: 1, background: "#F9FAFB", borderRadius: 8, padding: "12px 14px", border: "1px solid #E5E7EB" }}>
+                  <div style={{ fontSize: 18 }}>{s.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Schritt {s.step}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {mappingHeaders.length === 0 && (
             <div style={{ background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "16px 20px", marginBottom: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#1E40AF" }}>💡 Tipp</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#1E40AF" }}>💡 So starten Sie</div>
               <div style={{ fontSize: 12, color: "#1E40AF", marginTop: 4 }}>
-                Laden Sie Ihre CSV-Datei oben hoch, um die automatische Spalten-Erkennung zu starten und die Zuordnung zu CHECK24 Attributen vorzunehmen.
+                Laden Sie Ihre CSV-Datei oben hoch. Das System erkennt die Spalten automatisch und schlägt passende Zuordnungen vor. Je mehr Attribute korrekt gemappt sind, desto besser werden Ihre Produkte bei CHECK24 angezeigt.
               </div>
             </div>
           )}
@@ -6855,19 +6880,35 @@ export default function App() {
             <>
               {/* Content Import Mapping Section */}
               <div style={{ marginBottom: 48 }}>
-                <div style={{ fontSize: 16, fontWeight: 600, color: "#1E40AF", marginBottom: 24 }}>Content Import Mapping</div>
 
                 {/* Produktidentifikation */}
                 <div style={{ marginBottom: 40 }}>
-                  {mappingHeaders.length > 0 && (
-                    <div style={{ background: "#EEF4FF", border: "1px solid #BFDBFE", borderRadius: 6, padding: "10px 12px", marginBottom: 12, fontSize: 11, color: "#1E40AF" }}>
-                      ℹ️ Für <strong>delivery_time</strong>: Nutzen Sie den Normalizer aus dem Angebotsfeed Mapping
+                  <div style={{ background: "#F8FAFF", border: "1px solid #DBEAFE", borderRadius: 8, padding: "16px 20px", marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1E40AF", marginBottom: 6 }}>🔑 Schritt 2 — Produktidentifikation</div>
+                    <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.6 }}>
+                      Diese Felder sind technische Pflichtfelder für den Import. Sie werden <strong>nicht direkt auf der Produktseite angezeigt</strong>, aber sind notwendig damit CHECK24 das Produkt korrekt verarbeiten und eindeutig identifizieren kann.
                     </div>
-                  )}
+                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {[
+                        { field: "seller_offer_id", desc: "Ihre interne Produkt-ID (Pflicht)" },
+                        { field: "gtin14", desc: "EAN / Barcode" },
+                        { field: "delivery_time", desc: "Lieferzeit in Werktagen" },
+                        { field: "seller_supplied_price", desc: "Ihr Verkaufspreis" },
+                        { field: "brand", desc: "Markenname des Produkts" },
+                      ].map(({ field, desc }) => (
+                        <div key={field} style={{ fontSize: 11, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 4, padding: "3px 8px", color: "#1E40AF" }} title={desc}>
+                          <code>{field}</code> <span style={{ color: "#60A5FA" }}>— {desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Produktidentifikation</div>
-                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>Diese Felder werden immer gemappt und sind erforderlich</div>
+                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>
+                        <span style={{ display: "inline-block", width: 10, height: 10, background: "#16A34A", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }}></span>Grün = automatisch erkannt
+                        <span style={{ display: "inline-block", width: 10, height: 10, background: "#1E40AF", borderRadius: 2, marginLeft: 12, marginRight: 4, verticalAlign: "middle" }}></span>Blau = manuell gesetzt
+                      </div>
                     </div>
                     <button type="button" onClick={() => setProduktIdentifikationMappings({})} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid #D1D5DB", background: "#FFFFFF", borderRadius: 4, cursor: "pointer", color: "#6B7280", fontWeight: 500, whiteSpace: "nowrap" }}>
                       ↻ Reset
@@ -6916,20 +6957,78 @@ export default function App() {
 
               {/* Attributmapping Section */}
               <div style={{ marginBottom: 48 }}>
+                {/* Explanation with live example */}
+                <div style={{ background: "#F8FAFF", border: "1px solid #DBEAFE", borderRadius: 8, padding: "20px 24px", marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1E40AF", marginBottom: 8 }}>🏷️ Schritt 3 — Attributmapping: Was Kunden auf CHECK24 sehen</div>
+                  <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.7, marginBottom: 16 }}>
+                    Das Attributmapping bestimmt, welche Produkteigenschaften aus Ihrem Feed als strukturierte Attribute auf der <strong>Produktdetailseite bei CHECK24</strong> angezeigt werden. Kunden nutzen diese Informationen aktiv, um Produkte zu vergleichen und Kaufentscheidungen zu treffen — je vollständiger das Mapping, desto besser die Konversion.
+                  </div>
+
+                  {/* Two-column: explanation + live example */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 24, alignItems: "start" }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 8 }}>Wie funktioniert das Mapping?</div>
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {[
+                          { icon: "1️⃣", text: "Jede Zeile = eine Spalte aus Ihrem Feed (z.B. \"material\", \"color\", \"height_mm\")" },
+                          { icon: "2️⃣", text: "Wählen Sie das passende CHECK24 Attribut rechts (z.B. \"Material > Material (23)\")" },
+                          { icon: "3️⃣", text: "Das System überträgt die Werte aus Ihrem Feed in die entsprechenden Felder bei CHECK24" },
+                          { icon: "4️⃣", text: "Nicht gemappte Felder erscheinen nicht auf der Produktseite — also so viele wie möglich mappen!" },
+                        ].map(({ icon, text }) => (
+                          <div key={icon} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, color: "#374151" }}>
+                            <span style={{ flexShrink: 0 }}>{icon}</span>
+                            <span>{text}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 14, padding: "10px 14px", background: "#FEF9C3", border: "1px solid #FDE68A", borderRadius: 6, fontSize: 11, color: "#78350F" }}>
+                        <strong>💡 Tipp:</strong> Mappen Sie besonders: Maße, Material, Farbe, Lieferumfang und Marke — das sind die am häufigsten genutzten Filterattribute bei CHECK24.
+                      </div>
+                    </div>
+
+                    {/* Live example from CHECK24 frontend */}
+                    <div style={{ flexShrink: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 8, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.05em" }}>So sieht es auf CHECK24 aus →</div>
+                      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px", minWidth: 300, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                        {[
+                          { label: "Maße (HxTxB)", value: "81,5 x 19 x 152 cm", attr: "Maße & Gewicht > Abmessungen" },
+                          { label: "Material", value: "MDF mit wasserbasierter Lackierung", attr: "Material > Material" },
+                          { label: "Lieferumfang", value: "1 x Heizkörperverkleidung", attr: "Lieferung > Lieferumfang" },
+                          { label: "Marke", value: "vidaXL", attr: "Allgemein > Marke" },
+                        ].map(({ label, value, attr }) => (
+                          <div key={label} style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8, paddingBottom: 10, marginBottom: 10, borderBottom: "1px solid #F3F4F6" }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{label}</div>
+                            <div style={{ fontSize: 13, color: "#374151" }}>{value}</div>
+                          </div>
+                        ))}
+                        <div style={{ fontSize: 12, color: "#1E40AF", marginTop: 4, fontWeight: 500 }}>Weitere Produktdetails</div>
+                      </div>
+                      <div style={{ marginTop: 8, display: "grid", rowGap: 4 }}>
+                        {[
+                          { label: "Maße (HxTxB)", attr: "Maße & Gewicht > Abmessungen (14)" },
+                          { label: "Material", attr: "Material > Material (23)" },
+                          { label: "Lieferumfang", attr: "Lieferung > Lieferumfang (11)" },
+                          { label: "Marke", attr: "Allgemein > Marke (50)" },
+                        ].map(({ label, attr }) => (
+                          <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "#6B7280" }}>
+                            <span style={{ color: "#9CA3AF" }}>↑</span>
+                            <span style={{ fontWeight: 600 }}>{label}</span>
+                            <span>→ CHECK24 Attribut:</span>
+                            <code style={{ background: "#EFF6FF", color: "#1E40AF", padding: "1px 5px", borderRadius: 3, fontSize: 10 }}>{attr}</code>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #E5E7EB" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Attributmapping</div>
-                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>Mappen Sie alle Attribute aus Ihrem Feed, die CHECK24-Attributen entsprechen. Verwenden Sie Normalizer für Datenformatierung (HTML, Maße, Versandart, etc.)</div>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>Ordnen Sie jede Feed-Spalte dem entsprechenden CHECK24-Attribut zu. Das System erkennt passende Attribute automatisch — überprüfen und ergänzen Sie die Zuordnungen manuell.</div>
                 </div>
-                {mappingHeaders.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", fontSize: 12, cursor: "pointer", padding: 0, fontWeight: 500 }}>
-                      ⇧ Feed laden und Spalten aktualisieren
-                    </button>
-                  </div>
-                )}
                 {mappingHeaders.length === 0 && (
                   <div style={{ background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 6, padding: "12px 16px", marginBottom: 16, fontSize: 12, color: "#1E40AF" }}>
-                    Laden Sie eine CSV-Datei hoch, um Ihre Feed-Spalten zu sehen.
+                    Laden Sie eine CSV-Datei hoch, um Ihre Feed-Spalten zu sehen und zuzuordnen.
                   </div>
                 )}
 
