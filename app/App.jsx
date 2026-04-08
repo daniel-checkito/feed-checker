@@ -6809,6 +6809,12 @@ export default function App() {
       if (/^(deeplink|link|seller_deeplink|url|product_url|shop_url)$/.test(n)) return "deeplink";
       // Delivery time
       if (/^(delivery_time|lieferzeit|versandzeit|delivery_speed)$/.test(n)) return "delivery_time";
+      // Size variants (using size_ prefix)
+      if (/^size$|^size_$/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
+      if (/size_height|size_h$|^h$/.test(n)) return "Maße & Gewicht > Höhe (5) in mm";
+      if (/size_depth|size_tiefe|size_t$|^t$/.test(n)) return "Maße & Gewicht > Tiefe (6) in mm";
+      if (/size_width|size_breite|size_b$|^b$/.test(n)) return "Maße & Gewicht > Breite (7) in mm";
+      if (/size_lying_surface|lying_surface|liegeflaeche|liegeflache/.test(n)) return "Maße & Gewicht > Liegefläche (15) text";
       // Name / Title
       if (/^(name|title|product_name|produkt_name|produktname|bezeichnung|artikelname)$/.test(n)) return "Allgemein > Name (1) text";
       // Description
@@ -6864,7 +6870,7 @@ export default function App() {
       if (/beschreibung|description/.test(n)) {
         return { text: "HTML vorhanden? → \"HTML in Markdown umwandeln\" (formatiert besser) · Nur Text? → \"HTML entfernen\"", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
       }
-      if (/abmessungen|dimensions|masse|maße|hoehe|height|tiefe|depth|breite|width|durchmesser|diameter|groesse|gewicht|weight|volumen|volume/.test(n)) {
+      if (/size_|abmessungen|dimensions|masse|maße|hoehe|height|tiefe|depth|breite|width|durchmesser|diameter|groesse|gewicht|weight|volumen|volume|liegeflaeche|liegeflache/.test(n)) {
         return { text: "\"Interpretiere als numerisch\" (konvertiert in mm)", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
       }
       if (/versand|delivery|lieferzeit|liefermode|shipping/.test(n)) {
