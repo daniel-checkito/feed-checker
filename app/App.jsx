@@ -6808,6 +6808,7 @@ export default function App() {
       { label: "seller_category", required: false },
       { label: "seller_deeplink", required: false },
       { label: "seller_supplied_price", required: false },
+      { label: "brand", required: false },
     ];
 
     return (
