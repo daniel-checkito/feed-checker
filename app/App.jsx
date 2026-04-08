@@ -7103,77 +7103,42 @@ export default function App() {
                 </div>
 
                 {/* Table Rows */}
-                {attributeMappingFields.length > 0 ? (
-                  attributeMappingFields.map((field, idx) => {
-                    const userVal = attributeMappings[field.label];
-                    const isUserSet = userVal !== undefined && userVal !== "";
-                    const isCleared = userVal === "";
-                    const displayVal = isUserSet ? userVal : (!isCleared && field.autoAttr) ? field.autoAttr : "";
-                    const isAutoDetected = !isUserSet && !isCleared && !!field.autoAttr;
-                    return (
-                  <div key={field.label} style={{
-                    display: "grid",
-                    gridTemplateColumns: "200px 140px 1fr 180px 40px",
-                    gap: 16,
-                    padding: "12px 16px",
-                    background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"),
-                    alignItems: "center",
-                    borderBottom: "1px solid #E5E7EB",
-                    borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent",
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
-                      {field.label}
-                      {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
-                      {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
+                {attributeMappingFields.length > 0 && attributeMappingFields.map((field, idx) => {
+                  const userVal = attributeMappings[field.label];
+                  const isUserSet = userVal !== undefined && userVal !== "";
+                  const isCleared = userVal === "";
+                  const displayVal = isUserSet ? userVal : (!isCleared && field.autoAttr) ? field.autoAttr : "";
+                  const isAutoDetected = !isUserSet && !isCleared && !!field.autoAttr;
+                  return (
+                    <div key={field.label} style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"), alignItems: "center", borderBottom: "1px solid #E5E7EB", borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent" }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
+                        {field.label}
+                        {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
+                        {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+                        {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
+                      </div>
+                      <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." value={displayVal} onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }} />
+                      <datalist id={`attr-options-${field.label}`}>
+                        {check24Attributes.map((attr) => <option key={attr} value={attr} />)}
+                      </datalist>
+                      <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
+                        <option value=""></option>
+                      </select>
+                      <span onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }} title="Mapping zurücksetzen">{displayVal ? "✕" : ""}</span>
                     </div>
-                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-                      {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
-                    </div>
-                    <input
-                      type="text"
-                      list={`attr-options-${field.label}`}
-                      placeholder="CHECK24 Attribut suchen..."
-                      value={displayVal}
-                      onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))}
-                      style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }}
-                    />
-                    <datalist id={`attr-options-${field.label}`}>
-                      {check24Attributes.map((attr) => (
-                        <option key={attr} value={attr} />
-                      ))}
-                    </datalist>
-                    <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
-                      <option value=""></option>
-                    </select>
-                    <span
-                      onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))}
-                      style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }}
-                      title="Mapping zurücksetzen"
-                    >{displayVal ? "✕" : ""}</span>
+                  );
+                })}
+                {attributeMappingFields.length === 0 && [1, 2, 3, 4, 5].map((idx) => (
+                  <div key={`placeholder-${idx}`} style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF", alignItems: "center", borderBottom: "1px solid #E5E7EB", opacity: 0.5 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF" }}>-</div>
+                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
+                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
+                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
+                    <span style={{ cursor: "default", color: "#D1D5DB" }}>ⓘ</span>
                   </div>
-                    );
-                  })
-                ) : (
-                  // Placeholder rows when no file is uploaded
-                  [1, 2, 3, 4, 5].map((idx) => (
-                    <div key={`placeholder-${idx}`} style={{
-                      display: "grid",
-                      gridTemplateColumns: "200px 140px 1fr 180px 40px",
-                      gap: 16,
-                      padding: "12px 16px",
-                      background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-                      alignItems: "center",
-                      borderBottom: "1px solid #E5E7EB",
-                      opacity: 0.5
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF" }}>-</div>
-                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
-                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
-                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
-                      <span style={{ cursor: "default", color: "#D1D5DB" }}>ⓘ</span>
-                    </div>
-                  ))
-                )}
+                ))}
 
                 {/* Additional image_url fields (not in feed headers) */}
                 {mappingHeaders.length > 0 && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => {
