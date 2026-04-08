@@ -7048,31 +7048,38 @@ export default function App() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer <span style={{ color: "#1E40AF" }}>Glossar</span></div>
                 </div>
 
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                  <div key={num} style={{
-                    display: "grid",
-                    gridTemplateColumns: "240px 1fr 1fr",
-                    gap: 16,
-                    padding: "12px 16px",
-                    background: num % 2 === 1 ? "#F9FAFB" : "#FFFFFF",
-                    alignItems: "center",
-                    borderBottom: "1px solid #E5E7EB"
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
-                      {num === 1 ? "Bild 1 oder gesamter Bilder Feed" : `Bild ${num}`}
-                    </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <select style={{ flex: 1, padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                        <option value="">{num === 1 ? "image_url" : `image_url ${num}`}</option>
-                        {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+                  const imageLabel = num === 1 ? "image_url" : `image_url ${num}`;
+                  const isAutoDetected = mappingHeaders.includes(imageLabel);
+
+                  return (
+                    <div key={num} style={{
+                      display: "grid",
+                      gridTemplateColumns: "240px 1fr 1fr",
+                      gap: 16,
+                      padding: "12px 16px",
+                      background: isAutoDetected ? "#F0FDF4" : (num % 2 === 1 ? "#F9FAFB" : "#FFFFFF"),
+                      alignItems: "center",
+                      borderBottom: isAutoDetected ? "1px solid #BBF7D0" : "1px solid #E5E7EB",
+                      borderLeft: isAutoDetected ? "3px solid #16A34A" : "3px solid transparent"
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
+                        {num === 1 ? "Bild 1 oder gesamter Bilder Feed" : `Bild ${num}`}
+                        {isAutoDetected && <span style={{ marginLeft: 8, fontSize: 11, background: "#16A34A", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ AUTO</span>}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <select style={{ flex: 1, padding: "8px 10px", border: isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isAutoDetected ? "#F0FDF4" : "#FFFFFF" }}>
+                          <option value="">{imageLabel}</option>
+                          {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                        </select>
+                        {isAutoDetected && <button type="button" style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>}
+                      </div>
+                      <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
+                        <option value=""></option>
                       </select>
-                      <button type="button" style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>
                     </div>
-                    <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                      <option value=""></option>
-                    </select>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Weiteres Bild mappen link */}
                 <div style={{ padding: "12px 16px" }}>
