@@ -6822,21 +6822,28 @@ export default function App() {
 
                   {produktIdentifikationFields.map((field, idx) => {
                     const autoDetectedValue = mappingHeaders.find(h => h.toLowerCase().includes(field.label.split("_")[0])) || "";
-                    const selectedValue = produktIdentifikationMappings[field.label] !== undefined ? produktIdentifikationMappings[field.label] : autoDetectedValue;
+                    const userSetValue = produktIdentifikationMappings[field.label];
+                    const selectedValue = userSetValue !== undefined ? userSetValue : autoDetectedValue;
+                    const isUserSet = userSetValue !== undefined && userSetValue !== "";
+                    const isAutoDetected = !isUserSet && autoDetectedValue;
+
                     return (
                       <div key={field.label} style={{
                         display: "grid",
                         gridTemplateColumns: "200px 1fr 80px 1fr 40px",
                         gap: 16,
                         padding: "12px 16px",
-                        background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                        background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"),
                         alignItems: "center",
-                        borderBottom: "1px solid #E5E7EB"
+                        borderBottom: isUserSet ? "1px solid #BFDBFE" : isAutoDetected ? "1px solid #BBF7D0" : "1px solid #E5E7EB",
+                        borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent"
                       }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
                           {field.label} {field.required ? <span style={{ color: "#DC2626" }}>*</span> : ""} <span style={{ marginLeft: 4, cursor: "pointer" }}>ⓘ</span>
+                          {isUserSet && <span style={{ marginLeft: 8, fontSize: 11, background: "#1E40AF", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ SET</span>}
+                          {isAutoDetected && <span style={{ marginLeft: 8, fontSize: 11, background: "#16A34A", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ AUTO</span>}
                         </div>
-                        <select value={selectedValue || ""} onChange={(e) => setProduktIdentifikationMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
+                        <select value={selectedValue || ""} onChange={(e) => setProduktIdentifikationMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 12px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", fontWeight: selectedValue ? 600 : 400, color: selectedValue ? "#111827" : "#9CA3AF" }}>
                           <option value="">{autoDetectedValue || "-- Wählen --"}</option>
                           {mappingHeaders.map((h) => <option key={h} value={h}>{h}</option>)}
                         </select>
