@@ -3527,6 +3527,55 @@ function McAngebotsfeed() {
             ))}
           </div>
 
+          {/* APA Eligibility Check */}
+          {(() => {
+            const apaErrorRate = issues.totalRows > 0 ? (errorCount / issues.totalRows) * 100 : 0;
+            const apaEligible = apaErrorRate < 2;
+            const apaErrorsToRemove = Math.round((apaErrorRate / 100) * issues.totalRows);
+
+            return (
+              <div style={{ background: apaEligible ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${apaEligible ? "#BBF7D0" : "#FECACA"}`, borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: apaEligible ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    {apaEligible ? "✓" : "!"}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: apaEligible ? "#166534" : "#B91C1C" }}>
+                    APA (Automatische Produktanlage)
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: apaEligible ? "#15803D" : "#991B1B", lineHeight: "1.5", marginBottom: 6 }}>
+                  {apaEligible ? (
+                    <>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>✓ Berechtigt für automatische Produktanlage</div>
+                      <div>
+                        Ihr Feed erfüllt die Anforderungen für APA. {errorCount > 0 && <>Die {apaErrorsToRemove} Produkte mit Fehlern werden automatisch entfernt.</> }
+                        {errorCount === 0 && <>Alle Produkte können angelegt werden.</>}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>✗ Nicht berechtigt für APA</div>
+                      <div>
+                        Fehlerquote: {apaErrorRate.toFixed(2)}% (Max. 2% erlaubt)
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        Um berechtigt zu sein, müssen Sie mindestens {errorCount - Math.floor(issues.totalRows * 0.02)} Fehler beheben.
+                      </div>
+                    </>
+                  )}
+                </div>
+                <details style={{ marginTop: 4 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 9, color: apaEligible ? "#15803D" : "#991B1B", fontWeight: 600 }}>
+                    Was ist APA?
+                  </summary>
+                  <div style={{ marginTop: 4, fontSize: 9, color: apaEligible ? "#15803D" : "#991B1B", lineHeight: "1.4" }}>
+                    APA ermöglicht die automatische Anlage Ihrer Produkte. Erlaubt sind bis zu 2% fehlerhafte Artikel, die automatisch aus dem Feed entfernt werden. Alle Pflichtfelder müssen gefüllt sein.
+                  </div>
+                </details>
+              </div>
+            );
+          })()}
+
           {/* Pflichtfehler (Rot) */}
           {(() => {
             const byField = {};
