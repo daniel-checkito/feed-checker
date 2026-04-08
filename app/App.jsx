@@ -6858,6 +6858,11 @@ export default function App() {
 
                 {/* Produktidentifikation */}
                 <div style={{ marginBottom: 40 }}>
+                  {mappingHeaders.length > 0 && (
+                    <div style={{ background: "#EEF4FF", border: "1px solid #BFDBFE", borderRadius: 6, padding: "10px 12px", marginBottom: 12, fontSize: 11, color: "#1E40AF" }}>
+                      ℹ️ Für <strong>delivery_time</strong>: Nutzen Sie den Normalizer aus dem Angebotsfeed Mapping
+                    </div>
+                  )}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Produktidentifikation</div>
@@ -6929,8 +6934,15 @@ export default function App() {
 
                 {/* Helper text for normalizers */}
                 {mappingHeaders.length > 0 && (
-                  <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 6, padding: "10px 12px", marginBottom: 12, fontSize: 11, color: "#92400E" }}>
-                    <strong>Normalizer-Tipps:</strong> HTML entfernen (Text), HTML in Markdown (HTML-Text), Interpretiere als numerisch (Maße in mm), Versandart ermitteln (delivery_mode)
+                  <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 6, padding: "12px 14px", marginBottom: 12, fontSize: 11, color: "#92400E" }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>💡 Normalizer-Tipps:</div>
+                    <div style={{ display: "grid", gap: 4, lineHeight: "1.4" }}>
+                      <div><strong>Beschreibung:</strong></div>
+                      <div style={{ marginLeft: 8 }}>• HTML vorhanden? → "HTML in Markdown umwandeln" (formatiert besser)</div>
+                      <div style={{ marginLeft: 8 }}>• Nur Text? → "HTML entfernen"</div>
+                      <div style={{ marginTop: 6 }}><strong>Maße:</strong> "Interpretiere als numerisch" (konvertiert in mm)</div>
+                      <div style={{ marginTop: 6 }}><strong>Versand:</strong> "Versandart ermitteln" (für delivery_mode)</div>
+                    </div>
                   </div>
                 )}
 
