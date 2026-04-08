@@ -6858,10 +6858,13 @@ export default function App() {
 
                 {/* Produktidentifikation */}
                 <div style={{ marginBottom: 40 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Produktidentifikation</div>
-                    <button type="button" onClick={() => setProduktIdentifikationMappings({})} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid #D1D5DB", background: "#FFFFFF", borderRadius: 4, cursor: "pointer", color: "#6B7280", fontWeight: 500 }}>
-                      ↻ Reset zu Auto-Erkennung
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Produktidentifikation</div>
+                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>Diese Felder werden immer gemappt und sind erforderlich</div>
+                    </div>
+                    <button type="button" onClick={() => setProduktIdentifikationMappings({})} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid #D1D5DB", background: "#FFFFFF", borderRadius: 4, cursor: "pointer", color: "#6B7280", fontWeight: 500, whiteSpace: "nowrap" }}>
+                      ↻ Reset
                     </button>
                   </div>
 
@@ -6907,7 +6910,10 @@ export default function App() {
 
               {/* Attributmapping Section */}
               <div style={{ marginBottom: 48 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 12 }}>Attributmapping</div>
+                <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #E5E7EB" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Attributmapping</div>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>Mappen Sie alle Attribute aus Ihrem Feed, die CHECK24-Attributen entsprechen. Verwenden Sie Normalizer für Datenformatierung (HTML, Maße, Versandart, etc.)</div>
+                </div>
                 {mappingHeaders.length > 0 && (
                   <div style={{ marginBottom: 16 }}>
                     <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", fontSize: 12, cursor: "pointer", padding: 0, fontWeight: 500 }}>
@@ -6921,12 +6927,19 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Helper text for normalizers */}
+                {mappingHeaders.length > 0 && (
+                  <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 6, padding: "10px 12px", marginBottom: 12, fontSize: 11, color: "#92400E" }}>
+                    <strong>Normalizer-Tipps:</strong> HTML entfernen (Text), HTML in Markdown (HTML-Text), Interpretiere als numerisch (Maße in mm), Versandart ermitteln (delivery_mode)
+                  </div>
+                )}
+
                 {/* Table Header */}
                 <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB", background: mappingHeaders.length === 0 ? "#F9FAFB" : "#FFFFFF" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
                   <div style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>Preview</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Mapping auf CHECK24 Attribut</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer <span style={{ color: "#1E40AF" }}>Glossar</span></div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer</div>
                   <div></div>
                 </div>
 
@@ -7111,6 +7124,13 @@ export default function App() {
                     </select>
                   </div>
                 ))}
+              </div>
+
+              {/* Save Button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 48, marginTop: 40, paddingTop: 20, borderTop: "2px solid #E5E7EB" }}>
+                <button type="button" style={{ padding: "12px 28px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  💾 Mapping speichern
+                </button>
               </div>
 
               {/* Feed Import Filter Section */}
