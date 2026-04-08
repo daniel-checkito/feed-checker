@@ -4133,6 +4133,7 @@ export default function App() {
   const [mappingError, setMappingError] = useState("");
   const [produktIdentifikationMappings, setProduktIdentifikationMappings] = useState({});
   const [attributeMappings, setAttributeMappings] = useState({});
+  const [imageMappings, setImageMappings] = useState({});
   const mappingFileInputRef = useRef(null);
 
   function onPickMappingFile(file) {
@@ -4143,6 +4144,7 @@ export default function App() {
       setMappingError("");
       setProduktIdentifikationMappings({});
       setAttributeMappings({});
+      setImageMappings({});
       return;
     }
 
@@ -6879,6 +6881,21 @@ export default function App() {
       return null;
     }
 
+    // Auto-detect image column for image number
+    function autoDetectImageColumn(imgNum) {
+      const patterns = [
+        imgNum === 1 ? /^image_url$|^img_url$|^bild$|^bild_1$|^image$/ : new RegExp(`^image_url\\s+${imgNum}$|^image_url_${imgNum}$|^img_url\\s+${imgNum}$|^img_url_${imgNum}$|^bild_${imgNum}$|^bild\\s+${imgNum}$`),
+      ];
+      for (const pattern of patterns) {
+        for (const header of mappingHeaders) {
+          if (pattern.test(header.toLowerCase())) {
+            return header;
+          }
+        }
+      }
+      return null;
+    }
+
     const produktIdentifikationFields = [
       { label: "seller_offer_id", required: true },
       { label: "amazon_sales_rank", required: false },
@@ -7211,8 +7228,12 @@ export default function App() {
                 </div>
 
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
-                  const imageLabel = num === 1 ? "image_url" : `image_url ${num}`;
                   const listId = `image-options-${num}`;
+                  const userVal = imageMappings[num] || "";
+                  const autoDetectedCol = autoDetectImageColumn(num);
+                  const displayVal = userVal || autoDetectedCol || "";
+                  const isAutoDetected = !userVal && !!autoDetectedCol;
+                  const isUserSet = !!userVal;
 
                   return (
                     <div key={num} style={{
@@ -7220,18 +7241,24 @@ export default function App() {
                       gridTemplateColumns: "240px 1fr 1fr",
                       gap: 16,
                       padding: "12px 16px",
-                      background: num % 2 === 1 ? "#F9FAFB" : "#FFFFFF",
+                      background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (num % 2 === 1 ? "#F9FAFB" : "#FFFFFF"),
                       alignItems: "center",
-                      borderBottom: "1px solid #E5E7EB"
+                      borderBottom: "1px solid #E5E7EB",
+                      borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent"
                     }}>
                       <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
                         {num === 1 ? "Bild 1 oder gesamter Bilder Feed" : `Bild ${num}`}
+                        {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
+                        {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
                       </div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <input type="text" list={listId} placeholder="Spalte suchen..." style={{ flex: 1, padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }} />
+                        <input type="text" list={listId} placeholder="Spalte suchen..." value={displayVal} onChange={(e) => setImageMappings(prev => ({ ...prev, [num]: e.target.value }))} style={{ flex: 1, padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", fontWeight: displayVal ? 500 : 400 }} />
                         <datalist id={listId}>
                           {mappingHeaders.map((h) => <option key={h} value={h} />)}
                         </datalist>
+                        {displayVal && (
+                          <span onClick={() => setImageMappings(prev => ({ ...prev, [num]: "" }))} style={{ cursor: "pointer", color: "#DC2626", fontSize: 14, fontWeight: 700, flexShrink: 0 }} title="Mapping zurücksetzen">✕</span>
+                        )}
                       </div>
                       <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
                         <option value=""></option>
