@@ -3326,9 +3326,9 @@ function McAngebotsfeed() {
   const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   return (
-    <div style={{ maxWidth: 1200, display: "flex", gap: 20, alignItems: "start" }}>
+    <div style={{ display: "flex", gap: 20, alignItems: "start" }}>
       {/* ── LEFT: Upload & Settings ── */}
-      <div style={{ flex: issues ? "0 0 300px" : "1", display: "grid", gap: 12, alignContent: "start" }}>
+      <div style={{ flex: "0 0 50%", display: "grid", gap: 12, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
         {/* Upload Method Toggle */}
@@ -3465,7 +3465,7 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {issues && (
-        <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 6, alignContent: "start" }}>
+        <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 6, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
           {/* Score */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
