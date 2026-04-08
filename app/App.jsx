@@ -4082,6 +4082,8 @@ export default function App() {
   const [mappingHeaders, setMappingHeaders] = useState([]);
   const [mappingRows, setMappingRows] = useState([]);
   const [mappingError, setMappingError] = useState("");
+  const [produktIdentifikationMappings, setProduktIdentifikationMappings] = useState({});
+  const [attributeMappings, setAttributeMappings] = useState({});
   const mappingFileInputRef = useRef(null);
 
   function onPickMappingFile(file) {
@@ -4090,6 +4092,8 @@ export default function App() {
       setMappingHeaders([]);
       setMappingRows([]);
       setMappingError("");
+      setProduktIdentifikationMappings({});
+      setAttributeMappings({});
       return;
     }
 
@@ -6817,7 +6821,8 @@ export default function App() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>Produktidentifikation</div>
 
                   {produktIdentifikationFields.map((field, idx) => {
-                    const feedValue = mappingHeaders.find(h => h.toLowerCase().includes(field.label.split("_")[0])) || "";
+                    const autoDetectedValue = mappingHeaders.find(h => h.toLowerCase().includes(field.label.split("_")[0])) || "";
+                    const selectedValue = produktIdentifikationMappings[field.label] !== undefined ? produktIdentifikationMappings[field.label] : autoDetectedValue;
                     return (
                       <div key={field.label} style={{
                         display: "grid",
@@ -6831,12 +6836,12 @@ export default function App() {
                         <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
                           {field.label} {field.required ? <span style={{ color: "#DC2626" }}>*</span> : ""} <span style={{ marginLeft: 4, cursor: "pointer" }}>ⓘ</span>
                         </div>
-                        <select style={{ padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                          <option value="">{feedValue || ""}</option>
-                          {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                        <select value={selectedValue || ""} onChange={(e) => setProduktIdentifikationMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
+                          <option value="">{autoDetectedValue || "-- Wählen --"}</option>
+                          {mappingHeaders.map((h) => <option key={h} value={h}>{h}</option>)}
                         </select>
-                        {feedValue && <button type="button" style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>}
-                        {!feedValue && <div></div>}
+                        {selectedValue && <button type="button" onClick={() => setProduktIdentifikationMappings(prev => { const next = { ...prev }; delete next[field.label]; return next; })} style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>}
+                        {!selectedValue && <div></div>}
                         <select style={{ padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
                           <option value=""></option>
                         </select>
