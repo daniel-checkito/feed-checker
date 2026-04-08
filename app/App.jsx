@@ -6648,6 +6648,47 @@ export default function App() {
   }
 
   if (route === "mapping") {
+    const check24Attributes = [
+      "Allgemein > Name (1) text",
+      "Allgemein > Beschreibung (2) text",
+      "Allgemein > Modell (3) text",
+      "Allgemein > Herstellernummer (4) text",
+      "Maße & Gewicht > Höhe (5) in mm",
+      "Maße & Gewicht > Tiefe (6) in mm",
+      "Maße & Gewicht > Breite (7) in mm",
+      "Maße & Gewicht > Durchmesser (8) in mm",
+      "Maße & Gewicht > Gewicht (9) in kg",
+      "Maße & Gewicht > Volumen (10) in l",
+      "Lieferung > Lieferumfang (11) text",
+      "Farbe & Design > Farbe (12) text",
+      "Farbe & Design > Stil (13) text",
+      "Maße & Gewicht > Abmessungen (14) text",
+      "Maße & Gewicht > Liegefläche (15) text",
+      "Maße & Gewicht > Max. Belastbarkeit (16) in kg",
+      "Maße & Gewicht > Sitzhöhe (19) in mm",
+      "Allgemein > Serie (21) text",
+      "Allgemein > Herstellungsland (22) text",
+      "Material > Material (23) text",
+      "Material > Holzqualität (24) text",
+      "Material > Holzart (25) text",
+      "Material > Oberfläche (26) text",
+      "Material > Oberflächenbehandlung (27) text",
+      "Eigenschaften > Verstellbare Tischhöhe (30) text",
+      "Eigenschaften > Verstellbare Sitzhöhe (31) text",
+      "Eigenschaften > Griffart (36) text",
+      "Eigenschaften > Soft-Close (37) text",
+      "Set-Details > Set-Bestandteile (38) text",
+      "Set-Details > Maße Bett (39) text",
+      "Set-Details > Maße Kommode (40) text",
+      "Set-Details > Maße Schrank (41) text",
+      "Set-Details > Maße Regal (42) text",
+      "Set-Details > Maße Schreibtisch (43) text",
+      "Set-Details > Maße Stuhl (44) text",
+      "Set-Details > Maße Nachttisch (45) text",
+      "Maße & Gewicht > Gewicht (46) in kg",
+      "Material > Textilien (49) text",
+    ];
+
     const attributeMappingFields = mappingHeaders.length > 0 ? mappingHeaders.map((header, idx) => ({
       label: header,
       feedValue: mappingRows[0] ? mappingRows[0][idx] : "",
@@ -6767,6 +6808,9 @@ export default function App() {
                     </div>
                     <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
                       <option value=""></option>
+                      {check24Attributes.map((attr) => (
+                        <option key={attr} value={attr}>{attr}</option>
+                      ))}
                     </select>
                     <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
                       <option value=""></option>
@@ -6795,7 +6839,9 @@ export default function App() {
                       <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
                       <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
                         <option value=""></option>
-                        {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
+                        {check24Attributes.map((attr) => (
+                          <option key={attr} value={attr}>{attr}</option>
+                        ))}
                       </select>
                       <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
                         <option value=""></option>
