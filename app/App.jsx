@@ -3313,9 +3313,9 @@ function McAngebotsfeed() {
   const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   return (
-    <div style={{ maxWidth: 1200, display: "flex", gap: 20 }}>
+    <div style={{ maxWidth: 1200, display: "flex", gap: 20, alignItems: "start" }}>
       {/* ── LEFT: Upload & Settings ── */}
-      <div style={{ flex: issues ? "0 0 380px" : "1", display: "grid", gap: 16, alignContent: "start" }}>
+      <div style={{ flex: issues ? "0 0 300px" : "1", display: "grid", gap: 12, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
         {/* Upload Method Toggle */}
@@ -3452,7 +3452,7 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {issues && (
-        <div style={{ flex: 1, minWidth: 0, maxWidth: 560, display: "grid", gap: 6, alignContent: "start" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 6, alignContent: "start" }}>
           {/* Score */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -3524,15 +3524,15 @@ function McAngebotsfeed() {
             return (
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Pflichtfehler</div>
-                {issues.missingPflichtCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder-Spalten" severity="error" description="Diese Spalten fehlen im Feed:" items={issues.missingPflichtCols.map((c) => ({ label: fieldLabels[c] || c, hint: "Spalte fehlt" }))} />}
+                {issues.missingPflichtCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder-Spalten" severity="error" description="Diese Spalten fehlen im Feed:" fixInstruction="Fügen Sie diese Spalten zu Ihrer Feed-Datei hinzu." items={issues.missingPflichtCols.map((c) => ({ label: fieldLabels[c] || c, hint: "Spalte fehlt" }))} />}
                 {entries.map(([field, errs]) => (
-                  <McIssueCard key={field} title={`${fieldLabels[field] || field} fehlerhaft`} severity="error" description={`${errs.length} Artikel betroffen.`}
+                  <McIssueCard key={field} title={`${fieldLabels[field] || field} fehlerhaft`} severity="error" description={`${errs.length} Artikel betroffen.`} fixInstruction={`Überprüfen Sie die ${fieldLabels[field] || field} in den betroffenen Zeilen und korrigieren Sie die Fehler.`}
                     items={errs.slice(0, 8).map((e) => ({ label: `Zeile ${e.row}${e.ean ? ` · ${e.ean}` : ""}`, hint: e.type === "invalid" ? `"${e.value}"` : "fehlt" }))}
-                    more={Math.max(0, errs.length - 8)} />
+                    more={Math.max(0, errs.length - 8)} compactList={true} />
                 ))}
-                {issues.dupEanCount > 0 && <McIssueCard title="Doppelte EAN" severity="error" description={`${issues.dupEanCount} doppelte EAN-Werte.`} items={[{ label: "Duplikate", hint: "EAN muss eindeutig sein" }]} />}
-                {issues.dupOfferIdCount > 0 && <McIssueCard title="Doppelte Offer ID" severity="error" description={`${issues.dupOfferIdCount} doppelte Offer IDs.`} items={[{ label: "Duplikate", hint: "Offer ID muss eindeutig sein" }]} />}
-                {issues.dupNameCount > 0 && <McIssueCard title="Doppelte Produktnamen" severity="error" description={`${issues.dupNameCount} doppelte Namen.`} items={[{ label: "Duplikate", hint: "Produktname sollte eindeutig sein" }]} />}
+                {issues.dupEanCount > 0 && <McIssueCard title="Doppelte EAN" severity="error" description={`${issues.dupEanCount} doppelte EAN-Werte.`} fixInstruction="Stellen Sie sicher, dass jede EAN nur einmal in Ihrer Datei vorkommt." items={[{ label: "Duplikate", hint: "EAN muss eindeutig sein" }]} />}
+                {issues.dupOfferIdCount > 0 && <McIssueCard title="Doppelte Offer ID" severity="error" description={`${issues.dupOfferIdCount} doppelte Offer IDs.`} fixInstruction="Jede Offer ID muss eindeutig sein. Ändern Sie doppelte IDs ab." items={[{ label: "Duplikate", hint: "Offer ID muss eindeutig sein" }]} />}
+                {issues.dupNameCount > 0 && <McIssueCard title="Doppelte Produktnamen" severity="error" description={`${issues.dupNameCount} doppelte Namen.`} fixInstruction="Prüfen Sie, ob identische Produktnamen wirklich unterschiedliche Produkte sind." items={[{ label: "Duplikate", hint: "Produktname sollte eindeutig sein" }]} />}
               </div>
             );
           })()}
@@ -3546,11 +3546,11 @@ function McAngebotsfeed() {
             return (
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>Hinweise</div>
-                {issues.missingOptionalCols.length > 0 && <McIssueCard title="Fehlende optionale Spalten" severity="warning" description="Diese Spalten fehlen:" items={issues.missingOptionalCols.map((c) => ({ label: c, hint: "Spalte nicht erkannt" }))} />}
+                {issues.missingOptionalCols.length > 0 && <McIssueCard title="Fehlende optionale Spalten" severity="warning" description="Diese Spalten fehlen:" fixInstruction="Diese Spalten sind optional, aber verbessern Ihr Content-Score. Erwägen Sie, sie hinzuzufügen." items={issues.missingOptionalCols.map((c) => ({ label: c, hint: "Spalte nicht erkannt" }))} />}
                 {entries.map(([field, hints]) => (
-                  <McIssueCard key={field} title={`${field} fehlt`} severity="warning" description={`${hints.length} Artikel betroffen.`}
+                  <McIssueCard key={field} title={`${field} fehlt`} severity="warning" description={`${hints.length} Artikel betroffen.`} fixInstruction={`Ergänzen Sie ${field} für die betroffenen Artikel, um Ihren Content-Score zu verbessern.`}
                     items={hints.slice(0, 6).map((e) => ({ label: `Zeile ${e.row}`, hint: e.ean || "" }))}
-                    more={Math.max(0, hints.length - 6)} />
+                    more={Math.max(0, hints.length - 6)} compactList={true} />
                 ))}
               </div>
             );
@@ -3898,7 +3898,7 @@ function CheckerMCPage() {
   );
 }
 
-function McIssueCard({ title, severity, description, items, more }) {
+function McIssueCard({ title, severity, description, items, more, fixInstruction, compactList }) {
   const [expanded, setExpanded] = useState(false);
   const isError = severity === "error";
   const accent = isError ? "#B91C1C" : "#92400E";
@@ -3906,6 +3906,13 @@ function McIssueCard({ title, severity, description, items, more }) {
   const border = isError ? "#FECACA" : "#FCD34D";
   const badgeBg = isError ? "#FEE2E2" : "#FEF3C7";
   const icon = isError ? "❌" : "⚠️";
+
+  // Extract EANs from labels for compact display
+  const eanList = compactList && items.length > 0 ? items.map(item => {
+    const match = item.label.match(/\d{12,13}|[\w\d]+/);
+    return match ? match[0] : item.label;
+  }).filter(Boolean) : [];
+
   return (
     <div style={{ background: "#FFFFFF", borderRadius: 8, border: "1px solid #E5E7EB", overflow: "hidden" }}>
       <div
@@ -3916,31 +3923,40 @@ function McIssueCard({ title, severity, description, items, more }) {
           background: bg, borderBottom: expanded ? `1px solid ${border}` : "none",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>{icon}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: accent }}>{title}</span>
-          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600 }}>
+          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600, flexShrink: 0 }}>
             {items.length + (more || 0)} Artikel
           </span>
         </div>
-        <span style={{ fontSize: 11, color: "#9CA3AF" }}>{expanded ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 11, color: "#9CA3AF", flexShrink: 0 }}>{expanded ? "▲" : "▼"}</span>
       </div>
       {expanded ? (
         <div style={{ padding: "10px 12px" }}>
-          <p style={{ fontSize: 12, color: "#374151", margin: "0 0 8px" }}>{description}</p>
-          <div style={{ display: "grid", gap: 5 }}>
-            {items.map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#111827" }}>{item.label}</span>
-                <span style={{ fontSize: 10, color: "#6B7280" }}>{item.hint}</span>
-              </div>
-            ))}
-            {more > 0 ? (
-              <div style={{ fontSize: 11, color: "#6B7280", padding: "3px 8px" }}>
-                … und {more} weitere Artikel
-              </div>
-            ) : null}
-          </div>
+          <p style={{ fontSize: 12, color: "#374151", margin: "0 0 6px" }}>{description}</p>
+          {fixInstruction && <p style={{ fontSize: 11, color: "#666", fontStyle: "italic", margin: "0 0 8px", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>{fixInstruction}</p>}
+
+          {compactList && eanList.length > 0 ? (
+            <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "1.5", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>
+              {eanList.slice(0, 10).join(", ")}
+              {more > 0 && ` … +${more}`}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 5 }}>
+              {items.map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#111827" }}>{item.label}</span>
+                  <span style={{ fontSize: 10, color: "#6B7280" }}>{item.hint}</span>
+                </div>
+              ))}
+              {more > 0 ? (
+                <div style={{ fontSize: 11, color: "#6B7280", padding: "3px 8px" }}>
+                  … und {more} weitere Artikel
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       ) : null}
     </div>
