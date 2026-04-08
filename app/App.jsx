@@ -5580,8 +5580,8 @@ export default function App() {
   const NAV_ITEMS = [
     { id: "feed-analyse",         label: "Feed Analyse",       icon: "🔍" },
     { id: "checker-mc",           label: "Merchant Center Prototype", icon: "🏪" },
-    { id: "produkt-optimierung",  label: "Produkt Optimierung",icon: "⚡" },
     { id: "mapping",              label: "Mapping",            icon: "🗂️" },
+    { id: "produkt-optimierung",  label: "Produkt Optimierung (WIP)",icon: "⚡" },
     ...(adminToken ? [{ id: "analytics", label: "Analytics", icon: "📈" }] : []),
   ];
 
@@ -6784,6 +6784,27 @@ export default function App() {
             </div>
             {mappingError && <div style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{mappingError}</div>}
           </div>
+
+          {mappingHeaders.length === 0 && (
+            <div style={{ background: "#F0F4FF", border: "1px solid #C7D2E8", borderRadius: 8, padding: "32px 24px", marginTop: 48, textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#1E40AF", marginBottom: 12 }}>📋 Content Mapping für CHECK24</div>
+              <div style={{ fontSize: 14, color: "#374151", marginBottom: 20, lineHeight: "1.6" }}>
+                Mit unserem Mapping-Tool verbinden Sie Ihre Feed-Spalten mit den CHECK24 Attributen. So stellen Sie sicher, dass Ihre Produktinformationen korrekt in unserem System ankommen.
+              </div>
+              <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 24, lineHeight: "1.6" }}>
+                <strong>Was das Tool kann:</strong>
+                <div style={{ marginTop: 12, textAlign: "left", display: "inline-block" }}>
+                  <div>✓ Automatische Spalten-Erkennung</div>
+                  <div>✓ Zuordnung zu CHECK24 Attributen</div>
+                  <div>✓ Datentyp-Normalisierung und Umwandlung</div>
+                  <div>✓ Live-Vorschau der gemappten Daten</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: "#1E40AF", fontWeight: 600, padding: "12px 16px", background: "#FFFFFF", borderRadius: 6, display: "inline-block" }}>
+                ↓ Laden Sie Ihre CSV-Datei oben hoch, um zu starten
+              </div>
+            </div>
+          )}
 
           {mappingHeaders.length > 0 && (
             <>
