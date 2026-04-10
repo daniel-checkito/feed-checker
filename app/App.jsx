@@ -3454,6 +3454,7 @@ function McAngebotsfeed() {
   const errorCount = issues ? issues.pflichtErrors.length : 0;
   const warningCount = issues ? issues.optionalHints.length : 0;
   const mcScore = issues ? issues.totalScore : 0;
+  const mcIsWrongFile = rows.length > 0 && Object.values(mcMapping).filter(Boolean).length === 0 && mcImageColumns.length === 0;
 
   return (
     <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1200, margin: "0 auto", paddingLeft: 60, paddingRight: 60 }}>
@@ -3594,7 +3595,19 @@ function McAngebotsfeed() {
       </div>
 
       {/* ── RIGHT: Analysis Results ── */}
-      {issues && (
+      {mcIsWrongFile && (
+        <div style={{ flex: "0 0 50%", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
+            <div style={{ fontSize: 11, color: "#7F1D1D", lineHeight: "1.6" }}>
+              Es konnten keine bekannten Spalten erkannt werden. Bitte laden Sie eine andere Datei hoch.
+              Erwartete Spalten sind z.&nbsp;B. <code>ean</code>, <code>name</code>, <code>price</code>, <code>shipping_mode</code> o.&nbsp;ä.
+            </div>
+          </div>
+        </div>
+      )}
+      {issues && !mcIsWrongFile && (
         <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 6, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
           {/* Score */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", marginTop: 44 }}>
@@ -3631,14 +3644,64 @@ function McAngebotsfeed() {
               </div>
             )}
 
-            {/* How score is calculated */}
-            <details style={{ marginTop: 4 }}>
-              <summary style={{ cursor: "pointer", fontSize: 9, color: "#6B7280" }}>Scoring-Details</summary>
-              <div style={{ marginTop: 3, fontSize: 9, color: "#6B7280", lineHeight: "12px" }}>
-                <div style={{ fontWeight: 600, marginBottom: 1 }}>100 Punkte = 70 Pflicht + 30 Optional</div>
-                <div>Pflicht: {issues.pflichtOkCount}/{issues.totalRows} OK = {issues.pflichtScore}/70</div>
-                <div style={{ marginTop: 1 }}>Duplikate: -{issues.dupPenalty} Punkte</div>
-                <div style={{ marginTop: 1 }}>Optional: {Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100)}% = {issues.optionalScore}/30</div>
+            {/* Scoring details */}
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280", fontWeight: 600, userSelect: "none" }}>
+                Scoring-Logik anzeigen
+              </summary>
+              <div style={{ marginTop: 8, display: "grid", gap: 8, fontSize: 10, lineHeight: "1.55" }}>
+                {/* Formula */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #E5E7EB", color: "#374151" }}>
+                  <span style={{ fontWeight: 700 }}>Score = </span>Pflichtfelder-Score + Optional-Score − Duplikat-Malus
+                </div>
+
+                {/* Pflicht block */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
+                  <div style={{ fontWeight: 700, color: "#166534", marginBottom: 3 }}>Pflichtfelder (max. 70 Pkt.)</div>
+                  <div style={{ color: "#374151" }}>
+                    {issues.pflichtOkCount} von {issues.totalRows} Artikeln haben alle Pflichtfelder korrekt ausgefüllt.
+                  </div>
+                  <div style={{ color: "#374151", marginTop: 2 }}>
+                    → {issues.pflichtOkCount}/{issues.totalRows} × 70 = <strong>{issues.pflichtScore}/70 Punkte</strong>
+                  </div>
+                  <div style={{ color: "#6B7280", marginTop: 4, fontSize: 9 }}>
+                    Pflichtfelder: EAN · Offer ID · Name · Preis · Bestand · Lieferzeit · Versandart · Bilder
+                  </div>
+                </div>
+
+                {/* Duplikate block */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: issues.dupPenalty > 0 ? "#FEF2F2" : "#F9FAFB", border: `1px solid ${issues.dupPenalty > 0 ? "#FECACA" : "#E5E7EB"}` }}>
+                  <div style={{ fontWeight: 700, color: issues.dupPenalty > 0 ? "#B91C1C" : "#374151", marginBottom: 3 }}>Duplikat-Malus (max. −10 Pkt.)</div>
+                  <div style={{ color: "#374151" }}>
+                    {issues.dupEanCount > 0 ? `${issues.dupEanCount} doppelte EAN` : "Keine doppelten EAN"}
+                    {issues.dupNameCount > 0 ? ` · ${issues.dupNameCount} doppelte Namen` : ""}
+                    {issues.dupOfferIdCount > 0 ? ` · ${issues.dupOfferIdCount} doppelte Offer IDs` : ""}
+                  </div>
+                  <div style={{ color: "#374151", marginTop: 2 }}>
+                    → <strong>−{issues.dupPenalty} Punkte</strong>
+                  </div>
+                </div>
+
+                {/* Optional block */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
+                  <div style={{ fontWeight: 700, color: "#1D4ED8", marginBottom: 3 }}>Optionale Felder (max. 30 Pkt.)</div>
+                  <div style={{ color: "#374151" }}>
+                    Durchschnittlich {Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100)}% der optionalen Felder je Artikel befüllt.
+                  </div>
+                  <div style={{ color: "#374151", marginTop: 2 }}>
+                    → {issues.totalOptionalFieldsPresent} / ({issues.totalRows} × {issues.optionalFieldCount}) × 30 = <strong>{issues.optionalScore}/30 Punkte</strong>
+                  </div>
+                  <div style={{ color: "#6B7280", marginTop: 4, fontSize: 9 }}>
+                    Optionale Felder: Beschreibung · Marke · Material · Farbe · Kategorie · Lieferumfang · Hersteller · Maße · 3+ Bilder
+                  </div>
+                </div>
+
+                {/* Total */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: mcScore >= 70 ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${mcScore >= 70 ? "#BBF7D0" : "#FECACA"}` }}>
+                  <span style={{ fontWeight: 700, color: mcScore >= 70 ? "#166534" : "#B91C1C" }}>
+                    Gesamt: {issues.pflichtScore} + {issues.optionalScore} − {issues.dupPenalty} = {mcScore}/100
+                  </span>
+                </div>
               </div>
             </details>
           </div>
@@ -4196,11 +4259,9 @@ function McIssueCard({ title, severity, description, items, more, fixInstruction
   const badgeBg = isError ? "#FEE2E2" : "#FEF3C7";
   const icon = isError ? "❌" : "⚠️";
 
-  // Extract EANs from labels for compact display
-  const eanList = compactList && items.length > 0 ? items.map(item => {
-    const match = item.label.match(/\d{12,13}|[\w\d]+/);
-    return match ? match[0] : item.label;
-  }).filter(Boolean) : [];
+  // For compactList cards the count badge in the header is enough — no need
+  // to repeat it or list individual row numbers inside the expanded view.
+  const totalCount = items.length + (more || 0);
 
   return (
     <div style={{ background: "#FFFFFF", borderRadius: 8, border: "1px solid #E5E7EB", overflow: "hidden" }}>
@@ -4215,39 +4276,35 @@ function McIssueCard({ title, severity, description, items, more, fixInstruction
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
           <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: accent }}>{title}</span>
-          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600, flexShrink: 0 }}>
-            {items.length + (more || 0)} Artikel
-          </span>
+          {totalCount > 0 && (
+            <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600, flexShrink: 0 }}>
+              {totalCount} Artikel
+            </span>
+          )}
         </div>
         <span style={{ fontSize: 11, color: "#9CA3AF", flexShrink: 0 }}>{expanded ? "▲" : "▼"}</span>
       </div>
-      {expanded ? (
+      {expanded && (
         <div style={{ padding: "10px 12px" }}>
-          <p style={{ fontSize: 12, color: "#374151", margin: "0 0 6px" }}>{description}</p>
-          {fixInstruction && <p style={{ fontSize: 11, color: "#666", fontStyle: "italic", margin: "0 0 8px", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>{fixInstruction}</p>}
-
-          {compactList && eanList.length > 0 ? (
-            <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "1.5", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>
-              {eanList.slice(0, 10).join(", ")}
-              {more > 0 && ` … +${more}`}
-            </div>
-          ) : (
+          {fixInstruction && (
+            <p style={{ fontSize: 11, color: "#666", fontStyle: "italic", margin: "0 0 8px", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>
+              {fixInstruction}
+            </p>
+          )}
+          {/* For compactList (row-error) cards, the CSV export has the exact row numbers.
+              We only show item detail for structural issues (missing columns etc.). */}
+          {!compactList && (
             <div style={{ display: "grid", gap: 5 }}>
               {items.map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#111827" }}>{item.label}</span>
-                  <span style={{ fontSize: 10, color: "#6B7280" }}>{item.hint}</span>
+                  {item.hint && <span style={{ fontSize: 10, color: "#6B7280" }}>{item.hint}</span>}
                 </div>
               ))}
-              {more > 0 ? (
-                <div style={{ fontSize: 11, color: "#6B7280", padding: "3px 8px" }}>
-                  … und {more} weitere Artikel
-                </div>
-              ) : null}
             </div>
           )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -4568,6 +4625,9 @@ export default function App() {
     () => ({ ...autoMapping, ...contentMapping, ...manualMapping }),
     [autoMapping, contentMapping, manualMapping]
   );
+
+  // True only when a file is loaded but zero fields could be matched at all
+  const isWrongFile = rawRows.length > 0 && Object.values(mapping).filter(Boolean).length === 0;
 
   const imageColumns = useMemo(() => {
     if (!headers.length) return [];
@@ -6050,6 +6110,19 @@ export default function App() {
             {/* Feed Checker Mode */}
             {pageMode === "feed-checker" && headers.length ? (
               <>
+            {/* Wrong-file rejection banner */}
+            {isWrongFile && (
+              <div style={{ padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
+                  <div style={{ fontSize: 12, color: "#7F1D1D", lineHeight: "1.6" }}>
+                    Es konnten keine bekannten Spalten erkannt werden. Bitte prüfen Sie, ob Sie die richtige Datei hochgeladen haben.
+                    Erwartete Spalten sind z.&nbsp;B. <code>ean</code>, <code>name</code>, <code>price</code>, <code>shipping_mode</code> o.&nbsp;ä.
+                  </div>
+                </div>
+              </div>
+            )}
             {/* SUMMARY */}
             <div ref={step6Ref}>
               <StepCard
