@@ -3288,15 +3288,23 @@ function Sparkline({ values, color = "#1553B6" }) {
 
 function McAngebotsfeed() {
   const [file, setFile] = useState(null);
-  const [issues, setIssues] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState([]);
+  const [headers, setHeaders] = useState([]);
+  const [manualMapping, setManualMapping] = useState({});
+  const [mappingExpanded, setMappingExpanded] = useState(false);
   const fileRef = useRef(null);
+  const [uploadMethod, setUploadMethod] = useState("upload");
+  const [feedFormat, setFeedFormat] = useState("CSV");
+  const [feedDelimiter, setFeedDelimiter] = useState("semicolon");
+  const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   function parseFile(f) {
     if (!f) return;
     setFile(f);
-    setIssues(null);
+    setRows([]);
+    setHeaders([]);
+    setManualMapping({});
     const tryParseMc = (encoding) => {
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -3312,8 +3320,8 @@ function McAngebotsfeed() {
           complete: (res) => {
             const r = Array.isArray(res.data) ? res.data : [];
             const h = res.meta?.fields || Object.keys(r[0] || {});
+            setHeaders(h);
             setRows(r);
-            analyzeFile(r, h);
           },
         });
       };
@@ -3322,74 +3330,96 @@ function McAngebotsfeed() {
     tryParseMc("UTF-8");
   }
 
-  function analyzeFile(rows, headers) {
-    const hl = headers.map((h) => h.toLowerCase().trim());
-    // Map columns using aliases
-    const mapCol = (aliases) => { for (const a of aliases) { const c = headers.find((h) => h.toLowerCase().trim() === a || h.toLowerCase().includes(a)); if (c) return c; } return null; };
-    const pflichtMapping = {};
-    for (const key of MC_PFLICHT_COLS) pflichtMapping[key] = mapCol(MC_PFLICHT_ALIASES[key] || [key]);
-    const optionalMapping = {};
-    for (const key of MC_OPTIONAL_COLS) optionalMapping[key] = mapCol(MC_OPTIONAL_ALIASES[key] || [key]);
-    // Also detect size columns
-    const sizeCol = headers.find((h) => { const l = h.toLowerCase(); return l.includes("size") || l.includes("abmessung") || l.includes("dimension") || l.includes("größe") || l.includes("groesse") || l.includes("maße"); });
-    if (sizeCol) optionalMapping.size = sizeCol;
-    // Check for 3+ image columns
-    const imageColumns = headers.filter((h) => { const n = h.toLowerCase(); return n.includes("image") || n.includes("bild") || n.includes("img"); });
+  // ── Same 3-tier mapping as Feed Analyse tab ──
 
-    const missingPflichtCols = MC_PFLICHT_COLS.filter((c) => !pflichtMapping[c]);
-    const missingOptionalCols = [...MC_OPTIONAL_COLS, "size"].filter((c) => !optionalMapping[c]);
+  // Tier 1: auto-detect by header name (uses same bestHeaderMatch + synonyms)
+  const mcAutoMapping = useMemo(() => {
+    if (!headers.length) return {};
+    const m = {};
+    for (const key of MC_PFLICHT_COLS) {
+      if (key === "image_url") continue; // image cols handled via imageColumns
+      m[key] = bestHeaderMatch(headers, MC_PFLICHT_ALIASES[key] || [key]) || null;
+    }
+    for (const key of MC_OPTIONAL_COLS) {
+      m[key] = bestHeaderMatch(headers, MC_OPTIONAL_ALIASES[key] || [key]) || null;
+    }
+    // size: special case not in MC_OPTIONAL_COLS list
+    if (!m.size) {
+      const sizeCol = headers.find((h) => { const l = h.toLowerCase(); return l.includes("size") || l.includes("abmessung") || l.includes("dimension") || l.includes("größe") || l.includes("groesse") || l.includes("maße"); });
+      if (sizeCol) m.size = sizeCol;
+    }
+    return m;
+  }, [headers]);
 
-    // Per-row analysis
-    const pflichtErrors = []; // { row, ean, field, value }
-    const optionalHints = []; // { row, ean, field }
+  // Tier 2: content-based fallback for fields not found by name
+  const mcContentMapping = useMemo(() => {
+    if (!headers.length || !rows.length) return {};
+    const allFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS, "size"];
+    const unmapped = allFields.filter((f) => !mcAutoMapping[f]);
+    if (!unmapped.length) return {};
+    return detectFieldByContent(unmapped, headers, rows);
+  }, [headers, rows, mcAutoMapping]);
+
+  // Final mapping: auto → content → manual overrides
+  const mcMapping = useMemo(
+    () => ({ ...mcAutoMapping, ...mcContentMapping, ...manualMapping }),
+    [mcAutoMapping, mcContentMapping, manualMapping]
+  );
+
+  // Image columns (all headers that look like images)
+  const mcImageColumns = useMemo(
+    () => headers.filter((h) => { const n = h.toLowerCase(); return n.includes("image") || n.includes("bild") || n.includes("img"); }),
+    [headers]
+  );
+
+  // Reactive analysis — re-runs whenever mapping or rows change
+  const issues = useMemo(() => {
+    if (!rows.length || !headers.length) return null;
+
+    const missingPflichtCols = MC_PFLICHT_COLS.filter((c) => {
+      if (c === "image_url") return mcImageColumns.length === 0;
+      return !mcMapping[c];
+    });
+    const missingOptionalCols = [...MC_OPTIONAL_COLS, "size"].filter((c) => !mcMapping[c]);
+
+    const pflichtErrors = [];
+    const optionalHints = [];
     const duplicateEans = {}, duplicateNames = {}, duplicateOfferIds = {};
     let pflichtOkCount = 0, totalOptionalFieldsPresent = 0;
-
-    // Count total optional fields (including size and 3+ images check)
-    const optionalFieldCount = MC_OPTIONAL_COLS.length + 1 + 1; // +1 for size, +1 for 3+ images
+    const optionalFieldCount = MC_OPTIONAL_COLS.length + 1 + 1; // +1 size, +1 for 3+ images
 
     rows.forEach((row, i) => {
       const rn = i + 1;
-      const ean = pflichtMapping.ean ? String(row[pflichtMapping.ean] ?? "").trim() : "";
-      const name = pflichtMapping.name ? String(row[pflichtMapping.name] ?? "").trim() : "";
-      const offerId = pflichtMapping.seller_offer_id ? String(row[pflichtMapping.seller_offer_id] ?? "").trim() : "";
+      const ean = mcMapping.ean ? String(row[mcMapping.ean] ?? "").trim() : "";
+      const name = mcMapping.name ? String(row[mcMapping.name] ?? "").trim() : "";
+      const offerId = mcMapping.seller_offer_id ? String(row[mcMapping.seller_offer_id] ?? "").trim() : "";
       let pflichtOk = true;
       let optionalFieldsPresent = 0;
 
-      // Pflichtfeld checks
       for (const key of MC_PFLICHT_COLS) {
-        const col = pflichtMapping[key];
+        if (key === "image_url") continue;
+        const col = mcMapping[key];
         if (!col) continue;
         const val = String(row[col] ?? "").trim();
         if (!val) { pflichtErrors.push({ row: rn, ean, field: key, type: "missing" }); pflichtOk = false; continue; }
         if (key === "price") { const n = parseFloat(val.replace(",", ".")); if (isNaN(n) || n <= 0) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; } }
         if (key === "shipping_mode" && val.toLowerCase() !== "paket" && val.toLowerCase() !== "spedition") { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
       }
-      // Check min 1 image
-      if (pflichtMapping.image_url) {
-        const imgCount = imageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
+      if (mcImageColumns.length > 0) {
+        const imgCount = mcImageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
         if (imgCount === 0) { pflichtErrors.push({ row: rn, ean, field: "image_url", type: "missing" }); pflichtOk = false; }
       }
 
-      // Optional field checks - count how many are present
       for (const key of [...MC_OPTIONAL_COLS, "size"]) {
-        const col = optionalMapping[key];
+        const col = mcMapping[key];
         if (!col) continue;
-        if (!String(row[col] ?? "").trim()) {
-          optionalHints.push({ row: rn, ean, field: key });
-        } else {
-          optionalFieldsPresent++;
-        }
+        if (!String(row[col] ?? "").trim()) { optionalHints.push({ row: rn, ean, field: key }); }
+        else { optionalFieldsPresent++; }
       }
-      // Check 3+ images
-      const totalImgs = imageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
-      if (totalImgs < 3) {
-        optionalHints.push({ row: rn, ean, field: "3+ Bilder" });
-      } else {
-        optionalFieldsPresent++;
-      }
+      const totalImgs = mcImageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
+      if (totalImgs < 3) { optionalHints.push({ row: rn, ean, field: "3+ Bilder" }); }
+      else { optionalFieldsPresent++; }
 
-      // Track duplicates
       if (ean) { if (!duplicateEans[ean]) duplicateEans[ean] = []; duplicateEans[ean].push(rn); }
       if (name) { if (!duplicateNames[name]) duplicateNames[name] = []; duplicateNames[name].push(rn); }
       if (offerId) { if (!duplicateOfferIds[offerId]) duplicateOfferIds[offerId] = []; duplicateOfferIds[offerId].push(rn); }
@@ -3403,31 +3433,27 @@ function McAngebotsfeed() {
     const dupOfferIdCount = Object.values(duplicateOfferIds).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
     const totalDups = dupEanCount + dupNameCount + dupOfferIdCount;
 
-    // Score: 70 pts for Pflichtfelder + 30 pts for optionale (proportional)
     const pflichtScore = rows.length ? Math.round((pflichtOkCount / rows.length) * 70) : 0;
     const dupPenalty = rows.length ? Math.min(10, Math.round((totalDups / rows.length) * 70)) : 0;
-    // Proportional optional score: average of optional fields present per row * 30
     const optionalScore = rows.length && optionalFieldCount > 0 ? Math.round((totalOptionalFieldsPresent / (rows.length * optionalFieldCount)) * 30) : 0;
     const totalScore = Math.max(0, pflichtScore - dupPenalty + optionalScore);
 
-    setIssues({
+    return {
       totalRows: rows.length,
-      pflichtMapping, optionalMapping, imageColumns,
+      pflichtMapping: MC_PFLICHT_COLS.reduce((m, k) => { m[k] = k === "image_url" ? (mcImageColumns[0] || null) : (mcMapping[k] || null); return m; }, {}),
+      optionalMapping: [...MC_OPTIONAL_COLS, "size"].reduce((m, k) => { m[k] = mcMapping[k] || null; return m; }, {}),
+      imageColumns: mcImageColumns,
       missingPflichtCols, missingOptionalCols,
       pflichtErrors, optionalHints,
       pflichtOkCount, totalOptionalFieldsPresent, optionalFieldCount,
       dupEanCount, dupNameCount, dupOfferIdCount,
       pflichtScore, dupPenalty, optionalScore, totalScore,
-    });
-  }
+    };
+  }, [rows, headers, mcMapping, mcImageColumns]);
 
   const errorCount = issues ? issues.pflichtErrors.length : 0;
   const warningCount = issues ? issues.optionalHints.length : 0;
   const mcScore = issues ? issues.totalScore : 0;
-  const [uploadMethod, setUploadMethod] = useState("upload");
-  const [feedFormat, setFeedFormat] = useState("CSV");
-  const [feedDelimiter, setFeedDelimiter] = useState("semicolon");
-  const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   return (
     <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1200, margin: "0 auto", paddingLeft: 60, paddingRight: 60 }}>
@@ -3676,6 +3702,100 @@ function McAngebotsfeed() {
                     APA ermöglicht die automatische Anlage Ihrer Produkte. Erlaubt sind bis zu 2% fehlerhafte Artikel, die automatisch aus dem Feed entfernt werden. Alle Pflichtfelder müssen gefüllt sein.
                   </div>
                 </details>
+              </div>
+            );
+          })()}
+
+          {/* Spalten-Zuordnung – collapsible manual mapping panel */}
+          {(() => {
+            const allMcFields = [
+              ...MC_PFLICHT_COLS.filter((f) => f !== "image_url"),
+              ...MC_OPTIONAL_COLS,
+              "size",
+            ];
+            const fieldLabels = { ean: "EAN", seller_offer_id: "Offer ID", name: "Name", price: "Preis", stock_amount: "Bestand", delivery_time: "Lieferzeit", shipping_mode: "Versandart", description: "Beschreibung", brand: "Marke", material: "Material", color: "Farbe", category_path: "Kategorie", delivery_includes: "Lieferumfang", manufacturer_name: "Hersteller", size: "Maße/Größe" };
+            const hasMissing = issues.missingPflichtCols.length > 0;
+            return (
+              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Spalten-Zuordnung</div>
+                    <div style={{ fontSize: 10, color: "#6B7280", marginTop: 1 }}>
+                      {hasMissing
+                        ? `${issues.missingPflichtCols.length} Pflichtfeld(er) nicht erkannt – bitte manuell zuordnen`
+                        : "Alle Pflichtfelder erkannt. Klicken zum Prüfen / Anpassen."}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMappingExpanded((v) => !v)}
+                    style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, border: "1px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    {mappingExpanded ? "Ausblenden" : "Prüfen / Anpassen"}
+                  </button>
+                </div>
+                {(hasMissing || mappingExpanded) && (
+                  <div style={{ marginTop: 10, display: "grid", gap: 5 }}>
+                    {allMcFields.map((f) => {
+                      const isManual = f in manualMapping;
+                      const isContent = !mcAutoMapping[f] && !!mcContentMapping[f] && !isManual;
+                      const col = mcMapping[f];
+                      const isPflicht = MC_PFLICHT_COLS.includes(f);
+                      const missing = !col && isPflicht;
+                      const rowBg = missing ? "#FEF3C7" : isManual ? "#F5F3FF" : isContent ? "#EFF6FF" : isPflicht ? "#ECFDF3" : "#F9FAFB";
+                      const rowBorder = missing ? "#FCD34D" : isManual ? "#C4B5FD" : isContent ? "#BFDBFE" : isPflicht ? "#A7F3D0" : "#E5E7EB";
+                      return (
+                        <div key={f} style={{ padding: "6px 8px", borderRadius: 8, border: `1px solid ${rowBorder}`, background: rowBg }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: "#111827" }}>{fieldLabels[f] || f}</span>
+                              {!isPflicht && <span style={{ fontSize: 9, color: "#6B7280", background: "#F3F4F6", padding: "0px 5px", borderRadius: 999 }}>optional</span>}
+                              {isManual && <span style={{ fontSize: 9, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "0px 5px", borderRadius: 999 }}>Manuell</span>}
+                              {isContent && <span style={{ fontSize: 9, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "0px 5px", borderRadius: 999 }}>Inhalt erkannt</span>}
+                            </div>
+                            {missing && <span style={{ fontSize: 9, fontWeight: 700, color: "#92400E" }}>Pflicht – fehlt</span>}
+                          </div>
+                          <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                            <select
+                              value={col || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setManualMapping((prev) => {
+                                  const next = { ...prev };
+                                  if (val === "") delete next[f];
+                                  else next[f] = val;
+                                  return next;
+                                });
+                              }}
+                              style={{ flex: 1, fontSize: 11, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                            >
+                              <option value="">-- Nicht zugeordnet --</option>
+                              {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            {isManual && (
+                              <button
+                                type="button"
+                                onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                style={{ fontSize: 10, padding: "3px 7px", borderRadius: 5, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer", whiteSpace: "nowrap" }}
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Image columns info */}
+                    <div style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "#111827", marginBottom: 2 }}>Bilder (image_url)</div>
+                      <div style={{ fontSize: 10, color: "#6B7280" }}>
+                        {mcImageColumns.length > 0
+                          ? `${mcImageColumns.length} Bild-Spalte(n) erkannt: ${mcImageColumns.join(", ")}`
+                          : "Keine Bild-Spalten erkannt (Spaltenname muss 'image', 'bild' oder 'img' enthalten)"}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
