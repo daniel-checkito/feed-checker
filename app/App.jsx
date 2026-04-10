@@ -3706,94 +3706,97 @@ function McAngebotsfeed() {
             );
           })()}
 
-          {/* Spalten-Zuordnung – collapsible manual mapping panel */}
+          {/* Spalten-Zuordnung – compact summary + optional edit panel */}
           {(() => {
-            const allMcFields = [
-              ...MC_PFLICHT_COLS.filter((f) => f !== "image_url"),
-              ...MC_OPTIONAL_COLS,
-              "size",
-            ];
+            const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS, "size"];
             const fieldLabels = { ean: "EAN", seller_offer_id: "Offer ID", name: "Name", price: "Preis", stock_amount: "Bestand", delivery_time: "Lieferzeit", shipping_mode: "Versandart", description: "Beschreibung", brand: "Marke", material: "Material", color: "Farbe", category_path: "Kategorie", delivery_includes: "Lieferumfang", manufacturer_name: "Hersteller", size: "Maße/Größe" };
             const hasMissing = issues.missingPflichtCols.length > 0;
+            const totalFields = allMcFields.length + 1; // +1 for image_url
+            const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
             return (
               <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px" }}>
+                {/* Header row with compact toggle */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Spalten-Zuordnung</div>
-                    <div style={{ fontSize: 10, color: "#6B7280", marginTop: 1 }}>
-                      {hasMissing
-                        ? `${issues.missingPflichtCols.length} Pflichtfeld(er) nicht erkannt – bitte manuell zuordnen`
-                        : "Alle Pflichtfelder erkannt. Klicken zum Prüfen / Anpassen."}
-                    </div>
-                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Spalten-Zuordnung</div>
                   <button
                     type="button"
                     onClick={() => setMappingExpanded((v) => !v)}
-                    style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, border: "1px solid #D1D5DB", background: "#F9FAFB", cursor: "pointer", whiteSpace: "nowrap" }}
+                    style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, border: `1px solid ${hasMissing ? "#FCA5A5" : "#D1D5DB"}`, background: hasMissing ? "#FEF2F2" : "#F9FAFB", color: hasMissing ? "#B91C1C" : "#374151", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
                   >
-                    {mappingExpanded ? "Ausblenden" : "Prüfen / Anpassen"}
+                    {foundFields}/{totalFields} {mappingExpanded ? "▲" : "▼"}
                   </button>
                 </div>
+
+                {/* Compact read-only summary – auto-open when missing, otherwise toggled */}
                 {(hasMissing || mappingExpanded) && (
-                  <div style={{ marginTop: 10, display: "grid", gap: 5 }}>
-                    {allMcFields.map((f) => {
-                      const isManual = f in manualMapping;
-                      const isContent = !mcAutoMapping[f] && !!mcContentMapping[f] && !isManual;
-                      const col = mcMapping[f];
-                      const isPflicht = MC_PFLICHT_COLS.includes(f);
-                      const missing = !col && isPflicht;
-                      const rowBg = missing ? "#FEF3C7" : isManual ? "#F5F3FF" : isContent ? "#EFF6FF" : isPflicht ? "#ECFDF3" : "#F9FAFB";
-                      const rowBorder = missing ? "#FCD34D" : isManual ? "#C4B5FD" : isContent ? "#BFDBFE" : isPflicht ? "#A7F3D0" : "#E5E7EB";
-                      return (
-                        <div key={f} style={{ padding: "6px 8px", borderRadius: 8, border: `1px solid ${rowBorder}`, background: rowBg }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: "#111827" }}>{fieldLabels[f] || f}</span>
-                              {!isPflicht && <span style={{ fontSize: 9, color: "#6B7280", background: "#F3F4F6", padding: "0px 5px", borderRadius: 999 }}>optional</span>}
-                              {isManual && <span style={{ fontSize: 9, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "0px 5px", borderRadius: 999 }}>Manuell</span>}
-                              {isContent && <span style={{ fontSize: 9, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "0px 5px", borderRadius: 999 }}>Inhalt erkannt</span>}
-                            </div>
-                            {missing && <span style={{ fontSize: 9, fontWeight: 700, color: "#92400E" }}>Pflicht – fehlt</span>}
-                          </div>
-                          <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                            <select
-                              value={col || ""}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setManualMapping((prev) => {
-                                  const next = { ...prev };
-                                  if (val === "") delete next[f];
-                                  else next[f] = val;
-                                  return next;
-                                });
-                              }}
-                              style={{ flex: 1, fontSize: 11, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                  <div style={{ marginTop: 8 }}>
+                    {/* Compact two-column list */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px" }}>
+                      {allMcFields.map((f) => {
+                        const col = mcMapping[f];
+                        const isManual = f in manualMapping;
+                        const isContent = !mcAutoMapping[f] && !!mcContentMapping[f] && !isManual;
+                        const isPflicht = MC_PFLICHT_COLS.includes(f);
+                        const missing = !col && isPflicht;
+                        return (
+                          <div key={f} style={{ display: "flex", alignItems: "baseline", gap: 3, fontSize: 11, lineHeight: "19px", overflow: "hidden" }}>
+                            <span style={{ color: "#6B7280", flexShrink: 0 }}>{fieldLabels[f] || f}</span>
+                            <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
+                            <span
+                              style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: missing ? "#DC2626" : isManual ? "#7C3AED" : isContent ? "#1D4ED8" : "#166534" }}
+                              title={col || "nicht gefunden"}
                             >
-                              <option value="">-- Nicht zugeordnet --</option>
-                              {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                            </select>
-                            {isManual && (
-                              <button
-                                type="button"
-                                onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
-                                style={{ fontSize: 10, padding: "3px 7px", borderRadius: 5, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer", whiteSpace: "nowrap" }}
-                              >
-                                Reset
-                              </button>
-                            )}
+                              {col || "–"}
+                            </span>
+                            {isManual && <span style={{ fontSize: 8, color: "#7C3AED", flexShrink: 0 }}>M</span>}
+                            {isContent && <span style={{ fontSize: 8, color: "#1D4ED8", flexShrink: 0 }}>I</span>}
                           </div>
-                        </div>
-                      );
-                    })}
-                    {/* Image columns info */}
-                    <div style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#111827", marginBottom: 2 }}>Bilder (image_url)</div>
-                      <div style={{ fontSize: 10, color: "#6B7280" }}>
-                        {mcImageColumns.length > 0
-                          ? `${mcImageColumns.length} Bild-Spalte(n) erkannt: ${mcImageColumns.join(", ")}`
-                          : "Keine Bild-Spalten erkannt (Spaltenname muss 'image', 'bild' oder 'img' enthalten)"}
+                        );
+                      })}
+                      {/* Image columns row */}
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 3, fontSize: 11, lineHeight: "19px", overflow: "hidden" }}>
+                        <span style={{ color: "#6B7280", flexShrink: 0 }}>Bilder</span>
+                        <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
+                        <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: mcImageColumns.length > 0 ? "#166534" : "#DC2626" }} title={mcImageColumns.join(", ") || "nicht gefunden"}>
+                          {mcImageColumns.length > 0 ? `${mcImageColumns.length} Spalte(n)` : "–"}
+                        </span>
                       </div>
                     </div>
+
+                    {/* Secondary: full edit panel */}
+                    <details style={{ marginTop: 8 }}>
+                      <summary style={{ fontSize: 11, color: "#6B7280", cursor: "pointer", userSelect: "none" }}>
+                        Spalten manuell anpassen…
+                      </summary>
+                      <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
+                        {allMcFields.map((f) => {
+                          const isManual = f in manualMapping;
+                          const col = mcMapping[f];
+                          const isPflicht = MC_PFLICHT_COLS.includes(f);
+                          const missing = !col && isPflicht;
+                          return (
+                            <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 11, color: "#374151", width: 100, flexShrink: 0 }}>{fieldLabels[f] || f}</span>
+                              <select
+                                value={col || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
+                                }}
+                                style={{ flex: 1, fontSize: 11, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                              >
+                                <option value="">-- Nicht zugeordnet --</option>
+                                {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              {isManual && (
+                                <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                  style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
                   </div>
                 )}
               </div>
@@ -5563,6 +5566,7 @@ export default function App() {
   };
 
   const [step2Expanded, setStep2Expanded] = useState(false);
+  const [mappingPreviewOpen, setMappingPreviewOpen] = useState(false);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const step6Ref = useRef(null);
   const previewTableRef = useRef(null);
@@ -6301,6 +6305,7 @@ export default function App() {
                 <SmallText>Bitte CSV hochladen um die erkannten Spalten zu sehen.</SmallText>
               ) : (
                 <>
+                  {/* Step 2 status bar */}
                   <div
                     style={{
                       marginTop: 10,
@@ -6322,19 +6327,69 @@ export default function App() {
                         ? "Alle Pflichtfelder wurden korrekt zugeordnet."
                         : `Es fehlen noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern.`}
                     </span>
-                    <span>
-                      {optionalFields.length
-                        ? `${optionalPresence.found.length}/${optionalFields.length} optionale Felder erkannt`
-                        : "Keine optionalen Felder konfiguriert"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setStep2Expanded((v) => !v)}
-                      style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${allRequiredOk ? "rgba(22,101,52,0.25)" : "rgba(146,64,14,0.25)"}`, background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-                    >
-                      {step2Expanded ? "Details ausblenden" : "Spalten prüfen / anpassen"}
-                    </button>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                      {/* Compact mapping preview button */}
+                      <button
+                        type="button"
+                        onClick={() => setMappingPreviewOpen((v) => !v)}
+                        style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${allRequiredOk ? "rgba(22,101,52,0.25)" : "rgba(146,64,14,0.25)"}`, background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        {(() => {
+                          const total = requiredFields.length + optionalFields.length;
+                          const found = [...requiredFields, ...optionalFields].filter((f) => mapping[f]).length;
+                          return `${found}/${total} Spalten ${mappingPreviewOpen ? "▲" : "▼"}`;
+                        })()}
+                      </button>
+                      {/* Full edit button */}
+                      <button
+                        type="button"
+                        onClick={() => setStep2Expanded((v) => !v)}
+                        style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${allRequiredOk ? "rgba(22,101,52,0.25)" : "rgba(146,64,14,0.25)"}`, background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        {step2Expanded ? "Bearbeiten schließen" : "Bearbeiten"}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Compact mapping preview – quick read-only overview */}
+                  {mappingPreviewOpen && (
+                    <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FAFAFA" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 12px" }}>
+                        {[...requiredFields, ...optionalFields].map((f) => {
+                          const col = mapping[f];
+                          const isManual = f in manualMapping;
+                          const isContent = !autoMapping[f] && !!contentMapping[f] && !isManual;
+                          const missing = !col && requiredFields.includes(f);
+                          return (
+                            <div key={f} style={{ display: "flex", alignItems: "baseline", gap: 4, fontSize: 11, lineHeight: "20px", overflow: "hidden" }}>
+                              <span style={{ color: "#6B7280", flexShrink: 0 }}>{f}</span>
+                              <span style={{ color: "#9CA3AF", flexShrink: 0 }}>→</span>
+                              <span
+                                style={{
+                                  fontWeight: 600,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  color: missing ? "#DC2626" : isManual ? "#7C3AED" : isContent ? "#1D4ED8" : "#166534",
+                                }}
+                                title={col || "nicht gefunden"}
+                              >
+                                {col || "–"}
+                              </span>
+                              {isManual && <span style={{ fontSize: 9, color: "#7C3AED", flexShrink: 0 }}>M</span>}
+                              {isContent && <span style={{ fontSize: 9, color: "#1D4ED8", flexShrink: 0 }}>I</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF" }}>
+                        Farben: <span style={{ color: "#166534" }}>■</span> Auto &nbsp;
+                        <span style={{ color: "#1D4ED8" }}>■</span> Inhalt erkannt &nbsp;
+                        <span style={{ color: "#7C3AED" }}>■</span> Manuell &nbsp;
+                        <span style={{ color: "#DC2626" }}>■</span> Fehlt
+                      </div>
+                    </div>
+                  )}
 
                   {(!allRequiredOk || step2Expanded) && (
                     <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
