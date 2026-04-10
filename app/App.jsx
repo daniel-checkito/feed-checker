@@ -84,6 +84,110 @@ function bestHeaderMatch(headers, candidates) {
   return null;
 }
 
+// Content-based column detection: inspects first N rows to identify columns
+// when header-name matching fails.
+function detectFieldByContent(unmappedFields, headers, rows, sampleSize = 10) {
+  const sample = rows.slice(0, Math.min(sampleSize, rows.length));
+  const result = {};
+
+  const fieldDetectors = {
+    shipping_mode: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      return nonEmpty.length > 0 && nonEmpty.every((v) => /^(paket|spedition)$/i.test(String(v ?? "").trim()));
+    },
+    ean: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      return nonEmpty.filter((v) => /^\d{8,14}$/.test(String(v ?? "").trim())).length / nonEmpty.length > 0.7;
+    },
+    price: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      return (
+        nonEmpty.filter((v) => {
+          const s = String(v ?? "").trim().replace(",", ".");
+          return /^\d+(\.\d{1,2})?$/.test(s) && parseFloat(s) > 0 && parseFloat(s) < 100000;
+        }).length /
+          nonEmpty.length >
+        0.7
+      );
+    },
+    delivery_time: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      return (
+        nonEmpty.filter((v) => /\d+\s*(werktage?|arbeitstage?|wochen?|wk\.?|wt\.?)/i.test(String(v ?? ""))).length /
+          nonEmpty.length >
+        0.5
+      );
+    },
+    stock_amount: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      return nonEmpty.filter((v) => /^\d+$/.test(String(v ?? "").trim())).length / nonEmpty.length > 0.8;
+    },
+    material: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      const matWords = /holz|metall|stoff|leder|kunststoff|glas|eiche|kiefer|buche|mdf|aluminium|stahl|polyester|baumwolle|massiv|spanplatte/i;
+      return nonEmpty.filter((v) => matWords.test(String(v ?? ""))).length / nonEmpty.length > 0.4;
+    },
+    color: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      const colorWords = /schwarz|wei(ß|ss)|grau|braun|beige|blau|gr(ü|ue)n|rot|gelb|natur|anthrazit|silber|gold|cognac|creme|olive|lila|pink/i;
+      return nonEmpty.filter((v) => colorWords.test(String(v ?? ""))).length / nonEmpty.length > 0.4;
+    },
+    brand: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      // Brand: short strings, relatively few unique values (same brand repeated)
+      const unique = new Set(nonEmpty.map((v) => String(v ?? "").trim().toLowerCase()));
+      return (
+        unique.size <= Math.ceil(nonEmpty.length * 0.5) &&
+        nonEmpty.every((v) => {
+          const s = String(v ?? "").trim();
+          return s.length >= 2 && s.length <= 40 && !/^\d+$/.test(s);
+        })
+      );
+    },
+    description: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      return nonEmpty.filter((v) => String(v ?? "").trim().length > 80).length / nonEmpty.length > 0.5;
+    },
+    name: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      return (
+        nonEmpty.filter((v) => {
+          const s = String(v ?? "").trim();
+          return s.length >= 10 && s.length <= 200 && !/^\d+$/.test(s);
+        }).length /
+          nonEmpty.length >
+        0.7
+      );
+    },
+  };
+
+  const usedHeaders = new Set();
+
+  for (const field of unmappedFields) {
+    if (!fieldDetectors[field]) continue;
+    for (const header of headers) {
+      if (usedHeaders.has(header)) continue;
+      const values = sample.map((r) => r[header]).filter((v) => v != null && v !== "");
+      if (values.length && fieldDetectors[field](values)) {
+        result[field] = header;
+        usedHeaders.add(header);
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
 function looksLikeScientificEAN(value) {
   const s = String(value ?? "").trim();
   if (!s) return false;
@@ -449,7 +553,8 @@ function ResizableTable({
   const [rowIssueModal, setRowIssueModal] = useState(null);
   const [hoveredCriticalRowIndex, setHoveredCriticalRowIndex] = useState(null);
   const dragRef = useRef(null);
-  const rowRefs = useRef(new Map());
+  const containerRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
 
   const isLongTextColumn = (key) => {
     const norm = normalizeKey(key);
@@ -490,11 +595,15 @@ function ResizableTable({
 
   useEffect(() => {
     if (!targetRowKey || !getRowTargetKey) return;
-    const node = rowRefs.current.get(String(targetRowKey));
-    if (!node) return;
-    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    const rowIdx = rows.findIndex((r, i) => String(getRowTargetKey(r, i)) === String(targetRowKey));
+    if (rowIdx === -1) return;
+    if (containerRef.current) {
+      const targetScrollTop = rowIdx * rowHeight - containerRef.current.clientHeight / 2 + rowHeight / 2;
+      containerRef.current.scrollTop = Math.max(0, targetScrollTop);
+      setScrollTop(Math.max(0, targetScrollTop));
+    }
     if (typeof onTargetHandled === "function") onTargetHandled();
-  }, [targetRowKey, rows, getRowTargetKey, onTargetHandled]);
+  }, [targetRowKey, rows, getRowTargetKey, rowHeight, onTargetHandled]);
 
   const startResize = (key, event) => {
     const th = event.currentTarget.parentElement;
@@ -520,8 +629,18 @@ function ResizableTable({
     event.stopPropagation();
   };
 
+  // Virtual scroll — only render rows inside the visible viewport (+buffer)
+  const VIRT_BUFFER = 8;
+  const containerH = containerRef.current?.clientHeight || 720;
+  const visibleStart = Math.max(0, Math.floor(scrollTop / rowHeight) - VIRT_BUFFER);
+  const visibleEnd = Math.min(rows.length, visibleStart + Math.ceil(containerH / rowHeight) + VIRT_BUFFER * 2);
+  const topSpacer = visibleStart * rowHeight;
+  const bottomSpacer = Math.max(0, (rows.length - visibleEnd)) * rowHeight;
+
   return (
     <div
+      ref={containerRef}
+      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
       style={{
         width: "100%",
         maxHeight: 720,
@@ -601,11 +720,12 @@ function ResizableTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
+          {topSpacer > 0 && <tr key="__virt_top"><td colSpan={columns.length + 1} style={{ height: topSpacer, padding: 0, border: 0 }} /></tr>}
+          {rows.slice(visibleStart, visibleEnd).map((r, localIdx) => {
+            const i = visibleStart + localIdx;
             const zebra = i % 2 === 0 ? "#FFFFFF" : "#F9FAFB";
             const absRowIndex = r?.__rowIndex;
             const isCritical = absRowIndex != null && criticalRowIndexSet?.has(absRowIndex);
-            const rowTargetKey = getRowTargetKey ? getRowTargetKey(r, i) : null;
             const rowIssueMessages = isCritical ? rowCriticalIssuesByIndex?.[absRowIndex] ?? [] : [];
             const rowIssueText = rowIssueMessages?.length ? String(rowIssueMessages.join(" • ")) : "";
             const rowBg = isCritical ? "#FEE2E2" : zebra;
@@ -616,12 +736,6 @@ function ResizableTable({
             return (
               <tr
                 key={i}
-                ref={(el) => {
-                  if (!rowTargetKey) return;
-                  const key = String(rowTargetKey);
-                  if (el) rowRefs.current.set(key, el);
-                  else rowRefs.current.delete(key);
-                }}
                 title={isCritical && rowIssueText ? rowIssueText : ""}
                 onMouseEnter={() => {
                   if (isCritical) setHoveredCriticalRowIndex(absRowIndex);
@@ -788,6 +902,7 @@ function ResizableTable({
             </tr>
             );
           })}
+          {bottomSpacer > 0 && <tr key="__virt_bottom"><td colSpan={columns.length + 1} style={{ height: bottomSpacer, padding: 0, border: 0 }} /></tr>}
         </tbody>
       </table>
       <div
@@ -3153,7 +3268,7 @@ const MC_PFLICHT_ALIASES = {
   stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit"],
   delivery_time: ["delivery_time", "lieferzeit", "delivery time"],
   image_url: ["image_url", "image", "img_url", "bild", "bild_url"],
-  shipping_mode: ["shipping_mode", "versandart", "shipping", "shipping_type"],
+  shipping_mode: ["shipping_mode", "versandart", "shipping", "shipping_type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
 };
 const MC_OPTIONAL_ALIASES = {
   description: ["description", "beschreibung", "desc"],
@@ -3184,15 +3299,23 @@ function Sparkline({ values, color = "#1553B6" }) {
 
 function McAngebotsfeed() {
   const [file, setFile] = useState(null);
-  const [issues, setIssues] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState([]);
+  const [headers, setHeaders] = useState([]);
+  const [manualMapping, setManualMapping] = useState({});
+  const [mappingExpanded, setMappingExpanded] = useState(false);
   const fileRef = useRef(null);
+  const [uploadMethod, setUploadMethod] = useState("upload");
+  const [feedFormat, setFeedFormat] = useState("CSV");
+  const [feedDelimiter, setFeedDelimiter] = useState("semicolon");
+  const [feedQuoteChar, setFeedQuoteChar] = useState("");
 
   function parseFile(f) {
     if (!f) return;
     setFile(f);
-    setIssues(null);
+    setRows([]);
+    setHeaders([]);
+    setManualMapping({});
     const tryParseMc = (encoding) => {
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -3208,8 +3331,8 @@ function McAngebotsfeed() {
           complete: (res) => {
             const r = Array.isArray(res.data) ? res.data : [];
             const h = res.meta?.fields || Object.keys(r[0] || {});
+            setHeaders(h);
             setRows(r);
-            analyzeFile(r, h);
           },
         });
       };
@@ -3218,74 +3341,96 @@ function McAngebotsfeed() {
     tryParseMc("UTF-8");
   }
 
-  function analyzeFile(rows, headers) {
-    const hl = headers.map((h) => h.toLowerCase().trim());
-    // Map columns using aliases
-    const mapCol = (aliases) => { for (const a of aliases) { const c = headers.find((h) => h.toLowerCase().trim() === a || h.toLowerCase().includes(a)); if (c) return c; } return null; };
-    const pflichtMapping = {};
-    for (const key of MC_PFLICHT_COLS) pflichtMapping[key] = mapCol(MC_PFLICHT_ALIASES[key] || [key]);
-    const optionalMapping = {};
-    for (const key of MC_OPTIONAL_COLS) optionalMapping[key] = mapCol(MC_OPTIONAL_ALIASES[key] || [key]);
-    // Also detect size columns
-    const sizeCol = headers.find((h) => { const l = h.toLowerCase(); return l.includes("size") || l.includes("abmessung") || l.includes("dimension") || l.includes("größe") || l.includes("groesse") || l.includes("maße"); });
-    if (sizeCol) optionalMapping.size = sizeCol;
-    // Check for 3+ image columns
-    const imageColumns = headers.filter((h) => { const n = h.toLowerCase(); return n.includes("image") || n.includes("bild") || n.includes("img"); });
+  // ── Same 3-tier mapping as Feed Analyse tab ──
 
-    const missingPflichtCols = MC_PFLICHT_COLS.filter((c) => !pflichtMapping[c]);
-    const missingOptionalCols = [...MC_OPTIONAL_COLS, "size"].filter((c) => !optionalMapping[c]);
+  // Tier 1: auto-detect by header name (uses same bestHeaderMatch + synonyms)
+  const mcAutoMapping = useMemo(() => {
+    if (!headers.length) return {};
+    const m = {};
+    for (const key of MC_PFLICHT_COLS) {
+      if (key === "image_url") continue; // image cols handled via imageColumns
+      m[key] = bestHeaderMatch(headers, MC_PFLICHT_ALIASES[key] || [key]) || null;
+    }
+    for (const key of MC_OPTIONAL_COLS) {
+      m[key] = bestHeaderMatch(headers, MC_OPTIONAL_ALIASES[key] || [key]) || null;
+    }
+    // size: special case not in MC_OPTIONAL_COLS list
+    if (!m.size) {
+      const sizeCol = headers.find((h) => { const l = h.toLowerCase(); return l.includes("size") || l.includes("abmessung") || l.includes("dimension") || l.includes("größe") || l.includes("groesse") || l.includes("maße"); });
+      if (sizeCol) m.size = sizeCol;
+    }
+    return m;
+  }, [headers]);
 
-    // Per-row analysis
-    const pflichtErrors = []; // { row, ean, field, value }
-    const optionalHints = []; // { row, ean, field }
+  // Tier 2: content-based fallback for fields not found by name
+  const mcContentMapping = useMemo(() => {
+    if (!headers.length || !rows.length) return {};
+    const allFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS, "size"];
+    const unmapped = allFields.filter((f) => !mcAutoMapping[f]);
+    if (!unmapped.length) return {};
+    return detectFieldByContent(unmapped, headers, rows);
+  }, [headers, rows, mcAutoMapping]);
+
+  // Final mapping: auto → content → manual overrides
+  const mcMapping = useMemo(
+    () => ({ ...mcAutoMapping, ...mcContentMapping, ...manualMapping }),
+    [mcAutoMapping, mcContentMapping, manualMapping]
+  );
+
+  // Image columns (all headers that look like images)
+  const mcImageColumns = useMemo(
+    () => headers.filter((h) => { const n = h.toLowerCase(); return n.includes("image") || n.includes("bild") || n.includes("img"); }),
+    [headers]
+  );
+
+  // Reactive analysis — re-runs whenever mapping or rows change
+  const issues = useMemo(() => {
+    if (!rows.length || !headers.length) return null;
+
+    const missingPflichtCols = MC_PFLICHT_COLS.filter((c) => {
+      if (c === "image_url") return mcImageColumns.length === 0;
+      return !mcMapping[c];
+    });
+    const missingOptionalCols = [...MC_OPTIONAL_COLS, "size"].filter((c) => !mcMapping[c]);
+
+    const pflichtErrors = [];
+    const optionalHints = [];
     const duplicateEans = {}, duplicateNames = {}, duplicateOfferIds = {};
     let pflichtOkCount = 0, totalOptionalFieldsPresent = 0;
-
-    // Count total optional fields (including size and 3+ images check)
-    const optionalFieldCount = MC_OPTIONAL_COLS.length + 1 + 1; // +1 for size, +1 for 3+ images
+    const optionalFieldCount = MC_OPTIONAL_COLS.length + 1 + 1; // +1 size, +1 for 3+ images
 
     rows.forEach((row, i) => {
       const rn = i + 1;
-      const ean = pflichtMapping.ean ? String(row[pflichtMapping.ean] ?? "").trim() : "";
-      const name = pflichtMapping.name ? String(row[pflichtMapping.name] ?? "").trim() : "";
-      const offerId = pflichtMapping.seller_offer_id ? String(row[pflichtMapping.seller_offer_id] ?? "").trim() : "";
+      const ean = mcMapping.ean ? String(row[mcMapping.ean] ?? "").trim() : "";
+      const name = mcMapping.name ? String(row[mcMapping.name] ?? "").trim() : "";
+      const offerId = mcMapping.seller_offer_id ? String(row[mcMapping.seller_offer_id] ?? "").trim() : "";
       let pflichtOk = true;
       let optionalFieldsPresent = 0;
 
-      // Pflichtfeld checks
       for (const key of MC_PFLICHT_COLS) {
-        const col = pflichtMapping[key];
+        if (key === "image_url") continue;
+        const col = mcMapping[key];
         if (!col) continue;
         const val = String(row[col] ?? "").trim();
         if (!val) { pflichtErrors.push({ row: rn, ean, field: key, type: "missing" }); pflichtOk = false; continue; }
         if (key === "price") { const n = parseFloat(val.replace(",", ".")); if (isNaN(n) || n <= 0) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; } }
         if (key === "shipping_mode" && val.toLowerCase() !== "paket" && val.toLowerCase() !== "spedition") { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
       }
-      // Check min 1 image
-      if (pflichtMapping.image_url) {
-        const imgCount = imageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
+      if (mcImageColumns.length > 0) {
+        const imgCount = mcImageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
         if (imgCount === 0) { pflichtErrors.push({ row: rn, ean, field: "image_url", type: "missing" }); pflichtOk = false; }
       }
 
-      // Optional field checks - count how many are present
       for (const key of [...MC_OPTIONAL_COLS, "size"]) {
-        const col = optionalMapping[key];
+        const col = mcMapping[key];
         if (!col) continue;
-        if (!String(row[col] ?? "").trim()) {
-          optionalHints.push({ row: rn, ean, field: key });
-        } else {
-          optionalFieldsPresent++;
-        }
+        if (!String(row[col] ?? "").trim()) { optionalHints.push({ row: rn, ean, field: key }); }
+        else { optionalFieldsPresent++; }
       }
-      // Check 3+ images
-      const totalImgs = imageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
-      if (totalImgs < 3) {
-        optionalHints.push({ row: rn, ean, field: "3+ Bilder" });
-      } else {
-        optionalFieldsPresent++;
-      }
+      const totalImgs = mcImageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
+      if (totalImgs < 3) { optionalHints.push({ row: rn, ean, field: "3+ Bilder" }); }
+      else { optionalFieldsPresent++; }
 
-      // Track duplicates
       if (ean) { if (!duplicateEans[ean]) duplicateEans[ean] = []; duplicateEans[ean].push(rn); }
       if (name) { if (!duplicateNames[name]) duplicateNames[name] = []; duplicateNames[name].push(rn); }
       if (offerId) { if (!duplicateOfferIds[offerId]) duplicateOfferIds[offerId] = []; duplicateOfferIds[offerId].push(rn); }
@@ -3299,31 +3444,28 @@ function McAngebotsfeed() {
     const dupOfferIdCount = Object.values(duplicateOfferIds).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
     const totalDups = dupEanCount + dupNameCount + dupOfferIdCount;
 
-    // Score: 70 pts for Pflichtfelder + 30 pts for optionale (proportional)
     const pflichtScore = rows.length ? Math.round((pflichtOkCount / rows.length) * 70) : 0;
     const dupPenalty = rows.length ? Math.min(10, Math.round((totalDups / rows.length) * 70)) : 0;
-    // Proportional optional score: average of optional fields present per row * 30
     const optionalScore = rows.length && optionalFieldCount > 0 ? Math.round((totalOptionalFieldsPresent / (rows.length * optionalFieldCount)) * 30) : 0;
     const totalScore = Math.max(0, pflichtScore - dupPenalty + optionalScore);
 
-    setIssues({
+    return {
       totalRows: rows.length,
-      pflichtMapping, optionalMapping, imageColumns,
+      pflichtMapping: MC_PFLICHT_COLS.reduce((m, k) => { m[k] = k === "image_url" ? (mcImageColumns[0] || null) : (mcMapping[k] || null); return m; }, {}),
+      optionalMapping: [...MC_OPTIONAL_COLS, "size"].reduce((m, k) => { m[k] = mcMapping[k] || null; return m; }, {}),
+      imageColumns: mcImageColumns,
       missingPflichtCols, missingOptionalCols,
       pflichtErrors, optionalHints,
       pflichtOkCount, totalOptionalFieldsPresent, optionalFieldCount,
       dupEanCount, dupNameCount, dupOfferIdCount,
       pflichtScore, dupPenalty, optionalScore, totalScore,
-    });
-  }
+    };
+  }, [rows, headers, mcMapping, mcImageColumns]);
 
   const errorCount = issues ? issues.pflichtErrors.length : 0;
   const warningCount = issues ? issues.optionalHints.length : 0;
   const mcScore = issues ? issues.totalScore : 0;
-  const [uploadMethod, setUploadMethod] = useState("upload");
-  const [feedFormat, setFeedFormat] = useState("CSV");
-  const [feedDelimiter, setFeedDelimiter] = useState("semicolon");
-  const [feedQuoteChar, setFeedQuoteChar] = useState("");
+  const mcIsWrongFile = rows.length > 0 && Object.values(mcMapping).filter(Boolean).length === 0 && mcImageColumns.length === 0;
 
   return (
     <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1200, margin: "0 auto", paddingLeft: 60, paddingRight: 60 }}>
@@ -3464,7 +3606,19 @@ function McAngebotsfeed() {
       </div>
 
       {/* ── RIGHT: Analysis Results ── */}
-      {issues && (
+      {mcIsWrongFile && (
+        <div style={{ flex: "0 0 50%", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
+            <div style={{ fontSize: 11, color: "#7F1D1D", lineHeight: "1.6" }}>
+              Es konnten keine bekannten Spalten erkannt werden. Bitte laden Sie eine andere Datei hoch.
+              Erwartete Spalten sind z.&nbsp;B. <code>ean</code>, <code>name</code>, <code>price</code>, <code>shipping_mode</code> o.&nbsp;ä.
+            </div>
+          </div>
+        </div>
+      )}
+      {issues && !mcIsWrongFile && (
         <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 6, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
           {/* Score */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", marginTop: 44 }}>
@@ -3501,14 +3655,64 @@ function McAngebotsfeed() {
               </div>
             )}
 
-            {/* How score is calculated */}
-            <details style={{ marginTop: 4 }}>
-              <summary style={{ cursor: "pointer", fontSize: 9, color: "#6B7280" }}>Scoring-Details</summary>
-              <div style={{ marginTop: 3, fontSize: 9, color: "#6B7280", lineHeight: "12px" }}>
-                <div style={{ fontWeight: 600, marginBottom: 1 }}>100 Punkte = 70 Pflicht + 30 Optional</div>
-                <div>Pflicht: {issues.pflichtOkCount}/{issues.totalRows} OK = {issues.pflichtScore}/70</div>
-                <div style={{ marginTop: 1 }}>Duplikate: -{issues.dupPenalty} Punkte</div>
-                <div style={{ marginTop: 1 }}>Optional: {Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100)}% = {issues.optionalScore}/30</div>
+            {/* Scoring details */}
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280", fontWeight: 600, userSelect: "none" }}>
+                Scoring-Logik anzeigen
+              </summary>
+              <div style={{ marginTop: 8, display: "grid", gap: 8, fontSize: 10, lineHeight: "1.55" }}>
+                {/* Formula */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #E5E7EB", color: "#374151" }}>
+                  <span style={{ fontWeight: 700 }}>Score = </span>Pflichtfelder-Score + Optional-Score − Duplikat-Malus
+                </div>
+
+                {/* Pflicht block */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
+                  <div style={{ fontWeight: 700, color: "#166534", marginBottom: 3 }}>Pflichtfelder (max. 70 Pkt.)</div>
+                  <div style={{ color: "#374151" }}>
+                    {issues.pflichtOkCount} von {issues.totalRows} Artikeln haben alle Pflichtfelder korrekt ausgefüllt.
+                  </div>
+                  <div style={{ color: "#374151", marginTop: 2 }}>
+                    → {issues.pflichtOkCount}/{issues.totalRows} × 70 = <strong>{issues.pflichtScore}/70 Punkte</strong>
+                  </div>
+                  <div style={{ color: "#6B7280", marginTop: 4, fontSize: 9 }}>
+                    Pflichtfelder: EAN · Offer ID · Name · Preis · Bestand · Lieferzeit · Versandart · Bilder
+                  </div>
+                </div>
+
+                {/* Duplikate block */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: issues.dupPenalty > 0 ? "#FEF2F2" : "#F9FAFB", border: `1px solid ${issues.dupPenalty > 0 ? "#FECACA" : "#E5E7EB"}` }}>
+                  <div style={{ fontWeight: 700, color: issues.dupPenalty > 0 ? "#B91C1C" : "#374151", marginBottom: 3 }}>Duplikat-Malus (max. −10 Pkt.)</div>
+                  <div style={{ color: "#374151" }}>
+                    {issues.dupEanCount > 0 ? `${issues.dupEanCount} doppelte EAN` : "Keine doppelten EAN"}
+                    {issues.dupNameCount > 0 ? ` · ${issues.dupNameCount} doppelte Namen` : ""}
+                    {issues.dupOfferIdCount > 0 ? ` · ${issues.dupOfferIdCount} doppelte Offer IDs` : ""}
+                  </div>
+                  <div style={{ color: "#374151", marginTop: 2 }}>
+                    → <strong>−{issues.dupPenalty} Punkte</strong>
+                  </div>
+                </div>
+
+                {/* Optional block */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
+                  <div style={{ fontWeight: 700, color: "#1D4ED8", marginBottom: 3 }}>Optionale Felder (max. 30 Pkt.)</div>
+                  <div style={{ color: "#374151" }}>
+                    Durchschnittlich {Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100)}% der optionalen Felder je Artikel befüllt.
+                  </div>
+                  <div style={{ color: "#374151", marginTop: 2 }}>
+                    → {issues.totalOptionalFieldsPresent} / ({issues.totalRows} × {issues.optionalFieldCount}) × 30 = <strong>{issues.optionalScore}/30 Punkte</strong>
+                  </div>
+                  <div style={{ color: "#6B7280", marginTop: 4, fontSize: 9 }}>
+                    Optionale Felder: Beschreibung · Marke · Material · Farbe · Kategorie · Lieferumfang · Hersteller · Maße · 3+ Bilder
+                  </div>
+                </div>
+
+                {/* Total */}
+                <div style={{ padding: "6px 8px", borderRadius: 6, background: mcScore >= 70 ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${mcScore >= 70 ? "#BBF7D0" : "#FECACA"}` }}>
+                  <span style={{ fontWeight: 700, color: mcScore >= 70 ? "#166534" : "#B91C1C" }}>
+                    Gesamt: {issues.pflichtScore} + {issues.optionalScore} − {issues.dupPenalty} = {mcScore}/100
+                  </span>
+                </div>
               </div>
             </details>
           </div>
@@ -3572,6 +3776,103 @@ function McAngebotsfeed() {
                     APA ermöglicht die automatische Anlage Ihrer Produkte. Erlaubt sind bis zu 2% fehlerhafte Artikel, die automatisch aus dem Feed entfernt werden. Alle Pflichtfelder müssen gefüllt sein.
                   </div>
                 </details>
+              </div>
+            );
+          })()}
+
+          {/* Spalten-Zuordnung – compact summary + optional edit panel */}
+          {(() => {
+            const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS, "size"];
+            const fieldLabels = { ean: "EAN", seller_offer_id: "Offer ID", name: "Name", price: "Preis", stock_amount: "Bestand", delivery_time: "Lieferzeit", shipping_mode: "Versandart", description: "Beschreibung", brand: "Marke", material: "Material", color: "Farbe", category_path: "Kategorie", delivery_includes: "Lieferumfang", manufacturer_name: "Hersteller", size: "Maße/Größe" };
+            const hasMissing = issues.missingPflichtCols.length > 0;
+            const totalFields = allMcFields.length + 1; // +1 for image_url
+            const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
+            return (
+              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px" }}>
+                {/* Header row with compact toggle */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Spalten-Zuordnung</div>
+                  <button
+                    type="button"
+                    onClick={() => setMappingExpanded((v) => !v)}
+                    style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, border: `1px solid ${hasMissing ? "#FCA5A5" : "#D1D5DB"}`, background: hasMissing ? "#FEF2F2" : "#F9FAFB", color: hasMissing ? "#B91C1C" : "#374151", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                  >
+                    {foundFields}/{totalFields} {mappingExpanded ? "▲" : "▼"}
+                  </button>
+                </div>
+
+                {/* Compact read-only summary – auto-open when missing, otherwise toggled */}
+                {(hasMissing || mappingExpanded) && (
+                  <div style={{ marginTop: 8 }}>
+                    {/* Compact two-column list */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px" }}>
+                      {allMcFields.map((f) => {
+                        const col = mcMapping[f];
+                        const isManual = f in manualMapping;
+                        const isContent = !mcAutoMapping[f] && !!mcContentMapping[f] && !isManual;
+                        const isPflicht = MC_PFLICHT_COLS.includes(f);
+                        const missing = !col && isPflicht;
+                        return (
+                          <div key={f} style={{ display: "flex", alignItems: "baseline", gap: 3, fontSize: 11, lineHeight: "19px", overflow: "hidden" }}>
+                            <span style={{ color: "#6B7280", flexShrink: 0 }}>{fieldLabels[f] || f}</span>
+                            <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
+                            <span
+                              style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: missing ? "#DC2626" : isManual ? "#7C3AED" : isContent ? "#1D4ED8" : "#166534" }}
+                              title={col || "nicht gefunden"}
+                            >
+                              {col || "–"}
+                            </span>
+                            {isManual && <span style={{ fontSize: 8, color: "#7C3AED", flexShrink: 0 }}>M</span>}
+                            {isContent && <span style={{ fontSize: 8, color: "#1D4ED8", flexShrink: 0 }}>I</span>}
+                          </div>
+                        );
+                      })}
+                      {/* Image columns row */}
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 3, fontSize: 11, lineHeight: "19px", overflow: "hidden" }}>
+                        <span style={{ color: "#6B7280", flexShrink: 0 }}>Bilder</span>
+                        <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
+                        <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: mcImageColumns.length > 0 ? "#166534" : "#DC2626" }} title={mcImageColumns.join(", ") || "nicht gefunden"}>
+                          {mcImageColumns.length > 0 ? `${mcImageColumns.length} Spalte(n)` : "–"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Secondary: full edit panel */}
+                    <details style={{ marginTop: 8 }}>
+                      <summary style={{ fontSize: 11, color: "#6B7280", cursor: "pointer", userSelect: "none" }}>
+                        Spalten manuell anpassen…
+                      </summary>
+                      <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
+                        {allMcFields.map((f) => {
+                          const isManual = f in manualMapping;
+                          const col = mcMapping[f];
+                          const isPflicht = MC_PFLICHT_COLS.includes(f);
+                          const missing = !col && isPflicht;
+                          return (
+                            <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 11, color: "#374151", width: 100, flexShrink: 0 }}>{fieldLabels[f] || f}</span>
+                              <select
+                                value={col || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
+                                }}
+                                style={{ flex: 1, fontSize: 11, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                              >
+                                <option value="">-- Nicht zugeordnet --</option>
+                                {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              {isManual && (
+                                <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                  style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -3969,11 +4270,9 @@ function McIssueCard({ title, severity, description, items, more, fixInstruction
   const badgeBg = isError ? "#FEE2E2" : "#FEF3C7";
   const icon = isError ? "❌" : "⚠️";
 
-  // Extract EANs from labels for compact display
-  const eanList = compactList && items.length > 0 ? items.map(item => {
-    const match = item.label.match(/\d{12,13}|[\w\d]+/);
-    return match ? match[0] : item.label;
-  }).filter(Boolean) : [];
+  // For compactList cards the count badge in the header is enough — no need
+  // to repeat it or list individual row numbers inside the expanded view.
+  const totalCount = items.length + (more || 0);
 
   return (
     <div style={{ background: "#FFFFFF", borderRadius: 8, border: "1px solid #E5E7EB", overflow: "hidden" }}>
@@ -3988,39 +4287,35 @@ function McIssueCard({ title, severity, description, items, more, fixInstruction
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
           <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: accent }}>{title}</span>
-          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600, flexShrink: 0 }}>
-            {items.length + (more || 0)} Artikel
-          </span>
+          {totalCount > 0 && (
+            <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: badgeBg, color: accent, fontWeight: 600, flexShrink: 0 }}>
+              {totalCount} Artikel
+            </span>
+          )}
         </div>
         <span style={{ fontSize: 11, color: "#9CA3AF", flexShrink: 0 }}>{expanded ? "▲" : "▼"}</span>
       </div>
-      {expanded ? (
+      {expanded && (
         <div style={{ padding: "10px 12px" }}>
-          <p style={{ fontSize: 12, color: "#374151", margin: "0 0 6px" }}>{description}</p>
-          {fixInstruction && <p style={{ fontSize: 11, color: "#666", fontStyle: "italic", margin: "0 0 8px", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>{fixInstruction}</p>}
-
-          {compactList && eanList.length > 0 ? (
-            <div style={{ fontSize: 11, color: "#6B7280", lineHeight: "1.5", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>
-              {eanList.slice(0, 10).join(", ")}
-              {more > 0 && ` … +${more}`}
-            </div>
-          ) : (
+          {fixInstruction && (
+            <p style={{ fontSize: 11, color: "#666", fontStyle: "italic", margin: "0 0 8px", padding: "6px 8px", background: "#F9FAFB", borderRadius: 4 }}>
+              {fixInstruction}
+            </p>
+          )}
+          {/* For compactList (row-error) cards, the CSV export has the exact row numbers.
+              We only show item detail for structural issues (missing columns etc.). */}
+          {!compactList && (
             <div style={{ display: "grid", gap: 5 }}>
               {items.map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#111827" }}>{item.label}</span>
-                  <span style={{ fontSize: 10, color: "#6B7280" }}>{item.hint}</span>
+                  {item.hint && <span style={{ fontSize: 10, color: "#6B7280" }}>{item.hint}</span>}
                 </div>
               ))}
-              {more > 0 ? (
-                <div style={{ fontSize: 11, color: "#6B7280", padding: "3px 8px" }}>
-                  … und {more} weitere Artikel
-                </div>
-              ) : null}
             </div>
           )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -4213,7 +4508,6 @@ export default function App() {
   }, [route, adminToken]);
 
   const [shopName, setShopName] = useState("");
-  const [previewCount, setPreviewCount] = useState(40);
   const [eanSearch, setEanSearch] = useState("");
   const parseEanSearchTerms = (value) =>
     String(value ?? "")
@@ -4279,7 +4573,11 @@ export default function App() {
     "shipping_mode",
   ]);
 
-  const mapping = useMemo(() => {
+  // Manual overrides set by the user in the mapping UI
+  const [manualMapping, setManualMapping] = useState({});
+
+  // Step 1: auto-detect columns by header name matching
+  const autoMapping = useMemo(() => {
     if (!headers.length) return {};
     const candidates = {
       ean: ["ean", "gtin", "gtin14", "ean13", "barcode"],
@@ -4288,7 +4586,7 @@ export default function App() {
       category_path: ["category_path", "category", "kategorie", "kategoriepfad"],
       description: ["description", "beschreibung", "desc"],
       stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit", "verfuegbarkeit"],
-      shipping_mode: ["shipping_mode", "shipping", "versandart", "shipping type"],
+      shipping_mode: ["shipping_mode", "shipping", "versandart", "shipping type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
       delivery_time: ["delivery_time", "lieferzeit", "lead_time", "lead time"],
       price: ["price", "preis", "amount"],
       brand: ["brand", "marke"],
@@ -4318,10 +4616,28 @@ export default function App() {
 
     const m = {};
     for (const key of Object.keys(candidates)) {
-      m[key] = bestHeaderMatch(headers, candidates[key]);
+      m[key] = bestHeaderMatch(headers, candidates[key]) || null;
     }
     return m;
   }, [headers]);
+
+  // Step 2: content-based fallback – inspect first 10 rows for fields not found by name
+  const contentMapping = useMemo(() => {
+    if (!headers.length || !rawRows.length) return {};
+    const allFields = [...requiredFields, ...optionalFields];
+    const unmapped = allFields.filter((f) => !autoMapping[f]);
+    if (!unmapped.length) return {};
+    return detectFieldByContent(unmapped, headers, rawRows);
+  }, [headers, rawRows, autoMapping, requiredFields, optionalFields]);
+
+  // Final mapping: header-name match → content-based → manual override
+  const mapping = useMemo(
+    () => ({ ...autoMapping, ...contentMapping, ...manualMapping }),
+    [autoMapping, contentMapping, manualMapping]
+  );
+
+  // True only when a file is loaded but zero fields could be matched at all
+  const isWrongFile = rawRows.length > 0 && Object.values(mapping).filter(Boolean).length === 0;
 
   const imageColumns = useMemo(() => {
     if (!headers.length) return [];
@@ -5320,10 +5636,10 @@ export default function App() {
   };
 
   const [step2Expanded, setStep2Expanded] = useState(false);
+  const [mappingPreviewOpen, setMappingPreviewOpen] = useState(false);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const step6Ref = useRef(null);
   const previewTableRef = useRef(null);
-  const previewAutoLoadLockRef = useRef(false);
   const [pendingJumpRowKey, setPendingJumpRowKey] = useState(null);
   const [highlightedJumpRowKey, setHighlightedJumpRowKey] = useState(null);
 
@@ -5365,10 +5681,6 @@ export default function App() {
         ? [target.rowIndex]
         : [];
     const targetFirstRowIndex = rowIndicesArr.length ? Math.min(...rowIndicesArr) : null;
-    const targetMaxRowIndex = rowIndicesArr.length ? Math.max(...rowIndicesArr) : null;
-    if (targetMaxRowIndex != null && targetMaxRowIndex >= 0) {
-      setPreviewCount((current) => Math.max(current, targetMaxRowIndex + 1));
-    }
     if (targetFirstRowIndex != null && targetFirstRowIndex >= 0) {
       const rowKey = String(targetFirstRowIndex);
       setPendingJumpRowKey(rowKey);
@@ -5390,12 +5702,12 @@ export default function App() {
   };
 
   function onPickFile(file) {
-    setPreviewCount(20);
     setParseError("");
     setFileName(file?.name || "");
     setEanSearch("");
     setRawRows([]);
     setHeaders([]);
+    setManualMapping({});
     setBrokenImageIds([]);
     setGeneratedEmail(null);
     setEmailContent("");
@@ -5586,7 +5898,7 @@ export default function App() {
     <div ref={previewTableRef} style={{ marginTop: 8 }}>
       <ResizableTable
         columns={previewColumns}
-        rows={filteredPreviewRows.slice(0, previewCount)}
+        rows={filteredPreviewRows}
         criticalRowIndexSet={criticalRowIndexSet}
         rowCriticalIssuesByIndex={rowCriticalIssuesByIndex}
         getRowTargetKey={(r) => r.__rowIndex}
@@ -5595,7 +5907,7 @@ export default function App() {
         onTargetHandled={() => setPendingJumpRowKey(null)}
       />
       <div style={{ marginTop: 8 }}>
-        <SmallText>Zeige {Math.min(previewCount, filteredPreviewRows.length)} von {filteredPreviewRows.length} Zeilen.</SmallText>
+        <SmallText>{filteredPreviewRows.length} Zeilen</SmallText>
       </div>
     </div>
     </>
@@ -5605,18 +5917,6 @@ export default function App() {
     if (!headers.length) return null;
     return (
       <div
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
-          if (!nearBottom) return;
-          if (previewCount >= filteredPreviewRows.length) return;
-          if (previewAutoLoadLockRef.current) return;
-          previewAutoLoadLockRef.current = true;
-          setPreviewCount((c) => Math.min(filteredPreviewRows.length, c + 20));
-          window.setTimeout(() => {
-            previewAutoLoadLockRef.current = false;
-          }, 150);
-        }}
         style={{
           flex: "1 1 0",
           minWidth: 0,
@@ -5802,6 +6102,19 @@ export default function App() {
             {/* Feed Checker Mode */}
             {pageMode === "feed-checker" && headers.length ? (
               <>
+            {/* Wrong-file rejection banner */}
+            {isWrongFile && (
+              <div style={{ padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
+                  <div style={{ fontSize: 12, color: "#7F1D1D", lineHeight: "1.6" }}>
+                    Es konnten keine bekannten Spalten erkannt werden. Bitte prüfen Sie, ob Sie die richtige Datei hochgeladen haben.
+                    Erwartete Spalten sind z.&nbsp;B. <code>ean</code>, <code>name</code>, <code>price</code>, <code>shipping_mode</code> o.&nbsp;ä.
+                  </div>
+                </div>
+              </div>
+            )}
             {/* SUMMARY */}
             <div ref={step6Ref}>
               <StepCard
@@ -6057,6 +6370,7 @@ export default function App() {
                 <SmallText>Bitte CSV hochladen um die erkannten Spalten zu sehen.</SmallText>
               ) : (
                 <>
+                  {/* Step 2 status bar */}
                   <div
                     style={{
                       marginTop: 10,
@@ -6078,21 +6392,69 @@ export default function App() {
                         ? "Alle Pflichtfelder wurden korrekt zugeordnet."
                         : `Es fehlen noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern.`}
                     </span>
-                    <span>
-                      {optionalFields.length
-                        ? `${optionalPresence.found.length}/${optionalFields.length} optionale Felder erkannt`
-                        : "Keine optionalen Felder konfiguriert"}
-                    </span>
-                    {allRequiredOk ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                      {/* Compact mapping preview button */}
+                      <button
+                        type="button"
+                        onClick={() => setMappingPreviewOpen((v) => !v)}
+                        style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${allRequiredOk ? "rgba(22,101,52,0.25)" : "rgba(146,64,14,0.25)"}`, background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        {(() => {
+                          const total = requiredFields.length + optionalFields.length;
+                          const found = [...requiredFields, ...optionalFields].filter((f) => mapping[f]).length;
+                          return `${found}/${total} Spalten ${mappingPreviewOpen ? "▲" : "▼"}`;
+                        })()}
+                      </button>
+                      {/* Full edit button */}
                       <button
                         type="button"
                         onClick={() => setStep2Expanded((v) => !v)}
-                        style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid rgba(22,101,52,0.25)", background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                        style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${allRequiredOk ? "rgba(22,101,52,0.25)" : "rgba(146,64,14,0.25)"}`, background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
                       >
-                        {step2Expanded ? "Details ausblenden" : "Details anzeigen"}
+                        {step2Expanded ? "Bearbeiten schließen" : "Bearbeiten"}
                       </button>
-                    ) : null}
+                    </div>
                   </div>
+
+                  {/* Compact mapping preview – quick read-only overview */}
+                  {mappingPreviewOpen && (
+                    <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FAFAFA" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 12px" }}>
+                        {[...requiredFields, ...optionalFields].map((f) => {
+                          const col = mapping[f];
+                          const isManual = f in manualMapping;
+                          const isContent = !autoMapping[f] && !!contentMapping[f] && !isManual;
+                          const missing = !col && requiredFields.includes(f);
+                          return (
+                            <div key={f} style={{ display: "flex", alignItems: "baseline", gap: 4, fontSize: 11, lineHeight: "20px", overflow: "hidden" }}>
+                              <span style={{ color: "#6B7280", flexShrink: 0 }}>{f}</span>
+                              <span style={{ color: "#9CA3AF", flexShrink: 0 }}>→</span>
+                              <span
+                                style={{
+                                  fontWeight: 600,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  color: missing ? "#DC2626" : isManual ? "#7C3AED" : isContent ? "#1D4ED8" : "#166534",
+                                }}
+                                title={col || "nicht gefunden"}
+                              >
+                                {col || "–"}
+                              </span>
+                              {isManual && <span style={{ fontSize: 9, color: "#7C3AED", flexShrink: 0 }}>M</span>}
+                              {isContent && <span style={{ fontSize: 9, color: "#1D4ED8", flexShrink: 0 }}>I</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF" }}>
+                        Farben: <span style={{ color: "#166534" }}>■</span> Auto &nbsp;
+                        <span style={{ color: "#1D4ED8" }}>■</span> Inhalt erkannt &nbsp;
+                        <span style={{ color: "#7C3AED" }}>■</span> Manuell &nbsp;
+                        <span style={{ color: "#DC2626" }}>■</span> Fehlt
+                      </div>
+                    </div>
+                  )}
 
                   {(!allRequiredOk || step2Expanded) && (
                     <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
@@ -6117,17 +6479,53 @@ export default function App() {
 
                       <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
-                        <SmallText>Diese Felder müssen für jeden Artikel erkannt werden.</SmallText>
+                        <SmallText>Diese Felder müssen für jeden Artikel erkannt werden. Falsch erkannte Spalten können manuell korrigiert werden.</SmallText>
                         <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                           {requiredFields.map((f) => {
+                            const isManual = f in manualMapping;
+                            const isContent = !autoMapping[f] && !!contentMapping[f] && !isManual;
                             const col = mapping[f];
                             const missing = !col;
+                            const rowBg = missing ? "#FEF3C7" : isManual ? "#F5F3FF" : isContent ? "#EFF6FF" : "#ECFDF3";
+                            const rowBorder = missing ? "#FCD34D" : isManual ? "#C4B5FD" : isContent ? "#BFDBFE" : "#A7F3D0";
                             return (
-                              <div key={f} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: missing ? "#FEF3C7" : "#ECFDF3", flexWrap: "wrap" }}>
-                                <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                  <div style={{ fontSize: 12, color: missing ? "#92400E" : "#166534" }}>{col ? `Spalte ${col}` : "Nicht gefunden"}</div>
+                              <div key={f} style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${rowBorder}`, background: rowBg }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</span>
+                                    {isManual && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "1px 6px", borderRadius: 999 }}>Manuell</span>}
+                                    {isContent && <span style={{ fontSize: 10, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "1px 6px", borderRadius: 999 }}>Inhalt erkannt</span>}
+                                  </div>
                                   <Pill tone={missing ? "warn" : "ok"}>{missing ? "Fehlt" : "OK"}</Pill>
+                                </div>
+                                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <select
+                                    value={col || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setManualMapping((prev) => {
+                                        const next = { ...prev };
+                                        if (val === "") delete next[f];
+                                        else next[f] = val;
+                                        return next;
+                                      });
+                                    }}
+                                    style={{ flex: 1, minWidth: 120, fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", color: "#111827", cursor: "pointer" }}
+                                  >
+                                    <option value="">-- Nicht zugeordnet --</option>
+                                    {headers.map((h) => (
+                                      <option key={h} value={h}>{h}</option>
+                                    ))}
+                                  </select>
+                                  {isManual && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                      style={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer", whiteSpace: "nowrap" }}
+                                    >
+                                      Zurücksetzen
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -6136,23 +6534,59 @@ export default function App() {
                         <div style={{ marginTop: 8, fontSize: 12, color: requiredPresence.missing.length ? "#92400E" : "#166534" }}>
                           {requiredPresence.missing.length
                             ? `Noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern ohne Zuordnung.`
-                            : `Alle ${requiredFields.length} Pflichtfelder wurden automatisch zugeordnet.`}
+                            : `Alle ${requiredFields.length} Pflichtfelder zugeordnet.`}
                         </div>
                       </div>
 
                       <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Optionale Felder</div>
-                        <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualität und Score.</SmallText>
+                        <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualität und Score. Falsch erkannte Spalten können manuell korrigiert werden.</SmallText>
                         <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                           {optionalFields.map((f) => {
+                            const isManual = f in manualMapping;
+                            const isContent = !autoMapping[f] && !!contentMapping[f] && !isManual;
                             const col = mapping[f];
                             const missing = !col;
+                            const rowBg = missing ? "#F9FAFB" : isManual ? "#F5F3FF" : isContent ? "#EFF6FF" : "#EEF2FF";
+                            const rowBorder = missing ? "#E5E7EB" : isManual ? "#C4B5FD" : isContent ? "#BFDBFE" : "#C7D2FE";
                             return (
-                              <div key={f} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: missing ? "#F9FAFB" : "#EEF2FF", flexWrap: "wrap" }}>
-                                <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                  <div style={{ fontSize: 12, color: missing ? "#6B7280" : BRAND_COLOR }}>{col ? `Spalte ${col}` : "Nicht gefunden"}</div>
+                              <div key={f} style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${rowBorder}`, background: rowBg }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</span>
+                                    {isManual && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "1px 6px", borderRadius: 999 }}>Manuell</span>}
+                                    {isContent && <span style={{ fontSize: 10, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "1px 6px", borderRadius: 999 }}>Inhalt erkannt</span>}
+                                  </div>
                                   <Pill tone={missing ? "info" : "ok"}>{missing ? "Optional" : "OK"}</Pill>
+                                </div>
+                                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <select
+                                    value={col || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setManualMapping((prev) => {
+                                        const next = { ...prev };
+                                        if (val === "") delete next[f];
+                                        else next[f] = val;
+                                        return next;
+                                      });
+                                    }}
+                                    style={{ flex: 1, minWidth: 120, fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", cursor: "pointer" }}
+                                  >
+                                    <option value="">-- Nicht zugeordnet --</option>
+                                    {headers.map((h) => (
+                                      <option key={h} value={h}>{h}</option>
+                                    ))}
+                                  </select>
+                                  {isManual && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                      style={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer", whiteSpace: "nowrap" }}
+                                    >
+                                      Zurücksetzen
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -6160,7 +6594,7 @@ export default function App() {
                         </div>
                         <div style={{ marginTop: 8, fontSize: 12, color: "#4B5563" }}>
                           {optionalFields.length
-                            ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern wurden automatisch zugeordnet.`
+                            ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern zugeordnet.`
                             : "Keine optionalen Felder konfiguriert."}
                         </div>
                       </div>
@@ -6559,8 +6993,7 @@ export default function App() {
                       const cell = String(v ?? "").toLowerCase();
                       return termsLower.some((t) => cell.includes(t));
                     });
-                  })
-                .slice(0, Math.max(previewCount, 200))}
+                  })}
               rowCriticalIssuesByIndex={rowCriticalIssuesByIndex}
                 criticalRowIndexSet={criticalRowIndexSet}
               getRowTargetKey={(r) => r.__rowIndex}
