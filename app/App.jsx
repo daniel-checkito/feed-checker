@@ -553,7 +553,8 @@ function ResizableTable({
   const [rowIssueModal, setRowIssueModal] = useState(null);
   const [hoveredCriticalRowIndex, setHoveredCriticalRowIndex] = useState(null);
   const dragRef = useRef(null);
-  const rowRefs = useRef(new Map());
+  const containerRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
 
   const isLongTextColumn = (key) => {
     const norm = normalizeKey(key);
@@ -594,11 +595,15 @@ function ResizableTable({
 
   useEffect(() => {
     if (!targetRowKey || !getRowTargetKey) return;
-    const node = rowRefs.current.get(String(targetRowKey));
-    if (!node) return;
-    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    const rowIdx = rows.findIndex((r, i) => String(getRowTargetKey(r, i)) === String(targetRowKey));
+    if (rowIdx === -1) return;
+    if (containerRef.current) {
+      const targetScrollTop = rowIdx * rowHeight - containerRef.current.clientHeight / 2 + rowHeight / 2;
+      containerRef.current.scrollTop = Math.max(0, targetScrollTop);
+      setScrollTop(Math.max(0, targetScrollTop));
+    }
     if (typeof onTargetHandled === "function") onTargetHandled();
-  }, [targetRowKey, rows, getRowTargetKey, onTargetHandled]);
+  }, [targetRowKey, rows, getRowTargetKey, rowHeight, onTargetHandled]);
 
   const startResize = (key, event) => {
     const th = event.currentTarget.parentElement;
@@ -624,8 +629,18 @@ function ResizableTable({
     event.stopPropagation();
   };
 
+  // Virtual scroll — only render rows inside the visible viewport (+buffer)
+  const VIRT_BUFFER = 8;
+  const containerH = containerRef.current?.clientHeight || 720;
+  const visibleStart = Math.max(0, Math.floor(scrollTop / rowHeight) - VIRT_BUFFER);
+  const visibleEnd = Math.min(rows.length, visibleStart + Math.ceil(containerH / rowHeight) + VIRT_BUFFER * 2);
+  const topSpacer = visibleStart * rowHeight;
+  const bottomSpacer = Math.max(0, (rows.length - visibleEnd)) * rowHeight;
+
   return (
     <div
+      ref={containerRef}
+      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
       style={{
         width: "100%",
         maxHeight: 720,
@@ -705,11 +720,12 @@ function ResizableTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
+          {topSpacer > 0 && <tr key="__virt_top"><td colSpan={columns.length + 1} style={{ height: topSpacer, padding: 0, border: 0 }} /></tr>}
+          {rows.slice(visibleStart, visibleEnd).map((r, localIdx) => {
+            const i = visibleStart + localIdx;
             const zebra = i % 2 === 0 ? "#FFFFFF" : "#F9FAFB";
             const absRowIndex = r?.__rowIndex;
             const isCritical = absRowIndex != null && criticalRowIndexSet?.has(absRowIndex);
-            const rowTargetKey = getRowTargetKey ? getRowTargetKey(r, i) : null;
             const rowIssueMessages = isCritical ? rowCriticalIssuesByIndex?.[absRowIndex] ?? [] : [];
             const rowIssueText = rowIssueMessages?.length ? String(rowIssueMessages.join(" • ")) : "";
             const rowBg = isCritical ? "#FEE2E2" : zebra;
@@ -720,12 +736,6 @@ function ResizableTable({
             return (
               <tr
                 key={i}
-                ref={(el) => {
-                  if (!rowTargetKey) return;
-                  const key = String(rowTargetKey);
-                  if (el) rowRefs.current.set(key, el);
-                  else rowRefs.current.delete(key);
-                }}
                 title={isCritical && rowIssueText ? rowIssueText : ""}
                 onMouseEnter={() => {
                   if (isCritical) setHoveredCriticalRowIndex(absRowIndex);
@@ -892,6 +902,7 @@ function ResizableTable({
             </tr>
             );
           })}
+          {bottomSpacer > 0 && <tr key="__virt_bottom"><td colSpan={columns.length + 1} style={{ height: bottomSpacer, padding: 0, border: 0 }} /></tr>}
         </tbody>
       </table>
       <div
@@ -4497,7 +4508,6 @@ export default function App() {
   }, [route, adminToken]);
 
   const [shopName, setShopName] = useState("");
-  const [previewCount, setPreviewCount] = useState(40);
   const [eanSearch, setEanSearch] = useState("");
   const parseEanSearchTerms = (value) =>
     String(value ?? "")
@@ -5630,7 +5640,6 @@ export default function App() {
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const step6Ref = useRef(null);
   const previewTableRef = useRef(null);
-  const previewAutoLoadLockRef = useRef(false);
   const [pendingJumpRowKey, setPendingJumpRowKey] = useState(null);
   const [highlightedJumpRowKey, setHighlightedJumpRowKey] = useState(null);
 
@@ -5672,10 +5681,6 @@ export default function App() {
         ? [target.rowIndex]
         : [];
     const targetFirstRowIndex = rowIndicesArr.length ? Math.min(...rowIndicesArr) : null;
-    const targetMaxRowIndex = rowIndicesArr.length ? Math.max(...rowIndicesArr) : null;
-    if (targetMaxRowIndex != null && targetMaxRowIndex >= 0) {
-      setPreviewCount((current) => Math.max(current, targetMaxRowIndex + 1));
-    }
     if (targetFirstRowIndex != null && targetFirstRowIndex >= 0) {
       const rowKey = String(targetFirstRowIndex);
       setPendingJumpRowKey(rowKey);
@@ -5697,7 +5702,6 @@ export default function App() {
   };
 
   function onPickFile(file) {
-    setPreviewCount(20);
     setParseError("");
     setFileName(file?.name || "");
     setEanSearch("");
@@ -5894,7 +5898,7 @@ export default function App() {
     <div ref={previewTableRef} style={{ marginTop: 8 }}>
       <ResizableTable
         columns={previewColumns}
-        rows={filteredPreviewRows.slice(0, previewCount)}
+        rows={filteredPreviewRows}
         criticalRowIndexSet={criticalRowIndexSet}
         rowCriticalIssuesByIndex={rowCriticalIssuesByIndex}
         getRowTargetKey={(r) => r.__rowIndex}
@@ -5903,7 +5907,7 @@ export default function App() {
         onTargetHandled={() => setPendingJumpRowKey(null)}
       />
       <div style={{ marginTop: 8 }}>
-        <SmallText>Zeige {Math.min(previewCount, filteredPreviewRows.length)} von {filteredPreviewRows.length} Zeilen.</SmallText>
+        <SmallText>{filteredPreviewRows.length} Zeilen</SmallText>
       </div>
     </div>
     </>
@@ -5913,18 +5917,6 @@ export default function App() {
     if (!headers.length) return null;
     return (
       <div
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
-          if (!nearBottom) return;
-          if (previewCount >= filteredPreviewRows.length) return;
-          if (previewAutoLoadLockRef.current) return;
-          previewAutoLoadLockRef.current = true;
-          setPreviewCount((c) => Math.min(filteredPreviewRows.length, c + 20));
-          window.setTimeout(() => {
-            previewAutoLoadLockRef.current = false;
-          }, 150);
-        }}
         style={{
           flex: "1 1 0",
           minWidth: 0,
@@ -7001,8 +6993,7 @@ export default function App() {
                       const cell = String(v ?? "").toLowerCase();
                       return termsLower.some((t) => cell.includes(t));
                     });
-                  })
-                .slice(0, Math.max(previewCount, 200))}
+                  })}
               rowCriticalIssuesByIndex={rowCriticalIssuesByIndex}
                 criticalRowIndexSet={criticalRowIndexSet}
               getRowTargetKey={(r) => r.__rowIndex}
