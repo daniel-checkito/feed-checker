@@ -84,6 +84,110 @@ function bestHeaderMatch(headers, candidates) {
   return null;
 }
 
+// Content-based column detection: inspects first N rows to identify columns
+// when header-name matching fails.
+function detectFieldByContent(unmappedFields, headers, rows, sampleSize = 10) {
+  const sample = rows.slice(0, Math.min(sampleSize, rows.length));
+  const result = {};
+
+  const fieldDetectors = {
+    shipping_mode: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      return nonEmpty.length > 0 && nonEmpty.every((v) => /^(paket|spedition)$/i.test(String(v ?? "").trim()));
+    },
+    ean: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      return nonEmpty.filter((v) => /^\d{8,14}$/.test(String(v ?? "").trim())).length / nonEmpty.length > 0.7;
+    },
+    price: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      return (
+        nonEmpty.filter((v) => {
+          const s = String(v ?? "").trim().replace(",", ".");
+          return /^\d+(\.\d{1,2})?$/.test(s) && parseFloat(s) > 0 && parseFloat(s) < 100000;
+        }).length /
+          nonEmpty.length >
+        0.7
+      );
+    },
+    delivery_time: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      return (
+        nonEmpty.filter((v) => /\d+\s*(werktage?|arbeitstage?|wochen?|wk\.?|wt\.?)/i.test(String(v ?? ""))).length /
+          nonEmpty.length >
+        0.5
+      );
+    },
+    stock_amount: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      return nonEmpty.filter((v) => /^\d+$/.test(String(v ?? "").trim())).length / nonEmpty.length > 0.8;
+    },
+    material: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      const matWords = /holz|metall|stoff|leder|kunststoff|glas|eiche|kiefer|buche|mdf|aluminium|stahl|polyester|baumwolle|massiv|spanplatte/i;
+      return nonEmpty.filter((v) => matWords.test(String(v ?? ""))).length / nonEmpty.length > 0.4;
+    },
+    color: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      const colorWords = /schwarz|wei(ß|ss)|grau|braun|beige|blau|gr(ü|ue)n|rot|gelb|natur|anthrazit|silber|gold|cognac|creme|olive|lila|pink/i;
+      return nonEmpty.filter((v) => colorWords.test(String(v ?? ""))).length / nonEmpty.length > 0.4;
+    },
+    brand: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 3) return false;
+      // Brand: short strings, relatively few unique values (same brand repeated)
+      const unique = new Set(nonEmpty.map((v) => String(v ?? "").trim().toLowerCase()));
+      return (
+        unique.size <= Math.ceil(nonEmpty.length * 0.5) &&
+        nonEmpty.every((v) => {
+          const s = String(v ?? "").trim();
+          return s.length >= 2 && s.length <= 40 && !/^\d+$/.test(s);
+        })
+      );
+    },
+    description: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      return nonEmpty.filter((v) => String(v ?? "").trim().length > 80).length / nonEmpty.length > 0.5;
+    },
+    name: (values) => {
+      const nonEmpty = values.filter((v) => String(v ?? "").trim());
+      if (nonEmpty.length < 2) return false;
+      return (
+        nonEmpty.filter((v) => {
+          const s = String(v ?? "").trim();
+          return s.length >= 10 && s.length <= 200 && !/^\d+$/.test(s);
+        }).length /
+          nonEmpty.length >
+        0.7
+      );
+    },
+  };
+
+  const usedHeaders = new Set();
+
+  for (const field of unmappedFields) {
+    if (!fieldDetectors[field]) continue;
+    for (const header of headers) {
+      if (usedHeaders.has(header)) continue;
+      const values = sample.map((r) => r[header]).filter((v) => v != null && v !== "");
+      if (values.length && fieldDetectors[field](values)) {
+        result[field] = header;
+        usedHeaders.add(header);
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
 function looksLikeScientificEAN(value) {
   const s = String(value ?? "").trim();
   if (!s) return false;
@@ -3153,7 +3257,7 @@ const MC_PFLICHT_ALIASES = {
   stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit"],
   delivery_time: ["delivery_time", "lieferzeit", "delivery time"],
   image_url: ["image_url", "image", "img_url", "bild", "bild_url"],
-  shipping_mode: ["shipping_mode", "versandart", "shipping", "shipping_type"],
+  shipping_mode: ["shipping_mode", "versandart", "shipping", "shipping_type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
 };
 const MC_OPTIONAL_ALIASES = {
   description: ["description", "beschreibung", "desc"],
@@ -4279,7 +4383,11 @@ export default function App() {
     "shipping_mode",
   ]);
 
-  const mapping = useMemo(() => {
+  // Manual overrides set by the user in the mapping UI
+  const [manualMapping, setManualMapping] = useState({});
+
+  // Step 1: auto-detect columns by header name matching
+  const autoMapping = useMemo(() => {
     if (!headers.length) return {};
     const candidates = {
       ean: ["ean", "gtin", "gtin14", "ean13", "barcode"],
@@ -4288,7 +4396,7 @@ export default function App() {
       category_path: ["category_path", "category", "kategorie", "kategoriepfad"],
       description: ["description", "beschreibung", "desc"],
       stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit", "verfuegbarkeit"],
-      shipping_mode: ["shipping_mode", "shipping", "versandart", "shipping type"],
+      shipping_mode: ["shipping_mode", "shipping", "versandart", "shipping type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
       delivery_time: ["delivery_time", "lieferzeit", "lead_time", "lead time"],
       price: ["price", "preis", "amount"],
       brand: ["brand", "marke"],
@@ -4318,10 +4426,25 @@ export default function App() {
 
     const m = {};
     for (const key of Object.keys(candidates)) {
-      m[key] = bestHeaderMatch(headers, candidates[key]);
+      m[key] = bestHeaderMatch(headers, candidates[key]) || null;
     }
     return m;
   }, [headers]);
+
+  // Step 2: content-based fallback – inspect first 10 rows for fields not found by name
+  const contentMapping = useMemo(() => {
+    if (!headers.length || !rawRows.length) return {};
+    const allFields = [...requiredFields, ...optionalFields];
+    const unmapped = allFields.filter((f) => !autoMapping[f]);
+    if (!unmapped.length) return {};
+    return detectFieldByContent(unmapped, headers, rawRows);
+  }, [headers, rawRows, autoMapping, requiredFields, optionalFields]);
+
+  // Final mapping: header-name match → content-based → manual override
+  const mapping = useMemo(
+    () => ({ ...autoMapping, ...contentMapping, ...manualMapping }),
+    [autoMapping, contentMapping, manualMapping]
+  );
 
   const imageColumns = useMemo(() => {
     if (!headers.length) return [];
@@ -5396,6 +5519,7 @@ export default function App() {
     setEanSearch("");
     setRawRows([]);
     setHeaders([]);
+    setManualMapping({});
     setBrokenImageIds([]);
     setGeneratedEmail(null);
     setEmailContent("");
@@ -6083,15 +6207,13 @@ export default function App() {
                         ? `${optionalPresence.found.length}/${optionalFields.length} optionale Felder erkannt`
                         : "Keine optionalen Felder konfiguriert"}
                     </span>
-                    {allRequiredOk ? (
-                      <button
-                        type="button"
-                        onClick={() => setStep2Expanded((v) => !v)}
-                        style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid rgba(22,101,52,0.25)", background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-                      >
-                        {step2Expanded ? "Details ausblenden" : "Details anzeigen"}
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setStep2Expanded((v) => !v)}
+                      style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${allRequiredOk ? "rgba(22,101,52,0.25)" : "rgba(146,64,14,0.25)"}`, background: "#FFFFFF", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                    >
+                      {step2Expanded ? "Details ausblenden" : "Spalten prüfen / anpassen"}
+                    </button>
                   </div>
 
                   {(!allRequiredOk || step2Expanded) && (
@@ -6117,17 +6239,53 @@ export default function App() {
 
                       <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Pflichtfelder</div>
-                        <SmallText>Diese Felder müssen für jeden Artikel erkannt werden.</SmallText>
+                        <SmallText>Diese Felder müssen für jeden Artikel erkannt werden. Falsch erkannte Spalten können manuell korrigiert werden.</SmallText>
                         <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                           {requiredFields.map((f) => {
+                            const isManual = f in manualMapping;
+                            const isContent = !autoMapping[f] && !!contentMapping[f] && !isManual;
                             const col = mapping[f];
                             const missing = !col;
+                            const rowBg = missing ? "#FEF3C7" : isManual ? "#F5F3FF" : isContent ? "#EFF6FF" : "#ECFDF3";
+                            const rowBorder = missing ? "#FCD34D" : isManual ? "#C4B5FD" : isContent ? "#BFDBFE" : "#A7F3D0";
                             return (
-                              <div key={f} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: missing ? "#FEF3C7" : "#ECFDF3", flexWrap: "wrap" }}>
-                                <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                  <div style={{ fontSize: 12, color: missing ? "#92400E" : "#166534" }}>{col ? `Spalte ${col}` : "Nicht gefunden"}</div>
+                              <div key={f} style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${rowBorder}`, background: rowBg }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</span>
+                                    {isManual && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "1px 6px", borderRadius: 999 }}>Manuell</span>}
+                                    {isContent && <span style={{ fontSize: 10, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "1px 6px", borderRadius: 999 }}>Inhalt erkannt</span>}
+                                  </div>
                                   <Pill tone={missing ? "warn" : "ok"}>{missing ? "Fehlt" : "OK"}</Pill>
+                                </div>
+                                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <select
+                                    value={col || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setManualMapping((prev) => {
+                                        const next = { ...prev };
+                                        if (val === "") delete next[f];
+                                        else next[f] = val;
+                                        return next;
+                                      });
+                                    }}
+                                    style={{ flex: 1, minWidth: 120, fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", color: "#111827", cursor: "pointer" }}
+                                  >
+                                    <option value="">-- Nicht zugeordnet --</option>
+                                    {headers.map((h) => (
+                                      <option key={h} value={h}>{h}</option>
+                                    ))}
+                                  </select>
+                                  {isManual && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                      style={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer", whiteSpace: "nowrap" }}
+                                    >
+                                      Zurücksetzen
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -6136,23 +6294,59 @@ export default function App() {
                         <div style={{ marginTop: 8, fontSize: 12, color: requiredPresence.missing.length ? "#92400E" : "#166534" }}>
                           {requiredPresence.missing.length
                             ? `Noch ${requiredPresence.missing.length} von ${requiredFields.length} Pflichtfeldern ohne Zuordnung.`
-                            : `Alle ${requiredFields.length} Pflichtfelder wurden automatisch zugeordnet.`}
+                            : `Alle ${requiredFields.length} Pflichtfelder zugeordnet.`}
                         </div>
                       </div>
 
                       <div style={{ padding: 8, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Optionale Felder</div>
-                        <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualität und Score.</SmallText>
+                        <SmallText>Diese Felder sind nicht zwingend, verbessern aber Qualität und Score. Falsch erkannte Spalten können manuell korrigiert werden.</SmallText>
                         <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                           {optionalFields.map((f) => {
+                            const isManual = f in manualMapping;
+                            const isContent = !autoMapping[f] && !!contentMapping[f] && !isManual;
                             const col = mapping[f];
                             const missing = !col;
+                            const rowBg = missing ? "#F9FAFB" : isManual ? "#F5F3FF" : isContent ? "#EFF6FF" : "#EEF2FF";
+                            const rowBorder = missing ? "#E5E7EB" : isManual ? "#C4B5FD" : isContent ? "#BFDBFE" : "#C7D2FE";
                             return (
-                              <div key={f} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, padding: 6, borderRadius: 10, border: "1px solid #E5E7EB", background: missing ? "#F9FAFB" : "#EEF2FF", flexWrap: "wrap" }}>
-                                <div style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</div>
-                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                  <div style={{ fontSize: 12, color: missing ? "#6B7280" : BRAND_COLOR }}>{col ? `Spalte ${col}` : "Nicht gefunden"}</div>
+                              <div key={f} style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${rowBorder}`, background: rowBg }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{f}</span>
+                                    {isManual && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "1px 6px", borderRadius: 999 }}>Manuell</span>}
+                                    {isContent && <span style={{ fontSize: 10, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "1px 6px", borderRadius: 999 }}>Inhalt erkannt</span>}
+                                  </div>
                                   <Pill tone={missing ? "info" : "ok"}>{missing ? "Optional" : "OK"}</Pill>
+                                </div>
+                                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <select
+                                    value={col || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setManualMapping((prev) => {
+                                        const next = { ...prev };
+                                        if (val === "") delete next[f];
+                                        else next[f] = val;
+                                        return next;
+                                      });
+                                    }}
+                                    style={{ flex: 1, minWidth: 120, fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#111827", cursor: "pointer" }}
+                                  >
+                                    <option value="">-- Nicht zugeordnet --</option>
+                                    {headers.map((h) => (
+                                      <option key={h} value={h}>{h}</option>
+                                    ))}
+                                  </select>
+                                  {isManual && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                      style={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer", whiteSpace: "nowrap" }}
+                                    >
+                                      Zurücksetzen
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -6160,7 +6354,7 @@ export default function App() {
                         </div>
                         <div style={{ marginTop: 8, fontSize: 12, color: "#4B5563" }}>
                           {optionalFields.length
-                            ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern wurden automatisch zugeordnet.`
+                            ? `${optionalPresence.found.length} von ${optionalFields.length} optionalen Feldern zugeordnet.`
                             : "Keine optionalen Felder konfiguriert."}
                         </div>
                       </div>
