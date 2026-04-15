@@ -3715,7 +3715,7 @@ function McAngebotsfeed() {
       {issues && !mcIsWrongFile && (
         <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 10, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
           {/* ── STUFE 1 – TECHNISCHE PRÜFUNG (Hard Gate) ── */}
-          <div style={{ background: "#FFF", border: `1px solid ${issues.blockiertCount > 0 ? "#FECACA" : "#BBF7D0"}`, borderRadius: 8, overflow: "hidden", marginTop: 44 }}>
+          <div style={{ background: "#FFF", border: `1px solid ${issues.blockiertCount > 0 ? "#FECACA" : "#BBF7D0"}`, borderRadius: 8, overflow: "hidden", order: 3 }}>
             {/* Section header */}
             <div style={{ background: issues.blockiertCount > 0 ? "#FEF2F2" : "#F0FDF4", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
@@ -3814,7 +3814,7 @@ function McAngebotsfeed() {
             const campaignEligible = score >= 70;
             const fillPct = issues.totalRows > 0 ? Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100) : 0;
             return (
-              <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden", marginTop: 44, order: 1 }}>
                 {/* Section header */}
                 <div style={{ background: "#F9FAFB", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
@@ -3951,9 +3951,9 @@ function McAngebotsfeed() {
             const totalFields = allMcFields.length + 1;
             const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
             // When nothing is wrong, render nothing here — toggle lives in the CSV card below
-            if (!hasMissing && !mappingExpanded) return <div data-mapping-trigger style={{ display: "none" }} data-found={foundFields} data-total={totalFields} />;
+            if (!hasMissing && !mappingExpanded) return <div data-mapping-trigger style={{ display: "none", order: 4 }} data-found={foundFields} data-total={totalFields} />;
             return (
-              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px", order: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: hasMissing ? 700 : 500, color: hasMissing ? "#92400E" : "#6B7280" }}>
                     Spalten-Zuordnung {foundFields}/{totalFields}
@@ -4041,7 +4041,7 @@ function McAngebotsfeed() {
           })()}
 
           {/* CSV Download - split columns */}
-          <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
+          <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", order: 2 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Fehlerliste herunterladen</div>
               <button type="button" onClick={() => setMappingExpanded((v) => !v)}
