@@ -3834,19 +3834,6 @@ function McAngebotsfeed() {
                       <div style={{ fontSize: 12, fontWeight: 700, color: tierColor, marginTop: 3 }}>{tier}</div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
-                      <div style={{ textAlign: "right", fontSize: 10, lineHeight: "1.6" }}>
-                        {campaignEligible ? (
-                          <>
-                            <div style={{ color: "#16A34A", fontWeight: 700 }}>✓ Kampagnen-Teilnahme</div>
-                            <div style={{ color: "#6B7280" }}>Deals &amp; Aktionen möglich</div>
-                          </>
-                        ) : (
-                          <>
-                            <div style={{ color: "#DC2626", fontWeight: 700 }}>✗ Keine Kampagnen</div>
-                            <div style={{ color: "#6B7280" }}>Score &ge; 70 erforderlich</div>
-                          </>
-                        )}
-                      </div>
                       {/* APA bubble */}
                       {(() => {
                         const apaRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
@@ -3876,18 +3863,41 @@ function McAngebotsfeed() {
                     </div>
                   </div>
 
-                  {/* Progress bar with tier markers */}
-                  <div style={{ marginBottom: 4 }}>
+                  {/* Progress bar with campaign threshold marker */}
+                  <div style={{ marginBottom: 4, paddingTop: 18, position: "relative" }}>
+                    {/* Campaign pin label at 70 */}
+                    <div style={{ position: "absolute", top: 0, left: "70%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <div style={{ fontSize: 8, fontWeight: 700, color: campaignEligible ? "#166534" : "#6B7280", whiteSpace: "nowrap", padding: "1px 5px", borderRadius: 3, background: campaignEligible ? "#DCFCE7" : "#F3F4F6", border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}` }}>Kampagnen</div>
+                      <div style={{ width: 1, height: 4, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
+                    </div>
                     <div style={{ height: 8, borderRadius: 4, background: "#E5E7EB", overflow: "hidden" }}>
                       <div style={{ height: "100%", borderRadius: 4, background: tierColor, width: `${score}%`, transition: "width 0.4s" }} />
                     </div>
+                    {/* Notch marker at 70% overlaid on bar */}
+                    <div style={{ position: "absolute", top: 18, left: "70%", transform: "translateX(-50%)", width: 2, height: 8, background: campaignEligible ? "#16A34A" : "#6B7280", pointerEvents: "none" }} />
                     <div style={{ display: "flex", fontSize: 8, color: "#9CA3AF", marginTop: 3, position: "relative" }}>
                       <span>0</span>
-                      <span style={{ position: "absolute", left: "50%" }}>50</span>
-                      <span style={{ position: "absolute", left: "70%" }}>70</span>
-                      <span style={{ position: "absolute", left: "85%" }}>85</span>
+                      <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>50</span>
+                      <span style={{ position: "absolute", left: "70%", transform: "translateX(-50%)", color: campaignEligible ? "#16A34A" : "#4B5563", fontWeight: 700 }}>70</span>
+                      <span style={{ position: "absolute", left: "85%", transform: "translateX(-50%)" }}>85</span>
                       <span style={{ marginLeft: "auto" }}>100</span>
                     </div>
+                  </div>
+
+                  {/* Campaign achievement card */}
+                  <div style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}`, background: campaignEligible ? "#F0FDF4" : "#F9FAFB", padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: campaignEligible ? "#16A34A" : "#D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+                      {campaignEligible ? "✓" : "✗"}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: campaignEligible ? "#166534" : "#374151" }}>
+                        {campaignEligible ? "Kampagnen freigeschaltet" : "Kampagnen-Teilnahme"}
+                      </div>
+                      <div style={{ fontSize: 9, color: campaignEligible ? "#15803D" : "#9CA3AF", marginTop: 1 }}>
+                        {campaignEligible ? "Deals & Aktionen · Kampagnen bei CHECK24 möglich" : `Noch ${70 - score} Punkte bis zur Freischaltung`}
+                      </div>
+                    </div>
+                    {!campaignEligible && <div style={{ fontSize: 9, padding: "3px 7px", borderRadius: 999, background: "#E5E7EB", color: "#6B7280", whiteSpace: "nowrap", fontWeight: 600 }}>ab 70 Pkt.</div>}
                   </div>
 
                   {/* Scoring details */}
