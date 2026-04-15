@@ -3844,33 +3844,33 @@ function McAngebotsfeed() {
                   {/* Scoring details */}
                   <details style={{ marginTop: 10 }}>
                     <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280", fontWeight: 600, userSelect: "none" }}>Scoring-Logik anzeigen</summary>
-                    <div style={{ marginTop: 8, display: "grid", gap: 6, fontSize: 10, lineHeight: "1.55" }}>
-                      <div style={{ padding: "5px 8px", borderRadius: 5, background: "#F9FAFB", border: "1px solid #E5E7EB", color: "#374151" }}>
-                        <span style={{ fontWeight: 700 }}>Score = </span>Pflichtfelder-Score (max. 70 Pkt.) + Empfohlene Felder (max. 30 Pkt.) − Duplikat-Malus (max. −10 Pkt.)
-                      </div>
-                      <div style={{ padding: "5px 8px", borderRadius: 5, background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
-                        <div style={{ fontWeight: 700, color: "#166534", marginBottom: 2 }}>Pflichtfelder-Vollständigkeit (max. 70 Pkt.)</div>
-                        <div style={{ color: "#374151" }}>{issues.pflichtOkCount} von {issues.totalRows} Artikeln haben alle Pflichtfelder korrekt befüllt.</div>
-                        <div style={{ color: "#374151", marginTop: 2 }}>→ {issues.pflichtOkCount}/{issues.totalRows} × 70 = <strong>{issues.pflichtScore}/70 Punkte</strong></div>
-                      </div>
-                      <div style={{ padding: "5px 8px", borderRadius: 5, background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-                        <div style={{ fontWeight: 700, color: "#1D4ED8", marginBottom: 2 }}>Empfohlene Felder-Befüllung (max. 30 Pkt.)</div>
-                        <div style={{ color: "#374151" }}>Ø {fillPct}% der empfohlenen Felder je Artikel befüllt.</div>
-                        <div style={{ color: "#374151", marginTop: 2 }}>→ <strong>{issues.optionalScore}/30 Punkte</strong></div>
-                        <div style={{ color: "#6B7280", marginTop: 3, fontSize: 9 }}>36 empfohlene Attribute inkl. Bildlink_2–10</div>
-                      </div>
-                      {issues.dupNameEanCount > 0 && (
-                        <div style={{ padding: "5px 8px", borderRadius: 5, background: "#FEF2F2", border: "1px solid #FECACA" }}>
-                          <div style={{ fontWeight: 700, color: "#B91C1C", marginBottom: 2 }}>Duplikat-Malus (max. −10 Pkt.)</div>
-                          <div style={{ color: "#374151" }}>{issues.dupNameEanCount} Artikel mit identischem Name + gleicher EAN.</div>
-                          <div style={{ color: "#374151", marginTop: 2 }}>→ <strong>−{issues.dupPenalty} Punkte</strong></div>
+                    <div style={{ marginTop: 8, borderTop: "1px solid #F3F4F6", fontSize: 10, lineHeight: "1.6", color: "#374151" }}>
+                      {[
+                        {
+                          label: "Pflichtfelder", max: 70, pts: issues.pflichtScore,
+                          detail: `${issues.pflichtOkCount} / ${issues.totalRows} Artikel vollständig`,
+                        },
+                        {
+                          label: "Empfohlene Felder", max: 30, pts: issues.optionalScore,
+                          detail: `Ø ${fillPct}% befüllt · 36 Attribute inkl. Bildlink_2–10`,
+                        },
+                        ...(issues.dupNameEanCount > 0 ? [{
+                          label: "Duplikat-Malus", max: -10, pts: -issues.dupPenalty,
+                          detail: `${issues.dupNameEanCount} Artikel mit identischem Name + EAN`,
+                        }] : []),
+                      ].map((row, i, arr) => (
+                        <div key={row.label} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 0", borderBottom: i < arr.length - 1 ? "1px solid #F3F4F6" : "none" }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontWeight: 600, color: "#111827" }}>{row.label}</span>
+                            <span style={{ color: "#9CA3AF", marginLeft: 4 }}>max. {row.max} Pkt.</span>
+                            <div style={{ color: "#6B7280", fontSize: 9, marginTop: 1 }}>{row.detail}</div>
+                          </div>
+                          <span style={{ fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>{row.pts > 0 ? "+" : ""}{row.pts} Pkt.</span>
                         </div>
-                      )}
-                      <div style={{ padding: "5px 8px", borderRadius: 5, background: campaignEligible ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${campaignEligible ? "#BBF7D0" : "#FECACA"}` }}>
-                        <span style={{ fontWeight: 700, color: campaignEligible ? "#166534" : "#B91C1C" }}>
-                          Gesamt: {issues.pflichtScore} + {issues.optionalScore} − {issues.dupPenalty} = {score}/100
-                        </span>
-                        {campaignEligible && <span style={{ color: "#16A34A", marginLeft: 6 }}>· Kampagnen berechtigt ✓</span>}
+                      ))}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 6, marginTop: 2, borderTop: "1px solid #E5E7EB" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#111827" }}>Gesamt</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: tierColor }}>{score} / 100</span>
                       </div>
                     </div>
                   </details>
