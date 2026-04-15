@@ -3258,26 +3258,94 @@ const MC_NAV_ITEMS = [
   { id: "faq",           label: "FAQ",             icon: "faq" },
 ];
 
-const MC_PFLICHT_COLS = ["ean", "seller_offer_id", "name", "price", "stock_amount", "delivery_time", "image_url", "shipping_mode"];
-const MC_OPTIONAL_COLS = ["description", "brand", "material", "color", "category_path", "delivery_includes", "manufacturer_name"];
+// Stufe 1: Live-Fähigkeit (Hard Gate) – 25 Pflichtattribute (CHECK24 Attributübersicht V2025)
+const MC_PFLICHT_COLS = [
+  // Informationen (6)
+  "ean", "brand", "category_path", "description", "name", "seller_offer_id",
+  // Produktmerkmale (6)
+  "color", "material", "size", "size_depth", "size_diameter", "size_height",
+  // Medien (1) – handled via image column detection
+  "image_url",
+  // Herstellerangaben (6)
+  "manufacturer_name", "manufacturer_street", "manufacturer_postcode",
+  "manufacturer_city", "manufacturer_country", "manufacturer_email",
+  // Preis & Verfügbarkeit (5)
+  "availability", "delivery_time", "delivery_includes", "price", "stock_amount",
+  // Versand (1)
+  "shipping_mode",
+];
+// Stufe 2: Feed-Qualitätsscore – empfohlene Attribute (Score-relevant, 27 + Bildlink_2–10)
+const MC_OPTIONAL_COLS = [
+  // Informationen (2)
+  "deeplink", "model",
+  // Produktmerkmale (7)
+  "size_lying_surface", "size_seat_height", "ausrichtung", "style", "temper", "weight", "weight_capacity",
+  // Medien extra (4 non-image)
+  "youtube_link", "bild_3d_glb", "bild_3d_usdz", "assembly_instructions",
+  // Funktion & Ausstattung (7)
+  "illuminant_included", "incl_mattress", "incl_slatted_frame", "led_verbaut", "lighting_included", "set_includes", "socket",
+  // Textilien & Polster (4)
+  "care_instructions", "filling", "removable_cover", "suitable_for_allergic",
+  // Nachweise (2)
+  "energy_efficiency_category", "product_data_sheet",
+  // Herstellerangaben (1)
+  "manufacturer_phone_number",
+];
 const MC_PFLICHT_ALIASES = {
   ean: ["ean", "gtin", "gtin14", "ean13", "barcode"],
-  seller_offer_id: ["seller_offer_id", "offer_id", "sku", "merchant_sku", "eindeutige_id", "eindeutige id", "unique_id"],
+  brand: ["brand", "marke"],
+  category_path: ["category_path", "kategorie", "category", "kategoriepfad"],
+  description: ["description", "beschreibung", "desc"],
   name: ["name", "title", "titel", "product_name", "produktname"],
-  price: ["price", "preis", "vk", "selling_price"],
-  stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit"],
+  seller_offer_id: ["seller_offer_id", "offer_id", "sku", "merchant_sku", "eindeutige_id", "eindeutige id", "unique_id"],
+  color: ["color", "farbe", "colour"],
+  material: ["material", "materials"],
+  size: ["size", "abmessung", "dimension", "größe", "groesse", "maße", "masse"],
+  size_depth: ["size_depth", "tiefe", "depth"],
+  size_diameter: ["size_diameter", "durchmesser", "diameter"],
+  size_height: ["size_height", "höhe", "hoehe", "height"],
+  image_url: ["image_url", "image", "img_url", "bild", "bild_url", "bildlink_1", "bildlink1"],
+  manufacturer_name: ["manufacturer_name", "manufacturer", "hersteller"],
+  manufacturer_street: ["manufacturer_street", "hersteller_strasse", "hersteller_straße"],
+  manufacturer_postcode: ["manufacturer_postcode", "hersteller_plz"],
+  manufacturer_city: ["manufacturer_city", "hersteller_stadt", "hersteller_ort"],
+  manufacturer_country: ["manufacturer_country", "hersteller_land"],
+  manufacturer_email: ["manufacturer_email", "hersteller_email"],
+  availability: ["availability", "verfügbarkeit", "verfuegbarkeit", "lieferstatus"],
   delivery_time: ["delivery_time", "lieferzeit", "delivery time"],
-  image_url: ["image_url", "image", "img_url", "bild", "bild_url"],
+  delivery_includes: ["delivery_includes", "lieferumfang"],
+  price: ["price", "preis", "vk", "selling_price"],
+  stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty"],
   shipping_mode: ["shipping_mode", "versandart", "shipping", "shipping_type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
 };
 const MC_OPTIONAL_ALIASES = {
-  description: ["description", "beschreibung", "desc"],
-  brand: ["brand", "marke", "manufacturer", "hersteller"],
-  material: ["material", "materials"],
-  color: ["color", "farbe"],
-  category_path: ["category_path", "kategorie", "category"],
-  delivery_includes: ["delivery_includes", "lieferumfang"],
-  manufacturer_name: ["manufacturer_name", "manufacturer", "hersteller"],
+  deeplink: ["deeplink", "link", "url", "produktlink"],
+  model: ["model", "modell"],
+  size_lying_surface: ["size_lying_surface", "liegefläche", "liegeflaeche"],
+  size_seat_height: ["size_seat_height", "sitzhöhe", "sitzhoehe"],
+  ausrichtung: ["ausrichtung", "orientation"],
+  style: ["style", "stil"],
+  temper: ["temper", "härte", "haerte"],
+  weight: ["weight", "gewicht"],
+  weight_capacity: ["weight_capacity", "tragkraft", "belastbarkeit"],
+  youtube_link: ["youtube_link", "youtube", "video_link"],
+  bild_3d_glb: ["bild_3d_glb", "3d_glb", "glb"],
+  bild_3d_usdz: ["bild_3d_usdz", "3d_usdz", "usdz"],
+  assembly_instructions: ["assembly_instructions", "montageanleitung", "aufbauanleitung"],
+  illuminant_included: ["illuminant_included", "leuchtmittel"],
+  incl_mattress: ["incl_mattress", "matratze_enthalten", "mit_matratze"],
+  incl_slatted_frame: ["incl_slatted_frame", "lattenrost_enthalten"],
+  led_verbaut: ["led_verbaut", "led"],
+  lighting_included: ["lighting_included", "beleuchtung"],
+  set_includes: ["set_includes", "set_inhalt"],
+  socket: ["socket", "steckdose"],
+  care_instructions: ["care_instructions", "pflegehinweise"],
+  filling: ["filling", "füllung", "fuellung"],
+  removable_cover: ["removable_cover", "abnehmbarer_bezug"],
+  suitable_for_allergic: ["suitable_for_allergic", "allergikergeeignet"],
+  energy_efficiency_category: ["energy_efficiency_category", "energieklasse"],
+  product_data_sheet: ["product_data_sheet", "datenblatt"],
+  manufacturer_phone_number: ["manufacturer_phone_number", "hersteller_telefon"],
 };
 
 // Tiny SVG sparkline helper
@@ -3354,18 +3422,13 @@ function McAngebotsfeed() {
     for (const key of MC_OPTIONAL_COLS) {
       m[key] = bestHeaderMatch(headers, MC_OPTIONAL_ALIASES[key] || [key]) || null;
     }
-    // size: special case not in MC_OPTIONAL_COLS list
-    if (!m.size) {
-      const sizeCol = headers.find((h) => { const l = h.toLowerCase(); return l.includes("size") || l.includes("abmessung") || l.includes("dimension") || l.includes("größe") || l.includes("groesse") || l.includes("maße"); });
-      if (sizeCol) m.size = sizeCol;
-    }
     return m;
   }, [headers]);
 
   // Tier 2: content-based fallback for fields not found by name
   const mcContentMapping = useMemo(() => {
     if (!headers.length || !rows.length) return {};
-    const allFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS, "size"];
+    const allFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
     const unmapped = allFields.filter((f) => !mcAutoMapping[f]);
     if (!unmapped.length) return {};
     return detectFieldByContent(unmapped, headers, rows);
@@ -3384,6 +3447,7 @@ function McAngebotsfeed() {
   );
 
   // Reactive analysis — re-runs whenever mapping or rows change
+  // Implements Zwei-Stufen-Modell: Stufe 1 (Hard Gate) + Stufe 2 (Soft Score)
   const issues = useMemo(() => {
     if (!rows.length || !headers.length) return null;
 
@@ -3391,19 +3455,21 @@ function McAngebotsfeed() {
       if (c === "image_url") return mcImageColumns.length === 0;
       return !mcMapping[c];
     });
-    const missingOptionalCols = [...MC_OPTIONAL_COLS, "size"].filter((c) => !mcMapping[c]);
+    const missingOptionalCols = MC_OPTIONAL_COLS.filter((c) => !mcMapping[c]);
 
     const pflichtErrors = [];
     const optionalHints = [];
-    const duplicateEans = {}, duplicateNames = {}, duplicateOfferIds = {};
+    const duplicateEans = {}, duplicateNameEans = {};
     let pflichtOkCount = 0, totalOptionalFieldsPresent = 0;
-    const optionalFieldCount = MC_OPTIONAL_COLS.length + 1 + 1; // +1 size, +1 for 3+ images
+    // Stufe 2: 27 recommended cols + 9 extra image slots (Bildlink_2–10)
+    const optionalFieldCount = MC_OPTIONAL_COLS.length + 9;
+
+    const pflichtErrorRowNums = new Set();
 
     rows.forEach((row, i) => {
       const rn = i + 1;
       const ean = mcMapping.ean ? String(row[mcMapping.ean] ?? "").trim() : "";
       const name = mcMapping.name ? String(row[mcMapping.name] ?? "").trim() : "";
-      const offerId = mcMapping.seller_offer_id ? String(row[mcMapping.seller_offer_id] ?? "").trim() : "";
       let pflichtOk = true;
       let optionalFieldsPresent = 0;
 
@@ -3421,43 +3487,69 @@ function McAngebotsfeed() {
         if (imgCount === 0) { pflichtErrors.push({ row: rn, ean, field: "image_url", type: "missing" }); pflichtOk = false; }
       }
 
-      for (const key of [...MC_OPTIONAL_COLS, "size"]) {
+      // Stufe 2: recommended field fill rate
+      for (const key of MC_OPTIONAL_COLS) {
         const col = mcMapping[key];
         if (!col) continue;
         if (!String(row[col] ?? "").trim()) { optionalHints.push({ row: rn, ean, field: key }); }
         else { optionalFieldsPresent++; }
       }
-      const totalImgs = mcImageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
-      if (totalImgs < 3) { optionalHints.push({ row: rn, ean, field: "3+ Bilder" }); }
-      else { optionalFieldsPresent++; }
+      // Extra image slots (Bildlink_2 to Bildlink_10 = up to 9 bonus slots)
+      const extraImageCols = mcImageColumns.slice(1, 10);
+      optionalFieldsPresent += extraImageCols.filter((col) => String(row[col] ?? "").trim()).length;
 
+      // EAN tracking (Stufe 1: duplicates = hard error)
       if (ean) { if (!duplicateEans[ean]) duplicateEans[ean] = []; duplicateEans[ean].push(rn); }
-      if (name) { if (!duplicateNames[name]) duplicateNames[name] = []; duplicateNames[name].push(rn); }
-      if (offerId) { if (!duplicateOfferIds[offerId]) duplicateOfferIds[offerId] = []; duplicateOfferIds[offerId].push(rn); }
+      // Name+EAN tracking (Stufe 2: identical name+EAN = malus)
+      if (name && ean) { const k = `${name}|||${ean}`; if (!duplicateNameEans[k]) duplicateNameEans[k] = []; duplicateNameEans[k].push(rn); }
 
-      if (pflichtOk) pflichtOkCount++;
+      if (pflichtOk) { pflichtOkCount++; } else { pflichtErrorRowNums.add(rn); }
       totalOptionalFieldsPresent += optionalFieldsPresent;
     });
 
+    // Stufe 1: EAN duplicates are a hard gate error
     const dupEanCount = Object.values(duplicateEans).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
-    const dupNameCount = Object.values(duplicateNames).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
-    const dupOfferIdCount = Object.values(duplicateOfferIds).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
-    const totalDups = dupEanCount + dupNameCount + dupOfferIdCount;
+    const eanDupRows = new Set(Object.values(duplicateEans).filter((r) => r.length > 1).flat());
+    // Stufe 1: live-fähig = no pflicht errors AND no EAN duplicate
+    const livefaehigCount = rows.filter((_, i) => !pflichtErrorRowNums.has(i + 1) && !eanDupRows.has(i + 1)).length;
 
+    // Stufe 2: name+EAN duplicate malus (same product listed twice)
+    const dupNameEanCount = Object.values(duplicateNameEans).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
+
+    // Categorise Stufe 1 errors by attribute group
+    const PFLICHT_CAT = {
+      ean: "informationen", brand: "informationen", category_path: "informationen",
+      description: "informationen", name: "informationen", seller_offer_id: "informationen",
+      color: "produktmerkmale", material: "produktmerkmale", size: "produktmerkmale",
+      size_depth: "produktmerkmale", size_diameter: "produktmerkmale", size_height: "produktmerkmale",
+      image_url: "medien",
+      manufacturer_name: "hersteller", manufacturer_street: "hersteller", manufacturer_postcode: "hersteller",
+      manufacturer_city: "hersteller", manufacturer_country: "hersteller", manufacturer_email: "hersteller",
+      availability: "preis", delivery_time: "preis", delivery_includes: "preis", price: "preis", stock_amount: "preis",
+      shipping_mode: "versand",
+    };
+    const catRows = { informationen: new Set(), produktmerkmale: new Set(), medien: new Set(), hersteller: new Set(), preis: new Set(), versand: new Set() };
+    pflichtErrors.forEach((e) => { const c = PFLICHT_CAT[e.field]; if (c) catRows[c].add(e.row); });
+    eanDupRows.forEach((rn) => catRows.informationen.add(rn));
+    const pflichtCategoryErrors = Object.fromEntries(Object.entries(catRows).map(([k, s]) => [k, s.size]));
+
+    // Scoring (Stufe 2)
     const pflichtScore = rows.length ? Math.round((pflichtOkCount / rows.length) * 70) : 0;
-    const dupPenalty = rows.length ? Math.min(10, Math.round((totalDups / rows.length) * 70)) : 0;
+    const dupPenalty = rows.length ? Math.min(10, Math.round((dupNameEanCount / rows.length) * 30)) : 0;
     const optionalScore = rows.length && optionalFieldCount > 0 ? Math.round((totalOptionalFieldsPresent / (rows.length * optionalFieldCount)) * 30) : 0;
     const totalScore = Math.max(0, pflichtScore - dupPenalty + optionalScore);
 
     return {
       totalRows: rows.length,
       pflichtMapping: MC_PFLICHT_COLS.reduce((m, k) => { m[k] = k === "image_url" ? (mcImageColumns[0] || null) : (mcMapping[k] || null); return m; }, {}),
-      optionalMapping: [...MC_OPTIONAL_COLS, "size"].reduce((m, k) => { m[k] = mcMapping[k] || null; return m; }, {}),
+      optionalMapping: MC_OPTIONAL_COLS.reduce((m, k) => { m[k] = mcMapping[k] || null; return m; }, {}),
       imageColumns: mcImageColumns,
       missingPflichtCols, missingOptionalCols,
       pflichtErrors, optionalHints,
-      pflichtOkCount, totalOptionalFieldsPresent, optionalFieldCount,
-      dupEanCount, dupNameCount, dupOfferIdCount,
+      pflichtOkCount, livefaehigCount, blockiertCount: rows.length - livefaehigCount,
+      totalOptionalFieldsPresent, optionalFieldCount,
+      dupEanCount, dupNameEanCount,
+      pflichtCategoryErrors,
       pflichtScore, dupPenalty, optionalScore, totalScore,
     };
   }, [rows, headers, mcMapping, mcImageColumns]);
@@ -3619,159 +3711,212 @@ function McAngebotsfeed() {
         </div>
       )}
       {issues && !mcIsWrongFile && (
-        <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 6, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
-          {/* Score */}
-          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", marginTop: 44 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Analyse-Ergebnis</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: mcScore >= 70 ? "#16A34A" : "#DC2626" }}>{mcScore}/100</div>
-            </div>
-
-            {/* Score bar */}
-            <div style={{ height: 5, borderRadius: 3, background: "#E5E7EB", overflow: "hidden", marginBottom: 4 }}>
-              <div style={{ height: "100%", borderRadius: 3, background: mcScore >= 70 ? "#16A34A" : mcScore >= 40 ? "#D97706" : "#DC2626", width: `${mcScore}%`, transition: "width 0.3s" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#6B7280", marginBottom: 4 }}>
-              <span>Mindestens 70/100</span>
-              <span>{mcScore >= 70 ? "Fehlerfrei" : "Fehler vorhanden"}</span>
-            </div>
-
-            {/* Status */}
-            {mcScore >= 70 ? (
-              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, flexShrink: 0 }}>✓</div>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#166534" }}>Fehlerfrei</div>
-                  <div style={{ fontSize: 9, color: "#15803D" }}>Feed kann freigeschaltet werden.</div>
-                </div>
+        <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 10, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
+          {/* ── STUFE 1 – TECHNISCHE PRÜFUNG (Hard Gate) ── */}
+          <div style={{ background: "#FFF", border: `1px solid ${issues.blockiertCount > 0 ? "#FECACA" : "#BBF7D0"}`, borderRadius: 8, overflow: "hidden", marginTop: 44 }}>
+            {/* Section header */}
+            <div style={{ background: issues.blockiertCount > 0 ? "#FEF2F2" : "#F0FDF4", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase" }}>STUFE 1 – TECHNISCHE PRÜFUNG</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Datenvalidierung</div>
               </div>
-            ) : (
-              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, flexShrink: 0 }}>!</div>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#B91C1C" }}>Fehler vorhanden</div>
-                  <div style={{ fontSize: 9, color: "#DC2626" }}>{errorCount} Fehler, {warningCount} Hinweise</div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                <span style={{ fontSize: 8, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#1553B6", color: "#FFF", letterSpacing: "0.06em" }}>HARD GATE</span>
+                {issues.blockiertCount > 0
+                  ? <span style={{ fontSize: 10, color: "#DC2626", fontWeight: 700 }}>✗ Fehler vorhanden</span>
+                  : <span style={{ fontSize: 10, color: "#16A34A", fontWeight: 700 }}>✓ Bestanden</span>}
+              </div>
+            </div>
+
+            {/* Pflichtattribute categories */}
+            <div style={{ padding: "10px 14px", display: "grid", gap: 3 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>Pflichtattribute (25 Attribute)</div>
+                <div style={{ fontSize: 9, color: "#9CA3AF" }}>betroffene Artikel</div>
+              </div>
+              {[
+                { key: "informationen", label: "Informationen", count: 6, fields: ["ean", "brand", "category_path", "description", "name", "seller_offer_id"] },
+                { key: "produktmerkmale", label: "Produktmerkmale", count: 6, fields: ["color", "material", "size", "size_depth", "size_diameter", "size_height"] },
+                { key: "medien", label: "Medien", count: 1, fields: ["image_url"] },
+                { key: "hersteller", label: "Herstellerangaben", count: 6, fields: ["manufacturer_name", "manufacturer_street", "manufacturer_postcode", "manufacturer_city", "manufacturer_country", "manufacturer_email"] },
+                { key: "preis", label: "Preis & Verfügbarkeit", count: 5, fields: ["availability", "delivery_time", "delivery_includes", "price", "stock_amount"] },
+                { key: "versand", label: "Versand", count: 1, fields: ["shipping_mode"] },
+              ].map(({ key, label, count, fields }) => {
+                const errCount = issues.pflichtCategoryErrors[key] || 0;
+                const hasMissingCol = fields.some((f) => issues.missingPflichtCols.includes(f));
+                const ok = errCount === 0 && !hasMissingCol;
+                return (
+                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: "1px solid #F3F4F6" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", background: ok ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ color: "#FFF", fontSize: 9, fontWeight: 800 }}>{ok ? "✓" : "✗"}</span>
+                    </div>
+                    <div style={{ flex: 1, fontSize: 11, color: "#374151" }}>{label}</div>
+                    <div style={{ fontSize: 9, color: "#9CA3AF" }}>{count} Attr.</div>
+                    {!ok && <div style={{ fontSize: 10, fontWeight: 700, color: "#DC2626", minWidth: 70, textAlign: "right" }}>{hasMissingCol ? "Spalte fehlt" : `${errCount} Artikel`}</div>}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Stats bar */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderTop: "1px solid #E5E7EB" }}>
+              {[
+                { val: issues.livefaehigCount, label: "Artikel bestanden", color: "#16A34A", bg: "#F0FDF4" },
+                { val: issues.blockiertCount, label: "Artikel blockiert", color: "#DC2626", bg: "#FEF2F2" },
+                { val: issues.totalRows, label: "Gesamtartikel", color: "#374151", bg: "#F9FAFB" },
+              ].map(({ val, label, color, bg }) => (
+                <div key={label} style={{ padding: "8px 6px", background: bg, textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
+                  <div style={{ fontSize: 8, color: "#6B7280", marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Warning when articles blocked */}
+            {issues.blockiertCount > 0 && (
+              <div style={{ padding: "8px 14px", background: "#FFFBEB", borderTop: "1px solid #FCD34D" }}>
+                <div style={{ fontSize: 10, color: "#92400E", lineHeight: "1.5" }}>
+                  <strong>{issues.blockiertCount} Artikel</strong> erfüllen die technischen Mindestanforderungen nicht und können nicht live geschaltet werden. Beheben Sie die Fehler, damit diese Artikel für Kampagnen in Frage kommen.
                 </div>
               </div>
             )}
-
-            {/* Scoring details */}
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280", fontWeight: 600, userSelect: "none" }}>
-                Scoring-Logik anzeigen
-              </summary>
-              <div style={{ marginTop: 8, display: "grid", gap: 8, fontSize: 10, lineHeight: "1.55" }}>
-                {/* Formula */}
-                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #E5E7EB", color: "#374151" }}>
-                  <span style={{ fontWeight: 700 }}>Score = </span>Pflichtfelder-Score + Optional-Score − Duplikat-Malus
-                </div>
-
-                {/* Pflicht block */}
-                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
-                  <div style={{ fontWeight: 700, color: "#166534", marginBottom: 3 }}>Pflichtfelder (max. 70 Pkt.)</div>
-                  <div style={{ color: "#374151" }}>
-                    {issues.pflichtOkCount} von {issues.totalRows} Artikeln haben alle Pflichtfelder korrekt ausgefüllt.
-                  </div>
-                  <div style={{ color: "#374151", marginTop: 2 }}>
-                    → {issues.pflichtOkCount}/{issues.totalRows} × 70 = <strong>{issues.pflichtScore}/70 Punkte</strong>
-                  </div>
-                  <div style={{ color: "#6B7280", marginTop: 4, fontSize: 9 }}>
-                    Pflichtfelder: EAN · Offer ID · Name · Preis · Bestand · Lieferzeit · Versandart · Bilder
-                  </div>
-                </div>
-
-                {/* Duplikate block */}
-                <div style={{ padding: "6px 8px", borderRadius: 6, background: issues.dupPenalty > 0 ? "#FEF2F2" : "#F9FAFB", border: `1px solid ${issues.dupPenalty > 0 ? "#FECACA" : "#E5E7EB"}` }}>
-                  <div style={{ fontWeight: 700, color: issues.dupPenalty > 0 ? "#B91C1C" : "#374151", marginBottom: 3 }}>Duplikat-Malus (max. −10 Pkt.)</div>
-                  <div style={{ color: "#374151" }}>
-                    {issues.dupEanCount > 0 ? `${issues.dupEanCount} doppelte EAN` : "Keine doppelten EAN"}
-                    {issues.dupNameCount > 0 ? ` · ${issues.dupNameCount} doppelte Namen` : ""}
-                    {issues.dupOfferIdCount > 0 ? ` · ${issues.dupOfferIdCount} doppelte Offer IDs` : ""}
-                  </div>
-                  <div style={{ color: "#374151", marginTop: 2 }}>
-                    → <strong>−{issues.dupPenalty} Punkte</strong>
-                  </div>
-                </div>
-
-                {/* Optional block */}
-                <div style={{ padding: "6px 8px", borderRadius: 6, background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-                  <div style={{ fontWeight: 700, color: "#1D4ED8", marginBottom: 3 }}>Optionale Felder (max. 30 Pkt.)</div>
-                  <div style={{ color: "#374151" }}>
-                    Durchschnittlich {Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100)}% der optionalen Felder je Artikel befüllt.
-                  </div>
-                  <div style={{ color: "#374151", marginTop: 2 }}>
-                    → {issues.totalOptionalFieldsPresent} / ({issues.totalRows} × {issues.optionalFieldCount}) × 30 = <strong>{issues.optionalScore}/30 Punkte</strong>
-                  </div>
-                  <div style={{ color: "#6B7280", marginTop: 4, fontSize: 9 }}>
-                    Optionale Felder: Beschreibung · Marke · Material · Farbe · Kategorie · Lieferumfang · Hersteller · Maße · 3+ Bilder
-                  </div>
-                </div>
-
-                {/* Total */}
-                <div style={{ padding: "6px 8px", borderRadius: 6, background: mcScore >= 70 ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${mcScore >= 70 ? "#BBF7D0" : "#FECACA"}` }}>
-                  <span style={{ fontWeight: 700, color: mcScore >= 70 ? "#166534" : "#B91C1C" }}>
-                    Gesamt: {issues.pflichtScore} + {issues.optionalScore} − {issues.dupPenalty} = {mcScore}/100
-                  </span>
-                </div>
-              </div>
-            </details>
           </div>
 
-          {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5 }}>
-            {[
-              { label: "Artikel", val: issues.totalRows, bg: "#F9FAFB", border: "#E5E7EB", color: "#111827" },
-              { label: "Fehler", val: errorCount, bg: errorCount > 0 ? "#FEF2F2" : "#F0FDF4", border: errorCount > 0 ? "#FECACA" : "#BBF7D0", color: errorCount > 0 ? "#B91C1C" : "#166534" },
-              { label: "Hinweise", val: warningCount, bg: warningCount > 0 ? "#FFFBEB" : "#F0FDF4", border: warningCount > 0 ? "#FCD34D" : "#BBF7D0", color: warningCount > 0 ? "#92400E" : "#166534" },
-            ].map((c) => (
-              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 6, padding: "6px 8px" }}>
-                <div style={{ fontSize: 8, color: c.color, fontWeight: 500, marginBottom: 1 }}>{c.label}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: c.color }}>{c.val}</div>
+          {/* ── STUFE 2 – FEED-QUALITÄTSSCORE (Soft Score) ── */}
+          {(() => {
+            const score = issues.totalScore;
+            const tier = score >= 85 ? "Premium" : score >= 70 ? "Qualifiziert" : score >= 50 ? "Fortgeschritten" : "Basis";
+            const tierColor = score >= 70 ? "#16A34A" : score >= 50 ? "#D97706" : "#DC2626";
+            const campaignEligible = score >= 70;
+            const fillPct = issues.totalRows > 0 ? Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100) : 0;
+            return (
+              <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
+                {/* Section header */}
+                <div style={{ background: "#F9FAFB", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase" }}>STUFE 2 – FEED-QUALITÄTSSCORE</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Analyse-Ergebnis</div>
+                  </div>
+                  <span style={{ fontSize: 8, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#6B7280", color: "#FFF", letterSpacing: "0.06em" }}>SOFT SCORE</span>
+                </div>
+
+                {/* Score display */}
+                <div style={{ padding: "12px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                        <span style={{ fontSize: 42, fontWeight: 800, color: tierColor, lineHeight: 1 }}>{score}</span>
+                        <span style={{ fontSize: 20, color: "#9CA3AF", fontWeight: 600 }}>/100</span>
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: tierColor, marginTop: 3 }}>{tier}</div>
+                    </div>
+                    <div style={{ textAlign: "right", fontSize: 10, lineHeight: "1.6" }}>
+                      {campaignEligible ? (
+                        <>
+                          <div style={{ color: "#16A34A", fontWeight: 700 }}>✓ Kampagnen-Teilnahme</div>
+                          <div style={{ color: "#6B7280" }}>Deals &amp; Aktionen möglich</div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ color: "#DC2626", fontWeight: 700 }}>✗ Keine Kampagnen</div>
+                          <div style={{ color: "#6B7280" }}>Score &ge; 70 erforderlich</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress bar with tier markers */}
+                  <div style={{ marginBottom: 4 }}>
+                    <div style={{ height: 8, borderRadius: 4, background: "#E5E7EB", overflow: "hidden" }}>
+                      <div style={{ height: "100%", borderRadius: 4, background: tierColor, width: `${score}%`, transition: "width 0.4s" }} />
+                    </div>
+                    <div style={{ display: "flex", fontSize: 8, color: "#9CA3AF", marginTop: 3, position: "relative" }}>
+                      <span>0</span>
+                      <span style={{ position: "absolute", left: "50%" }}>50</span>
+                      <span style={{ position: "absolute", left: "70%" }}>70</span>
+                      <span style={{ position: "absolute", left: "85%" }}>85</span>
+                      <span style={{ marginLeft: "auto" }}>100</span>
+                    </div>
+                  </div>
+
+                  {/* Scoring details */}
+                  <details style={{ marginTop: 10 }}>
+                    <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280", fontWeight: 600, userSelect: "none" }}>Scoring-Logik anzeigen</summary>
+                    <div style={{ marginTop: 8, display: "grid", gap: 6, fontSize: 10, lineHeight: "1.55" }}>
+                      <div style={{ padding: "5px 8px", borderRadius: 5, background: "#F9FAFB", border: "1px solid #E5E7EB", color: "#374151" }}>
+                        <span style={{ fontWeight: 700 }}>Score = </span>Pflichtfelder-Score (max. 70 Pkt.) + Empfohlene Felder (max. 30 Pkt.) − Duplikat-Malus (max. −10 Pkt.)
+                      </div>
+                      <div style={{ padding: "5px 8px", borderRadius: 5, background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
+                        <div style={{ fontWeight: 700, color: "#166534", marginBottom: 2 }}>Pflichtfelder-Vollständigkeit (max. 70 Pkt.)</div>
+                        <div style={{ color: "#374151" }}>{issues.pflichtOkCount} von {issues.totalRows} Artikeln haben alle Pflichtfelder korrekt befüllt.</div>
+                        <div style={{ color: "#374151", marginTop: 2 }}>→ {issues.pflichtOkCount}/{issues.totalRows} × 70 = <strong>{issues.pflichtScore}/70 Punkte</strong></div>
+                      </div>
+                      <div style={{ padding: "5px 8px", borderRadius: 5, background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
+                        <div style={{ fontWeight: 700, color: "#1D4ED8", marginBottom: 2 }}>Empfohlene Felder-Befüllung (max. 30 Pkt.)</div>
+                        <div style={{ color: "#374151" }}>Ø {fillPct}% der empfohlenen Felder je Artikel befüllt.</div>
+                        <div style={{ color: "#374151", marginTop: 2 }}>→ <strong>{issues.optionalScore}/30 Punkte</strong></div>
+                        <div style={{ color: "#6B7280", marginTop: 3, fontSize: 9 }}>36 empfohlene Attribute inkl. Bildlink_2–10</div>
+                      </div>
+                      {issues.dupNameEanCount > 0 && (
+                        <div style={{ padding: "5px 8px", borderRadius: 5, background: "#FEF2F2", border: "1px solid #FECACA" }}>
+                          <div style={{ fontWeight: 700, color: "#B91C1C", marginBottom: 2 }}>Duplikat-Malus (max. −10 Pkt.)</div>
+                          <div style={{ color: "#374151" }}>{issues.dupNameEanCount} Artikel mit identischem Name + gleicher EAN.</div>
+                          <div style={{ color: "#374151", marginTop: 2 }}>→ <strong>−{issues.dupPenalty} Punkte</strong></div>
+                        </div>
+                      )}
+                      <div style={{ padding: "5px 8px", borderRadius: 5, background: campaignEligible ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${campaignEligible ? "#BBF7D0" : "#FECACA"}` }}>
+                        <span style={{ fontWeight: 700, color: campaignEligible ? "#166534" : "#B91C1C" }}>
+                          Gesamt: {issues.pflichtScore} + {issues.optionalScore} − {issues.dupPenalty} = {score}/100
+                        </span>
+                        {campaignEligible && <span style={{ color: "#16A34A", marginLeft: 6 }}>· Kampagnen berechtigt ✓</span>}
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </div>
-            ))}
+            );
+          })()}
+
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, padding: "8px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>{issues.totalRows.toLocaleString("de-DE")}</div>
+              <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>Artikel im Feed</div>
+            </div>
+            <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, padding: "8px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>{issues.totalOptionalFieldsPresent.toLocaleString("de-DE")}</div>
+              <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>Empfohlene Felder befüllt</div>
+            </div>
           </div>
 
           {/* APA Eligibility Check */}
           {(() => {
-            const apaErrorRate = issues.totalRows > 0 ? (errorCount / issues.totalRows) * 100 : 0;
+            const apaErrorRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
             const apaEligible = apaErrorRate < 2;
-            const apaErrorsToRemove = Math.round((apaErrorRate / 100) * issues.totalRows);
-
             return (
               <div style={{ background: apaEligible ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${apaEligible ? "#BBF7D0" : "#FECACA"}`, borderRadius: 8, padding: "10px 12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <div style={{ width: 20, height: 20, borderRadius: "50%", background: apaEligible ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                     {apaEligible ? "✓" : "!"}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: apaEligible ? "#166534" : "#B91C1C" }}>
-                    APA (Automatische Produktanlage)
-                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: apaEligible ? "#166534" : "#B91C1C" }}>APA (Automatische Produktanlage)</div>
                 </div>
-                <div style={{ fontSize: 10, color: apaEligible ? "#15803D" : "#991B1B", lineHeight: "1.5", marginBottom: 6 }}>
+                <div style={{ fontSize: 10, color: apaEligible ? "#15803D" : "#991B1B", lineHeight: "1.5" }}>
                   {apaEligible ? (
                     <>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>✓ Berechtigt für automatische Produktanlage</div>
-                      <div>
-                        Ihr Feed erfüllt die Anforderungen für APA. {errorCount > 0 && <>Die {apaErrorsToRemove} Produkte mit Fehlern werden automatisch entfernt.</> }
-                        {errorCount === 0 && <>Alle Produkte können angelegt werden.</>}
-                      </div>
+                      <div>Fehlerquote: {apaErrorRate.toFixed(2)}% (Max. 2% erlaubt). {issues.blockiertCount > 0 ? `Die ${issues.blockiertCount} blockierten Artikel werden automatisch aus dem Feed entfernt.` : "Alle Produkte können angelegt werden."}</div>
                     </>
                   ) : (
                     <>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>✗ Nicht berechtigt für APA</div>
-                      <div>
-                        Fehlerquote: {apaErrorRate.toFixed(2)}% (Max. 2% erlaubt)
-                      </div>
-                      <div style={{ marginTop: 4 }}>
-                        Um berechtigt zu sein, müssen Sie mindestens {errorCount - Math.floor(issues.totalRows * 0.02)} Fehler beheben.
-                      </div>
+                      <div>Fehlerquote: {apaErrorRate.toFixed(2)}% (Max. 2% erlaubt)</div>
+                      <div style={{ marginTop: 4 }}>Mindestens {issues.blockiertCount - Math.floor(issues.totalRows * 0.02)} Fehler beheben.</div>
                     </>
                   )}
                 </div>
                 <details style={{ marginTop: 4 }}>
-                  <summary style={{ cursor: "pointer", fontSize: 9, color: apaEligible ? "#15803D" : "#991B1B", fontWeight: 600 }}>
-                    Was ist APA?
-                  </summary>
+                  <summary style={{ cursor: "pointer", fontSize: 9, color: apaEligible ? "#15803D" : "#991B1B", fontWeight: 600 }}>Was ist APA?</summary>
                   <div style={{ marginTop: 4, fontSize: 9, color: apaEligible ? "#15803D" : "#991B1B", lineHeight: "1.4" }}>
                     APA ermöglicht die automatische Anlage Ihrer Produkte. Erlaubt sind bis zu 2% fehlerhafte Artikel, die automatisch aus dem Feed entfernt werden. Alle Pflichtfelder müssen gefüllt sein.
                   </div>
@@ -3782,8 +3927,24 @@ function McAngebotsfeed() {
 
           {/* Spalten-Zuordnung – compact summary + optional edit panel */}
           {(() => {
-            const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS, "size"];
-            const fieldLabels = { ean: "EAN", seller_offer_id: "Offer ID", name: "Name", price: "Preis", stock_amount: "Bestand", delivery_time: "Lieferzeit", shipping_mode: "Versandart", description: "Beschreibung", brand: "Marke", material: "Material", color: "Farbe", category_path: "Kategorie", delivery_includes: "Lieferumfang", manufacturer_name: "Hersteller", size: "Maße/Größe" };
+            const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
+            const fieldLabels = {
+              // Stufe 1 Pflicht
+              ean: "EAN", brand: "Marke", category_path: "Kategorie", description: "Beschreibung", name: "Name", seller_offer_id: "Offer ID",
+              color: "Farbe", material: "Material", size: "Maße/Größe", size_depth: "Tiefe", size_diameter: "Durchmesser", size_height: "Höhe",
+              manufacturer_name: "Hersteller", manufacturer_street: "Hersteller Str.", manufacturer_postcode: "Hersteller PLZ",
+              manufacturer_city: "Hersteller Ort", manufacturer_country: "Hersteller Land", manufacturer_email: "Hersteller E-Mail",
+              availability: "Verfügbarkeit", delivery_time: "Lieferzeit", delivery_includes: "Lieferumfang", price: "Preis", stock_amount: "Bestand",
+              shipping_mode: "Versandart",
+              // Stufe 2 Empfohlen
+              deeplink: "Deeplink", model: "Modell",
+              size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe", ausrichtung: "Ausrichtung", style: "Stil", temper: "Härte", weight: "Gewicht", weight_capacity: "Tragkraft",
+              youtube_link: "YouTube", bild_3d_glb: "3D-Bild GLB", bild_3d_usdz: "3D-Bild USDZ", assembly_instructions: "Montageanl.",
+              illuminant_included: "Leuchtmittel", incl_mattress: "Matratze inkl.", incl_slatted_frame: "Lattenrost inkl.", led_verbaut: "LED verbaut", lighting_included: "Beleuchtung", set_includes: "Set-Inhalt", socket: "Steckdose",
+              care_instructions: "Pflegehinw.", filling: "Füllung", removable_cover: "Abn. Bezug", suitable_for_allergic: "Allergiker",
+              energy_efficiency_category: "Energieklasse", product_data_sheet: "Datenblatt",
+              manufacturer_phone_number: "Hersteller Tel.",
+            };
             const hasMissing = issues.missingPflichtCols.length > 0;
             const totalFields = allMcFields.length + 1; // +1 for image_url
             const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
@@ -3881,37 +4042,45 @@ function McAngebotsfeed() {
           {(() => {
             const byField = {};
             issues.pflichtErrors.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
-            const fieldLabels = { ean: "EAN", seller_offer_id: "Offer ID", name: "Name", price: "Preis", stock_amount: "Bestand/Verfügbarkeit", delivery_time: "Lieferzeit", image_url: "Bilder", shipping_mode: "Versandart" };
+            const fieldLabels = {
+              ean: "EAN", brand: "Marke", category_path: "Kategorie", description: "Beschreibung", name: "Name", seller_offer_id: "Offer ID",
+              color: "Farbe", material: "Material", size: "Maße/Größe", size_depth: "Tiefe", size_diameter: "Durchmesser", size_height: "Höhe",
+              image_url: "Bilder",
+              manufacturer_name: "Hersteller Name", manufacturer_street: "Hersteller Str.", manufacturer_postcode: "Hersteller PLZ",
+              manufacturer_city: "Hersteller Ort", manufacturer_country: "Hersteller Land", manufacturer_email: "Hersteller E-Mail",
+              availability: "Verfügbarkeit", delivery_time: "Lieferzeit", delivery_includes: "Lieferumfang", price: "Preis", stock_amount: "Bestand",
+              shipping_mode: "Versandart",
+            };
             const entries = Object.entries(byField);
-            if (!entries.length && !issues.missingPflichtCols.length && !issues.dupEanCount && !issues.dupNameCount && !issues.dupOfferIdCount) return null;
+            if (!entries.length && !issues.missingPflichtCols.length && !issues.dupEanCount) return null;
             return (
               <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Pflichtfehler</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Stufe 1 – Pflichtfehler</div>
                 {issues.missingPflichtCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder-Spalten" severity="error" description="Diese Spalten fehlen im Feed:" fixInstruction="Fügen Sie diese Spalten zu Ihrer Feed-Datei hinzu." items={issues.missingPflichtCols.map((c) => ({ label: fieldLabels[c] || c, hint: "Spalte fehlt" }))} />}
                 {entries.map(([field, errs]) => (
-                  <McIssueCard key={field} title={`${fieldLabels[field] || field} fehlerhaft`} severity="error" description={`${errs.length} Artikel betroffen.`} fixInstruction={`Überprüfen Sie die ${fieldLabels[field] || field} in den betroffenen Zeilen und korrigieren Sie die Fehler.`}
+                  <McIssueCard key={field} title={`${fieldLabels[field] || field} fehlerhaft`} severity="error" description={`${errs.length} Artikel betroffen.`} fixInstruction={`Überprüfen Sie ${fieldLabels[field] || field} in den betroffenen Zeilen und korrigieren Sie die Fehler.`}
                     items={errs.slice(0, 8).map((e) => ({ label: `Zeile ${e.row}${e.ean ? ` · ${e.ean}` : ""}`, hint: e.type === "invalid" ? `"${e.value}"` : "fehlt" }))}
                     more={Math.max(0, errs.length - 8)} compactList={true} />
                 ))}
-                {issues.dupEanCount > 0 && <McIssueCard title="Doppelte EAN" severity="error" description={`${issues.dupEanCount} doppelte EAN-Werte.`} fixInstruction="Stellen Sie sicher, dass jede EAN nur einmal in Ihrer Datei vorkommt." items={[{ label: "Duplikate", hint: "EAN muss eindeutig sein" }]} />}
-                {issues.dupOfferIdCount > 0 && <McIssueCard title="Doppelte Offer ID" severity="error" description={`${issues.dupOfferIdCount} doppelte Offer IDs.`} fixInstruction="Jede Offer ID muss eindeutig sein. Ändern Sie doppelte IDs ab." items={[{ label: "Duplikate", hint: "Offer ID muss eindeutig sein" }]} />}
-                {issues.dupNameCount > 0 && <McIssueCard title="Doppelte Produktnamen" severity="error" description={`${issues.dupNameCount} doppelte Namen.`} fixInstruction="Prüfen Sie, ob identische Produktnamen wirklich unterschiedliche Produkte sind." items={[{ label: "Duplikate", hint: "Produktname sollte eindeutig sein" }]} />}
+                {issues.dupEanCount > 0 && <McIssueCard title="Doppelte EAN (Hard Gate)" severity="error" description={`${issues.dupEanCount} Artikel mit doppelten EAN-Werten – technischer Fehler.`} fixInstruction="Jede EAN darf nur einmal vorkommen. Stellen Sie sicher, dass keine EAN mehrfach vergeben ist." items={[{ label: "Duplikate", hint: "EAN muss eindeutig sein" }]} />}
               </div>
             );
           })()}
 
-          {/* Optionale Hinweise (Gelb) */}
+          {/* Stufe 2: Optimierungshinweise (Gelb) */}
           {(() => {
             const byField = {};
             issues.optionalHints.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
             const entries = Object.entries(byField);
-            if (!entries.length && !issues.missingOptionalCols.length) return null;
+            const hasNameEanDups = issues.dupNameEanCount > 0;
+            if (!entries.length && !issues.missingOptionalCols.length && !hasNameEanDups) return null;
             return (
               <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>Hinweise</div>
-                {issues.missingOptionalCols.length > 0 && <McIssueCard title="Fehlende optionale Spalten" severity="warning" description="Diese Spalten fehlen:" fixInstruction="Diese Spalten sind optional, aber verbessern Ihr Content-Score. Erwägen Sie, sie hinzuzufügen." items={issues.missingOptionalCols.map((c) => ({ label: c, hint: "Spalte nicht erkannt" }))} />}
-                {entries.map(([field, hints]) => (
-                  <McIssueCard key={field} title={`${field} fehlt`} severity="warning" description={`${hints.length} Artikel betroffen.`} fixInstruction={`Ergänzen Sie ${field} für die betroffenen Artikel, um Ihren Content-Score zu verbessern.`}
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>Stufe 2 – Optimierungshinweise</div>
+                {hasNameEanDups && <McIssueCard title="Doppelter Name + EAN (Malus)" severity="warning" description={`${issues.dupNameEanCount} Artikel mit identischem Name und gleicher EAN – reduziert den Score.`} fixInstruction="Entfernen Sie doppelt angelegte Produkte oder korrigieren Sie Name/EAN, um den Duplikat-Malus zu vermeiden." items={[{ label: "Duplikate", hint: "Name + EAN identisch" }]} />}
+                {issues.missingOptionalCols.length > 0 && <McIssueCard title="Empfohlene Spalten nicht erkannt" severity="warning" description={`${issues.missingOptionalCols.length} empfohlene Spalten fehlen im Feed.`} fixInstruction="Diese Spalten sind Score-relevant. Je mehr empfohlene Felder befüllt sind, desto höher Ihr Feed-Qualitätsscore." items={issues.missingOptionalCols.slice(0, 8).map((c) => ({ label: c, hint: "Spalte nicht erkannt" }))} more={Math.max(0, issues.missingOptionalCols.length - 8)} />}
+                {entries.slice(0, 5).map(([field, hints]) => (
+                  <McIssueCard key={field} title={`${field} – leer`} severity="warning" description={`${hints.length} Artikel ohne Wert.`} fixInstruction={`Befüllen Sie ${field} für mehr Artikel, um Ihren Feed-Qualitätsscore zu verbessern.`}
                     items={hints.slice(0, 6).map((e) => ({ label: `Zeile ${e.row}`, hint: e.ean || "" }))}
                     more={Math.max(0, hints.length - 6)} compactList={true} />
                 ))}
