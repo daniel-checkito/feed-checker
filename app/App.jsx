@@ -3843,18 +3843,46 @@ function McAngebotsfeed() {
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: tierColor, marginTop: 3 }}>{tier}</div>
                     </div>
-                    <div style={{ textAlign: "right", fontSize: 10, lineHeight: "1.6" }}>
-                      {campaignEligible ? (
-                        <>
-                          <div style={{ color: "#16A34A", fontWeight: 700 }}>✓ Kampagnen-Teilnahme</div>
-                          <div style={{ color: "#6B7280" }}>Deals &amp; Aktionen möglich</div>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ color: "#DC2626", fontWeight: 700 }}>✗ Keine Kampagnen</div>
-                          <div style={{ color: "#6B7280" }}>Score &ge; 70 erforderlich</div>
-                        </>
-                      )}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
+                      <div style={{ textAlign: "right", fontSize: 10, lineHeight: "1.6" }}>
+                        {campaignEligible ? (
+                          <>
+                            <div style={{ color: "#16A34A", fontWeight: 700 }}>✓ Kampagnen-Teilnahme</div>
+                            <div style={{ color: "#6B7280" }}>Deals &amp; Aktionen möglich</div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ color: "#DC2626", fontWeight: 700 }}>✗ Keine Kampagnen</div>
+                            <div style={{ color: "#6B7280" }}>Score &ge; 70 erforderlich</div>
+                          </>
+                        )}
+                      </div>
+                      {/* APA bubble */}
+                      {(() => {
+                        const apaRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
+                        const apaOk = apaRate < 2;
+                        return (
+                          <details style={{ textAlign: "right" }}>
+                            <summary style={{ listStyle: "none", cursor: "pointer" }}>
+                              <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 999, border: `1px solid ${apaOk ? "#BBF7D0" : "#FECACA"}`, background: apaOk ? "#F0FDF4" : "#FEF2F2", color: apaOk ? "#166534" : "#B91C1C", whiteSpace: "nowrap" }}>
+                                {apaOk ? "✓" : "✗"} APA
+                              </span>
+                            </summary>
+                            <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, border: `1px solid ${apaOk ? "#BBF7D0" : "#FECACA"}`, background: apaOk ? "#F0FDF4" : "#FEF2F2", fontSize: 10, color: apaOk ? "#166534" : "#B91C1C", lineHeight: "1.6", textAlign: "left", minWidth: 200 }}>
+                              <div style={{ fontWeight: 700, marginBottom: 3 }}>APA – Automatische Produktanlage</div>
+                              {apaOk ? (
+                                <div>Fehlerquote {apaRate.toFixed(1)}% – berechtigt (max. 2%).</div>
+                              ) : (
+                                <>
+                                  <div>Fehlerquote {apaRate.toFixed(1)}% (max. 2% erlaubt).</div>
+                                  <div style={{ marginTop: 2 }}>Mind. {issues.blockiertCount - Math.floor(issues.totalRows * 0.02)} Fehler beheben.</div>
+                                </>
+                              )}
+                              <div style={{ marginTop: 4, color: apaOk ? "#15803D" : "#991B1B", fontSize: 9 }}>Bis zu 2% fehlerhafte Artikel werden automatisch entfernt.</div>
+                            </div>
+                          </details>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -3944,42 +3972,6 @@ function McAngebotsfeed() {
               <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>Empfohlene Felder befüllt</div>
             </div>
           </div>
-
-          {/* APA Eligibility Check */}
-          {(() => {
-            const apaErrorRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
-            const apaEligible = apaErrorRate < 2;
-            return (
-              <div style={{ background: apaEligible ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${apaEligible ? "#BBF7D0" : "#FECACA"}`, borderRadius: 8, padding: "10px 12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: apaEligible ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                    {apaEligible ? "✓" : "!"}
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: apaEligible ? "#166534" : "#B91C1C" }}>APA (Automatische Produktanlage)</div>
-                </div>
-                <div style={{ fontSize: 10, color: apaEligible ? "#15803D" : "#991B1B", lineHeight: "1.5" }}>
-                  {apaEligible ? (
-                    <>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>✓ Berechtigt für automatische Produktanlage</div>
-                      <div>Fehlerquote: {apaErrorRate.toFixed(2)}% (Max. 2% erlaubt). {issues.blockiertCount > 0 ? `Die ${issues.blockiertCount} blockierten Artikel werden automatisch aus dem Feed entfernt.` : "Alle Produkte können angelegt werden."}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>✗ Nicht berechtigt für APA</div>
-                      <div>Fehlerquote: {apaErrorRate.toFixed(2)}% (Max. 2% erlaubt)</div>
-                      <div style={{ marginTop: 4 }}>Mindestens {issues.blockiertCount - Math.floor(issues.totalRows * 0.02)} Fehler beheben.</div>
-                    </>
-                  )}
-                </div>
-                <details style={{ marginTop: 4 }}>
-                  <summary style={{ cursor: "pointer", fontSize: 9, color: apaEligible ? "#15803D" : "#991B1B", fontWeight: 600 }}>Was ist APA?</summary>
-                  <div style={{ marginTop: 4, fontSize: 9, color: apaEligible ? "#15803D" : "#991B1B", lineHeight: "1.4" }}>
-                    APA ermöglicht die automatische Anlage Ihrer Produkte. Erlaubt sind bis zu 2% fehlerhafte Artikel, die automatisch aus dem Feed entfernt werden. Alle Pflichtfelder müssen gefüllt sein.
-                  </div>
-                </details>
-              </div>
-            );
-          })()}
 
           {/* Spalten-Zuordnung – compact summary + optional edit panel */}
           {(() => {
