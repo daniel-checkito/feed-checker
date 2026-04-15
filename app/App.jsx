@@ -3719,7 +3719,7 @@ function McAngebotsfeed() {
             {/* Section header */}
             <div style={{ background: issues.blockiertCount > 0 ? "#FEF2F2" : "#F0FDF4", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase" }}>STUFE 1 – TECHNISCHE PRÜFUNG</div>
+
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Datenvalidierung</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
@@ -3818,7 +3818,7 @@ function McAngebotsfeed() {
                 {/* Section header */}
                 <div style={{ background: "#F9FAFB", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase" }}>STUFE 2 – FEED-QUALITÄTSSCORE</div>
+
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Analyse-Ergebnis</div>
                   </div>
                 </div>
