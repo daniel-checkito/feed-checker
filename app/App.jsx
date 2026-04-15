@@ -3905,6 +3905,29 @@ function McAngebotsfeed() {
                       </div>
                     </div>
                   </details>
+
+                  {/* Optimierungshinweise inline */}
+                  {(() => {
+                    const byField = {};
+                    issues.optionalHints.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
+                    const hints = [
+                      ...(issues.dupNameEanCount > 0 ? [{ label: "Doppelter Name + EAN (Malus)", count: issues.dupNameEanCount }] : []),
+                      ...(issues.missingOptionalCols.length > 0 ? [{ label: "Empfohlene Spalten nicht erkannt", count: issues.missingOptionalCols.length }] : []),
+                      ...Object.entries(byField).map(([field, h]) => ({ label: `${field} – leer`, count: h.length })),
+                    ];
+                    if (!hints.length) return null;
+                    return (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F3F4F6" }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "#6B7280", marginBottom: 4 }}>Optimierungshinweise</div>
+                        {hints.map((r, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#374151", padding: "3px 0", borderBottom: i < hints.length - 1 ? "1px solid #F9FAFB" : "none" }}>
+                            <span>{r.label}</span>
+                            <span style={{ color: "#6B7280", fontWeight: 500 }}>{r.count.toLocaleString("de-DE")} Artikel</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -3962,14 +3985,12 @@ function McAngebotsfeed() {
           {(() => {
             const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
             const fieldLabels = {
-              // Stufe 1 Pflicht
               ean: "EAN", brand: "Marke", category_path: "Kategorie", description: "Beschreibung", name: "Name", seller_offer_id: "Offer ID",
               color: "Farbe", material: "Material", size: "Maße/Größe", size_depth: "Tiefe", size_diameter: "Durchmesser", size_height: "Höhe",
               manufacturer_name: "Hersteller", manufacturer_street: "Hersteller Str.", manufacturer_postcode: "Hersteller PLZ",
               manufacturer_city: "Hersteller Ort", manufacturer_country: "Hersteller Land", manufacturer_email: "Hersteller E-Mail",
               availability: "Verfügbarkeit", delivery_time: "Lieferzeit", delivery_includes: "Lieferumfang", price: "Preis", stock_amount: "Bestand",
               shipping_mode: "Versandart",
-              // Stufe 2 Empfohlen
               deeplink: "Deeplink", model: "Modell",
               size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe", ausrichtung: "Ausrichtung", style: "Stil", temper: "Härte", weight: "Gewicht", weight_capacity: "Tragkraft",
               youtube_link: "YouTube", bild_3d_glb: "3D-Bild GLB", bild_3d_usdz: "3D-Bild USDZ", assembly_instructions: "Montageanl.",
@@ -3979,19 +4000,19 @@ function McAngebotsfeed() {
               manufacturer_phone_number: "Hersteller Tel.",
             };
             const hasMissing = issues.missingPflichtCols.length > 0;
-            const totalFields = allMcFields.length + 1; // +1 for image_url
+            const totalFields = allMcFields.length + 1;
             const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
+            // When nothing is wrong, render nothing here — toggle lives in the CSV card below
+            if (!hasMissing && !mappingExpanded) return <div data-mapping-trigger style={{ display: "none" }} data-found={foundFields} data-total={totalFields} />;
             return (
-              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: hasMissing || mappingExpanded ? "10px 12px" : "0" }}>
-                {/* Header: small icon only when OK, full row when missing */}
-                <div style={{ display: "flex", justifyContent: hasMissing ? "space-between" : "flex-end", alignItems: "center", padding: hasMissing || mappingExpanded ? "0" : "6px 10px" }}>
-                  {hasMissing && <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Spalten-Zuordnung</div>}
-                  <button
-                    type="button"
-                    onClick={() => setMappingExpanded((v) => !v)}
-                    style={{ fontSize: 10, padding: hasMissing ? "3px 9px" : "2px 6px", borderRadius: 999, border: `1px solid ${hasMissing ? "#FCA5A5" : "#E5E7EB"}`, background: "transparent", color: hasMissing ? "#B91C1C" : "#9CA3AF", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap", lineHeight: 1.4 }}
-                  >
-                    {hasMissing ? `${foundFields}/${totalFields} ` : ""}{mappingExpanded ? "▲" : "▼"}
+              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: hasMissing ? 700 : 500, color: hasMissing ? "#92400E" : "#6B7280" }}>
+                    Spalten-Zuordnung {foundFields}/{totalFields}
+                  </div>
+                  <button type="button" onClick={() => setMappingExpanded((v) => !v)}
+                    style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "transparent", color: "#6B7280", cursor: "pointer" }}>
+                    {mappingExpanded ? "Schließen" : "▼"}
                   </button>
                 </div>
 
@@ -4071,41 +4092,15 @@ function McAngebotsfeed() {
             );
           })()}
 
-          {/* Stufe 2: Optimierungshinweise (Gelb) */}
-          {(() => {
-            const byField = {};
-            issues.optionalHints.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
-            const entries = Object.entries(byField);
-            const hasNameEanDups = issues.dupNameEanCount > 0;
-            if (!entries.length && !issues.missingOptionalCols.length && !hasNameEanDups) return null;
-            const rows2 = [
-              ...(hasNameEanDups ? [{ label: "Doppelter Name + EAN (Malus)", count: issues.dupNameEanCount }] : []),
-              ...(issues.missingOptionalCols.length > 0 ? [{ label: `Empfohlene Spalten nicht erkannt`, count: issues.missingOptionalCols.length }] : []),
-              ...entries.map(([field, hints]) => ({ label: `${field} – leer`, count: hints.length })),
-            ];
-            return (
-              <div style={{ background: "#FFF", border: "1px solid #FCD34D", borderRadius: 8, overflow: "hidden" }}>
-                <div style={{ padding: "6px 12px", background: "#FFFBEB", borderBottom: "1px solid #FCD34D" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>Stufe 2 – Optimierungshinweise</span>
-                </div>
-                <div>
-                  {rows2.map((r, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 12px", borderBottom: i < rows2.length - 1 ? "1px solid #FFFBEB" : "none" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ color: "#D97706", fontSize: 11, lineHeight: 1 }}>⚠</span>
-                        <span style={{ fontSize: 11, color: "#374151" }}>{r.label}</span>
-                      </div>
-                      {r.count != null && <span style={{ fontSize: 10, fontWeight: 600, color: "#92400E", whiteSpace: "nowrap" }}>{r.count.toLocaleString("de-DE")} Artikel</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
           {/* CSV Download - split columns */}
           <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 3 }}>Fehlerliste herunterladen</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Fehlerliste herunterladen</div>
+              <button type="button" onClick={() => setMappingExpanded((v) => !v)}
+                style={{ fontSize: 10, color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                Spalten-Zuordnung {mappingExpanded ? "▲" : "▼"}
+              </button>
+            </div>
             <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 8 }}>CSV mit getrennten Spalten für Pflichtfehler und optionale Hinweise.</div>
             <button
               onClick={() => {
