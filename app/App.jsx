@@ -3833,7 +3833,6 @@ function McAngebotsfeed() {
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: tierColor, marginTop: 3 }}>{tier}</div>
                     </div>
-                    </div>
                   </div>
 
                   {/* Progress bar with campaign threshold marker */}
