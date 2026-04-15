@@ -3961,18 +3961,6 @@ function McAngebotsfeed() {
             );
           })()}
 
-          {/* Stats row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, padding: "8px 10px", textAlign: "center" }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>{issues.totalRows.toLocaleString("de-DE")}</div>
-              <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>Artikel im Feed</div>
-            </div>
-            <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 6, padding: "8px 10px", textAlign: "center" }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>{issues.totalOptionalFieldsPresent.toLocaleString("de-DE")}</div>
-              <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>Empfohlene Felder befüllt</div>
-            </div>
-          </div>
-
           {/* Spalten-Zuordnung – compact summary + optional edit panel */}
           {(() => {
             const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
