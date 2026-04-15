@@ -3380,6 +3380,8 @@ function McAngebotsfeed() {
 
   function parseFile(f) {
     if (!f) return;
+    const ext = f.name.split(".").pop().toLowerCase();
+    if (ext !== "csv" && f.type !== "text/csv" && f.type !== "application/csv") return;
     setFile(f);
     setRows([]);
     setHeaders([]);
