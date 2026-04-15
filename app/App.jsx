@@ -3934,28 +3934,6 @@ function McAngebotsfeed() {
                     </div>
                   </details>
 
-                  {/* Optimierungshinweise inline */}
-                  {(() => {
-                    const byField = {};
-                    issues.optionalHints.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
-                    const hints = [
-                      ...(issues.dupNameEanCount > 0 ? [{ label: "Doppelter Name + EAN (Malus)", count: issues.dupNameEanCount }] : []),
-                      ...(issues.missingOptionalCols.length > 0 ? [{ label: "Empfohlene Spalten nicht erkannt", count: issues.missingOptionalCols.length }] : []),
-                      ...Object.entries(byField).map(([field, h]) => ({ label: `${field} – leer`, count: h.length })),
-                    ];
-                    if (!hints.length) return null;
-                    return (
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F3F4F6" }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: "#6B7280", marginBottom: 4 }}>Optimierungshinweise</div>
-                        {hints.map((r, i) => (
-                          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#374151", padding: "3px 0", borderBottom: i < hints.length - 1 ? "1px solid #F9FAFB" : "none" }}>
-                            <span>{r.label}</span>
-                            <span style={{ color: "#6B7280", fontWeight: 500 }}>{r.count.toLocaleString("de-DE")} Artikel</span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
             );
