@@ -4055,16 +4055,27 @@ function McAngebotsfeed() {
             };
             const entries = Object.entries(byField);
             if (!entries.length && !issues.missingPflichtCols.length && !issues.dupEanCount) return null;
+            const rows2 = [
+              ...issues.missingPflichtCols.map((c) => ({ label: (fieldLabels[c] || c) + " – Spalte fehlt", count: null })),
+              ...entries.map(([field, errs]) => ({ label: (fieldLabels[field] || field) + " fehlerhaft", count: errs.length })),
+              ...(issues.dupEanCount > 0 ? [{ label: "Doppelte EAN", count: issues.dupEanCount }] : []),
+            ];
             return (
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Stufe 1 – Pflichtfehler</div>
-                {issues.missingPflichtCols.length > 0 && <McIssueCard title="Fehlende Pflichtfelder-Spalten" severity="error" description="Diese Spalten fehlen im Feed:" fixInstruction="Fügen Sie diese Spalten zu Ihrer Feed-Datei hinzu." items={issues.missingPflichtCols.map((c) => ({ label: fieldLabels[c] || c, hint: "Spalte fehlt" }))} />}
-                {entries.map(([field, errs]) => (
-                  <McIssueCard key={field} title={`${fieldLabels[field] || field} fehlerhaft`} severity="error" description={`${errs.length} Artikel betroffen.`} fixInstruction={`Überprüfen Sie ${fieldLabels[field] || field} in den betroffenen Zeilen und korrigieren Sie die Fehler.`}
-                    items={errs.slice(0, 8).map((e) => ({ label: `Zeile ${e.row}${e.ean ? ` · ${e.ean}` : ""}`, hint: e.type === "invalid" ? `"${e.value}"` : "fehlt" }))}
-                    more={Math.max(0, errs.length - 8)} compactList={true} />
-                ))}
-                {issues.dupEanCount > 0 && <McIssueCard title="Doppelte EAN (Hard Gate)" severity="error" description={`${issues.dupEanCount} Artikel mit doppelten EAN-Werten – technischer Fehler.`} fixInstruction="Jede EAN darf nur einmal vorkommen. Stellen Sie sicher, dass keine EAN mehrfach vergeben ist." items={[{ label: "Duplikate", hint: "EAN muss eindeutig sein" }]} />}
+              <div style={{ background: "#FFF", border: "1px solid #FECACA", borderRadius: 8, overflow: "hidden" }}>
+                <div style={{ padding: "6px 12px", background: "#FEF2F2", borderBottom: "1px solid #FECACA" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Stufe 1 – Pflichtfehler</span>
+                </div>
+                <div>
+                  {rows2.map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 12px", borderBottom: i < rows2.length - 1 ? "1px solid #FEF2F2" : "none" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ color: "#DC2626", fontSize: 11, lineHeight: 1 }}>✕</span>
+                        <span style={{ fontSize: 11, color: "#374151" }}>{r.label}</span>
+                      </div>
+                      {r.count != null && <span style={{ fontSize: 10, fontWeight: 600, color: "#DC2626", whiteSpace: "nowrap" }}>{r.count.toLocaleString("de-DE")} Artikel</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })()}
@@ -4076,16 +4087,27 @@ function McAngebotsfeed() {
             const entries = Object.entries(byField);
             const hasNameEanDups = issues.dupNameEanCount > 0;
             if (!entries.length && !issues.missingOptionalCols.length && !hasNameEanDups) return null;
+            const rows2 = [
+              ...(hasNameEanDups ? [{ label: "Doppelter Name + EAN (Malus)", count: issues.dupNameEanCount }] : []),
+              ...(issues.missingOptionalCols.length > 0 ? [{ label: `Empfohlene Spalten nicht erkannt`, count: issues.missingOptionalCols.length }] : []),
+              ...entries.map(([field, hints]) => ({ label: `${field} – leer`, count: hints.length })),
+            ];
             return (
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>Stufe 2 – Optimierungshinweise</div>
-                {hasNameEanDups && <McIssueCard title="Doppelter Name + EAN (Malus)" severity="warning" description={`${issues.dupNameEanCount} Artikel mit identischem Name und gleicher EAN – reduziert den Score.`} fixInstruction="Entfernen Sie doppelt angelegte Produkte oder korrigieren Sie Name/EAN, um den Duplikat-Malus zu vermeiden." items={[{ label: "Duplikate", hint: "Name + EAN identisch" }]} />}
-                {issues.missingOptionalCols.length > 0 && <McIssueCard title="Empfohlene Spalten nicht erkannt" severity="warning" description={`${issues.missingOptionalCols.length} empfohlene Spalten fehlen im Feed.`} fixInstruction="Diese Spalten sind Score-relevant. Je mehr empfohlene Felder befüllt sind, desto höher Ihr Feed-Qualitätsscore." items={issues.missingOptionalCols.slice(0, 8).map((c) => ({ label: c, hint: "Spalte nicht erkannt" }))} more={Math.max(0, issues.missingOptionalCols.length - 8)} />}
-                {entries.slice(0, 5).map(([field, hints]) => (
-                  <McIssueCard key={field} title={`${field} – leer`} severity="warning" description={`${hints.length} Artikel ohne Wert.`} fixInstruction={`Befüllen Sie ${field} für mehr Artikel, um Ihren Feed-Qualitätsscore zu verbessern.`}
-                    items={hints.slice(0, 6).map((e) => ({ label: `Zeile ${e.row}`, hint: e.ean || "" }))}
-                    more={Math.max(0, hints.length - 6)} compactList={true} />
-                ))}
+              <div style={{ background: "#FFF", border: "1px solid #FCD34D", borderRadius: 8, overflow: "hidden" }}>
+                <div style={{ padding: "6px 12px", background: "#FFFBEB", borderBottom: "1px solid #FCD34D" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E" }}>Stufe 2 – Optimierungshinweise</span>
+                </div>
+                <div>
+                  {rows2.map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 12px", borderBottom: i < rows2.length - 1 ? "1px solid #FFFBEB" : "none" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ color: "#D97706", fontSize: 11, lineHeight: 1 }}>⚠</span>
+                        <span style={{ fontSize: 11, color: "#374151" }}>{r.label}</span>
+                      </div>
+                      {r.count != null && <span style={{ fontSize: 10, fontWeight: 600, color: "#92400E", whiteSpace: "nowrap" }}>{r.count.toLocaleString("de-DE")} Artikel</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })()}
