@@ -3730,35 +3730,68 @@ function McAngebotsfeed() {
               </div>
             </div>
 
-            {/* Pflichtattribute categories */}
-            <div style={{ padding: "10px 14px", display: "grid", gap: 3 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>Pflichtattribute (25 Attribute)</div>
-                <div style={{ fontSize: 9, color: "#9CA3AF" }}>betroffene Artikel</div>
-              </div>
-              {[
-                { key: "informationen", label: "Informationen", count: 6, fields: ["ean", "brand", "category_path", "description", "name", "seller_offer_id"] },
-                { key: "produktmerkmale", label: "Produktmerkmale", count: 6, fields: ["color", "material", "size", "size_depth", "size_diameter", "size_height"] },
-                { key: "medien", label: "Medien", count: 1, fields: ["image_url"] },
-                { key: "hersteller", label: "Herstellerangaben", count: 6, fields: ["manufacturer_name", "manufacturer_street", "manufacturer_postcode", "manufacturer_city", "manufacturer_country", "manufacturer_email"] },
-                { key: "preis", label: "Preis & Verfügbarkeit", count: 5, fields: ["availability", "delivery_time", "delivery_includes", "price", "stock_amount"] },
-                { key: "versand", label: "Versand", count: 1, fields: ["shipping_mode"] },
-              ].map(({ key, label, count, fields }) => {
-                const errCount = issues.pflichtCategoryErrors[key] || 0;
-                const hasMissingCol = fields.some((f) => issues.missingPflichtCols.includes(f));
-                const ok = errCount === 0 && !hasMissingCol;
-                return (
-                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: "1px solid #F3F4F6" }}>
-                    <div style={{ width: 16, height: 16, borderRadius: "50%", background: ok ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <span style={{ color: "#FFF", fontSize: 9, fontWeight: 800 }}>{ok ? "✓" : "✗"}</span>
-                    </div>
-                    <div style={{ flex: 1, fontSize: 11, color: "#374151" }}>{label}</div>
-                    <div style={{ fontSize: 9, color: "#9CA3AF" }}>{count} Attr.</div>
-                    {!ok && <div style={{ fontSize: 10, fontWeight: 700, color: "#DC2626", minWidth: 70, textAlign: "right" }}>{hasMissingCol ? "Spalte fehlt" : `${errCount} Artikel`}</div>}
+            {/* Pflichtattribute categories with inline field-level detail */}
+            {(() => {
+              const FL = {
+                ean: "EAN", brand: "Marke", category_path: "Kategorie", description: "Beschreibung", name: "Name", seller_offer_id: "Offer ID",
+                color: "Farbe", material: "Material", size: "Maße/Größe", size_depth: "Tiefe", size_diameter: "Durchmesser", size_height: "Höhe",
+                image_url: "Bilder",
+                manufacturer_name: "Hersteller Name", manufacturer_street: "Straße", manufacturer_postcode: "PLZ",
+                manufacturer_city: "Ort", manufacturer_country: "Land", manufacturer_email: "E-Mail",
+                availability: "Verfügbarkeit", delivery_time: "Lieferzeit", delivery_includes: "Lieferumfang", price: "Preis", stock_amount: "Bestand",
+                shipping_mode: "Versandart",
+              };
+              const errByField = {};
+              issues.pflichtErrors.forEach((e) => { errByField[e.field] = (errByField[e.field] || 0) + 1; });
+              const CATS = [
+                { key: "informationen", label: "Informationen", fields: ["ean", "brand", "category_path", "description", "name", "seller_offer_id"] },
+                { key: "produktmerkmale", label: "Produktmerkmale", fields: ["color", "material", "size", "size_depth", "size_diameter", "size_height"] },
+                { key: "medien", label: "Medien", fields: ["image_url"] },
+                { key: "hersteller", label: "Herstellerangaben", fields: ["manufacturer_name", "manufacturer_street", "manufacturer_postcode", "manufacturer_city", "manufacturer_country", "manufacturer_email"] },
+                { key: "preis", label: "Preis & Verfügbarkeit", fields: ["availability", "delivery_time", "delivery_includes", "price", "stock_amount"] },
+                { key: "versand", label: "Versand", fields: ["shipping_mode"] },
+              ];
+              return (
+                <div style={{ padding: "10px 14px", display: "grid", gap: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>Pflichtattribute (25 Attribute)</div>
+                    <div style={{ fontSize: 9, color: "#9CA3AF" }}>betroffene Artikel</div>
                   </div>
-                );
-              })}
-            </div>
+                  {CATS.map(({ key, label, fields }, ci) => {
+                    const hasMissingCol = fields.some((f) => issues.missingPflichtCols.includes(f));
+                    const catErrCount = issues.pflichtCategoryErrors[key] || 0;
+                    const dupErr = key === "informationen" && issues.dupEanCount > 0;
+                    const ok = catErrCount === 0 && !hasMissingCol && !dupErr;
+                    const brokenFields = !ok ? [
+                      ...fields.filter((f) => issues.missingPflichtCols.includes(f)).map((f) => ({ f, hint: "Spalte fehlt" })),
+                      ...fields.filter((f) => errByField[f]).map((f) => ({ f, hint: `${errByField[f].toLocaleString("de-DE")} Artikel` })),
+                      ...(dupErr ? [{ f: "_ean_dup", hint: `${issues.dupEanCount.toLocaleString("de-DE")} doppelte EAN` }] : []),
+                    ] : [];
+                    return (
+                      <div key={key} style={{ borderBottom: ci < CATS.length - 1 ? "1px solid #F3F4F6" : "none" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
+                          <div style={{ width: 15, height: 15, borderRadius: "50%", background: ok ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <span style={{ color: "#FFF", fontSize: 8, fontWeight: 800 }}>{ok ? "✓" : "✗"}</span>
+                          </div>
+                          <div style={{ flex: 1, fontSize: 11, color: "#374151" }}>{label}</div>
+                          {!ok && <div style={{ fontSize: 10, fontWeight: 600, color: "#DC2626" }}>{(catErrCount || issues.dupEanCount || 0).toLocaleString("de-DE")} Artikel</div>}
+                        </div>
+                        {brokenFields.length > 0 && (
+                          <div style={{ paddingLeft: 23, paddingBottom: 5, display: "grid", gap: 1 }}>
+                            {brokenFields.map(({ f, hint }) => (
+                              <div key={f} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#6B7280" }}>
+                                <span>{FL[f] || f}</span>
+                                <span style={{ color: "#DC2626", fontWeight: 500 }}>{hint}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* Stats bar */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderTop: "1px solid #E5E7EB" }}>
@@ -4036,46 +4069,6 @@ function McAngebotsfeed() {
                     </details>
                   </div>
                 )}
-              </div>
-            );
-          })()}
-
-          {/* Pflichtfehler (Rot) */}
-          {(() => {
-            const byField = {};
-            issues.pflichtErrors.forEach((e) => { if (!byField[e.field]) byField[e.field] = []; byField[e.field].push(e); });
-            const fieldLabels = {
-              ean: "EAN", brand: "Marke", category_path: "Kategorie", description: "Beschreibung", name: "Name", seller_offer_id: "Offer ID",
-              color: "Farbe", material: "Material", size: "Maße/Größe", size_depth: "Tiefe", size_diameter: "Durchmesser", size_height: "Höhe",
-              image_url: "Bilder",
-              manufacturer_name: "Hersteller Name", manufacturer_street: "Hersteller Str.", manufacturer_postcode: "Hersteller PLZ",
-              manufacturer_city: "Hersteller Ort", manufacturer_country: "Hersteller Land", manufacturer_email: "Hersteller E-Mail",
-              availability: "Verfügbarkeit", delivery_time: "Lieferzeit", delivery_includes: "Lieferumfang", price: "Preis", stock_amount: "Bestand",
-              shipping_mode: "Versandart",
-            };
-            const entries = Object.entries(byField);
-            if (!entries.length && !issues.missingPflichtCols.length && !issues.dupEanCount) return null;
-            const rows2 = [
-              ...issues.missingPflichtCols.map((c) => ({ label: (fieldLabels[c] || c) + " – Spalte fehlt", count: null })),
-              ...entries.map(([field, errs]) => ({ label: (fieldLabels[field] || field) + " fehlerhaft", count: errs.length })),
-              ...(issues.dupEanCount > 0 ? [{ label: "Doppelte EAN", count: issues.dupEanCount }] : []),
-            ];
-            return (
-              <div style={{ background: "#FFF", border: "1px solid #FECACA", borderRadius: 8, overflow: "hidden" }}>
-                <div style={{ padding: "6px 12px", background: "#FEF2F2", borderBottom: "1px solid #FECACA" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Stufe 1 – Pflichtfehler</span>
-                </div>
-                <div>
-                  {rows2.map((r, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 12px", borderBottom: i < rows2.length - 1 ? "1px solid #FEF2F2" : "none" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ color: "#DC2626", fontSize: 11, lineHeight: 1 }}>✕</span>
-                        <span style={{ fontSize: 11, color: "#374151" }}>{r.label}</span>
-                      </div>
-                      {r.count != null && <span style={{ fontSize: 10, fontWeight: 600, color: "#DC2626", whiteSpace: "nowrap" }}>{r.count.toLocaleString("de-DE")} Artikel</span>}
-                    </div>
-                  ))}
-                </div>
               </div>
             );
           })()}
