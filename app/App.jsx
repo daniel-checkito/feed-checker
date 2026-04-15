@@ -3951,16 +3951,16 @@ function McAngebotsfeed() {
             const totalFields = allMcFields.length + 1; // +1 for image_url
             const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
             return (
-              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px" }}>
-                {/* Header row with compact toggle */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Spalten-Zuordnung</div>
+              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: hasMissing || mappingExpanded ? "10px 12px" : "0" }}>
+                {/* Header: small icon only when OK, full row when missing */}
+                <div style={{ display: "flex", justifyContent: hasMissing ? "space-between" : "flex-end", alignItems: "center", padding: hasMissing || mappingExpanded ? "0" : "6px 10px" }}>
+                  {hasMissing && <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Spalten-Zuordnung</div>}
                   <button
                     type="button"
                     onClick={() => setMappingExpanded((v) => !v)}
-                    style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, border: `1px solid ${hasMissing ? "#FCA5A5" : "#D1D5DB"}`, background: hasMissing ? "#FEF2F2" : "#F9FAFB", color: hasMissing ? "#B91C1C" : "#374151", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                    style={{ fontSize: 10, padding: hasMissing ? "3px 9px" : "2px 6px", borderRadius: 999, border: `1px solid ${hasMissing ? "#FCA5A5" : "#E5E7EB"}`, background: "transparent", color: hasMissing ? "#B91C1C" : "#9CA3AF", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap", lineHeight: 1.4 }}
                   >
-                    {foundFields}/{totalFields} {mappingExpanded ? "▲" : "▼"}
+                    {hasMissing ? `${foundFields}/${totalFields} ` : ""}{mappingExpanded ? "▲" : "▼"}
                   </button>
                 </div>
 
