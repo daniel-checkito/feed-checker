@@ -3833,33 +3833,6 @@ function McAngebotsfeed() {
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: tierColor, marginTop: 3 }}>{tier}</div>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
-                      {/* APA bubble */}
-                      {(() => {
-                        const apaRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
-                        const apaOk = apaRate < 2;
-                        return (
-                          <details style={{ textAlign: "right" }}>
-                            <summary style={{ listStyle: "none", cursor: "pointer" }}>
-                              <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 999, border: `1px solid ${apaOk ? "#BBF7D0" : "#FECACA"}`, background: apaOk ? "#F0FDF4" : "#FEF2F2", color: apaOk ? "#166534" : "#B91C1C", whiteSpace: "nowrap" }}>
-                                {apaOk ? "✓" : "✗"} APA
-                              </span>
-                            </summary>
-                            <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, border: `1px solid ${apaOk ? "#BBF7D0" : "#FECACA"}`, background: apaOk ? "#F0FDF4" : "#FEF2F2", fontSize: 10, color: apaOk ? "#166534" : "#B91C1C", lineHeight: "1.6", textAlign: "left", minWidth: 200 }}>
-                              <div style={{ fontWeight: 700, marginBottom: 3 }}>APA – Automatische Produktanlage</div>
-                              {apaOk ? (
-                                <div>Fehlerquote {apaRate.toFixed(1)}% – berechtigt (max. 2%).</div>
-                              ) : (
-                                <>
-                                  <div>Fehlerquote {apaRate.toFixed(1)}% (max. 2% erlaubt).</div>
-                                  <div style={{ marginTop: 2 }}>Mind. {issues.blockiertCount - Math.floor(issues.totalRows * 0.02)} Fehler beheben.</div>
-                                </>
-                              )}
-                              <div style={{ marginTop: 4, color: apaOk ? "#15803D" : "#991B1B", fontSize: 9 }}>Bis zu 2% fehlerhafte Artikel werden automatisch entfernt.</div>
-                            </div>
-                          </details>
-                        );
-                      })()}
                     </div>
                   </div>
 
@@ -3899,6 +3872,31 @@ function McAngebotsfeed() {
                     </div>
                     {!campaignEligible && <div style={{ fontSize: 9, padding: "3px 7px", borderRadius: 999, background: "#E5E7EB", color: "#6B7280", whiteSpace: "nowrap", fontWeight: 600 }}>ab 70 Pkt.</div>}
                   </div>
+
+                  {/* APA achievement card */}
+                  {(() => {
+                    const apaRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
+                    const apaOk = apaRate < 2;
+                    const fixNeeded = issues.blockiertCount - Math.floor(issues.totalRows * 0.02);
+                    return (
+                      <div style={{ marginTop: 8, borderRadius: 8, border: `1px solid ${apaOk ? "#86EFAC" : "#E5E7EB"}`, background: apaOk ? "#F0FDF4" : "#F9FAFB", padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: apaOk ? "#16A34A" : "#D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+                          {apaOk ? "✓" : "✗"}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: apaOk ? "#166534" : "#374151" }}>
+                            {apaOk ? "APA freigeschaltet" : "APA – Automatische Produktanlage"}
+                          </div>
+                          <div style={{ fontSize: 9, color: apaOk ? "#15803D" : "#9CA3AF", marginTop: 1 }}>
+                            {apaOk
+                              ? `Fehlerquote ${apaRate.toFixed(1)}% – berechtigt (max. 2%)`
+                              : `Fehlerquote ${apaRate.toFixed(1)}% · noch ${fixNeeded} Fehler beheben`}
+                          </div>
+                        </div>
+                        {!apaOk && <div style={{ fontSize: 9, padding: "3px 7px", borderRadius: 999, background: "#E5E7EB", color: "#6B7280", whiteSpace: "nowrap", fontWeight: 600 }}>max. 2%</div>}
+                      </div>
+                    );
+                  })()}
 
                   {/* Scoring details */}
                   <details style={{ marginTop: 10 }}>
