@@ -3723,7 +3723,6 @@ function McAngebotsfeed() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Datenvalidierung</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                <span style={{ fontSize: 8, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#1553B6", color: "#FFF", letterSpacing: "0.06em" }}>HARD GATE</span>
                 {issues.blockiertCount > 0
                   ? <span style={{ fontSize: 10, color: "#DC2626", fontWeight: 700 }}>✗ Fehler vorhanden</span>
                   : <span style={{ fontSize: 10, color: "#16A34A", fontWeight: 700 }}>✓ Bestanden</span>}
@@ -3832,7 +3831,6 @@ function McAngebotsfeed() {
                     <div style={{ fontSize: 9, fontWeight: 700, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase" }}>STUFE 2 – FEED-QUALITÄTSSCORE</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Analyse-Ergebnis</div>
                   </div>
-                  <span style={{ fontSize: 8, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#6B7280", color: "#FFF", letterSpacing: "0.06em" }}>SOFT SCORE</span>
                 </div>
 
                 {/* Score display */}
