@@ -4056,26 +4056,22 @@ function McAngebotsfeed() {
                 Spalten-Zuordnung {mappingExpanded ? "▲" : "▼"}
               </button>
             </div>
-            <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 8 }}>CSV mit getrennten Spalten für Pflichtfehler und optionale Hinweise.</div>
+            <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 8 }}>Originaldatei mit zwei zusätzlichen Spalten: Fehler Pflichtfelder und Fehler Optionale Felder.</div>
             <button
               onClick={() => {
                 const pflichtByRow = {}, optionalByRow = {};
                 issues.pflichtErrors.forEach((e) => { if (!pflichtByRow[e.row]) pflichtByRow[e.row] = []; pflichtByRow[e.row].push(e.field + (e.type === "invalid" ? ` ungültig` : " fehlt")); });
                 issues.optionalHints.forEach((e) => { if (!optionalByRow[e.row]) optionalByRow[e.row] = []; optionalByRow[e.row].push(e.field + " fehlt"); });
-                const colEan = issues.pflichtMapping.ean, colName = issues.pflichtMapping.name, colOfferId = issues.pflichtMapping.seller_offer_id;
-                const csvRows = [];
-                rows.forEach((r, i) => {
+                const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+                const sep = ";";
+                const headerRow = [...headers, "Fehler Pflichtfelder", "Fehler Optionale Felder"].map(esc).join(sep);
+                const lines = rows.map((r, i) => {
                   const rn = i + 1;
-                  const p = pflichtByRow[rn] || [], o = optionalByRow[rn] || [];
-                  if (!p.length && !o.length) return;
-                  const ean = colEan ? String(r[colEan] ?? "").trim() : "";
-                  const name = colName ? String(r[colName] ?? "").trim() : "";
-                  const offerId = colOfferId ? String(r[colOfferId] ?? "").trim() : "";
-                  csvRows.push({ ean, offerId, name, pflicht: [...new Set(p)].join("; "), optional: [...new Set(o)].join("; ") });
+                  const p = pflichtByRow[rn] ? [...new Set(pflichtByRow[rn])].join("; ") : "";
+                  const o = optionalByRow[rn] ? [...new Set(optionalByRow[rn])].join("; ") : "";
+                  return [...headers.map((h) => esc(r[h])), esc(p), esc(o)].join(sep);
                 });
-                const header = "EAN;Offer_ID;Name;Pflichtfehler;Optionale Hinweise";
-                const lines = csvRows.map((r) => `"${r.ean}";"${r.offerId}";"${r.name.replace(/"/g, '""')}";"${r.pflicht}";"${r.optional}"`);
-                const csv = [header, ...lines].join("\n");
+                const csv = [headerRow, ...lines].join("\n");
                 const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
