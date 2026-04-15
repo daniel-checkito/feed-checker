@@ -3775,7 +3775,7 @@ function McAngebotsfeed() {
                           <div style={{ flex: 1, fontSize: 11, color: "#374151" }}>{label}</div>
                           {!ok && <div style={{ fontSize: 10, fontWeight: 600, color: "#DC2626" }}>{(catErrCount || issues.dupEanCount || 0).toLocaleString("de-DE")} Artikel</div>}
                         </div>
-                        {brokenFields.length > 0 && (
+                        {brokenFields.length > 1 && (
                           <div style={{ paddingLeft: 23, paddingBottom: 5, display: "grid", gap: 1 }}>
                             {brokenFields.map(({ f, hint }) => (
                               <div key={f} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#6B7280" }}>
