@@ -3660,6 +3660,87 @@ function McAngebotsfeed() {
           </div>
         </details>
 
+        {/* Spalten-Zuordnung */}
+        {issues && !mcIsWrongFile && (() => {
+          const LEFT_FL = {
+            name: "Artikelname", description: "Beschreibung", brand: "Marke",
+            category_path: "Kategoriepfad", seller_offer_id: "Eigene Artikel-ID",
+            ean: "EAN (GTIN14)", price: "Preis", availability: "Verfügbarkeit",
+            stock_amount: "Bestand", delivery_time: "Lieferzeit",
+            delivery_includes: "Lieferumfang", shipping_mode: "Versandart",
+            image_url: "Hauptbild", color: "Farbe", material: "Material",
+            size: "Maße (Gesamt)", size_height: "Höhe", size_depth: "Tiefe",
+            size_diameter: "Durchmesser", manufacturer_name: "Herstellername",
+            manufacturer_street: "Herstellerstraße", manufacturer_postcode: "Herstellerpostleitzahl",
+            manufacturer_city: "Herstellerstadt", manufacturer_country: "Herstellerland",
+            manufacturer_email: "Hersteller-E-Mail",
+            deeplink: "Deeplink", model: "Modellbezeichnung",
+            size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe",
+            ausrichtung: "Ausrichtung", style: "Stil", temper: "Härtegrad",
+            weight: "Gewicht", weight_capacity: "Belastbarkeit",
+            youtube_link: "Youtube-Video", bild_3d_glb: "3D-Ansicht (GLB)", bild_3d_usdz: "3D-Ansicht (USDZ)",
+            assembly_instructions: "Montageanleitung",
+            illuminant_included: "Leuchtmittel inklusive", incl_mattress: "Matratze inklusive",
+            incl_slatted_frame: "Lattenrost inklusive", led_verbaut: "LED verbaut",
+            lighting_included: "Beleuchtung inklusive", set_includes: "Set-Inhalt", socket: "Steckdose/Anschluss",
+            care_instructions: "Pflegehinweise", filling: "Füllung",
+            removable_cover: "Bezug abnehmbar", suitable_for_allergic: "Allergikergeeignet",
+            energy_efficiency_category: "Energieeffizienzklasse", product_data_sheet: "Produktdatenblatt",
+            manufacturer_phone_number: "Herstellertelefonnummer",
+          };
+          const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
+          const totalFields = allMcFields.length + 1;
+          const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
+          const hasMissing = issues.missingPflichtCols.length > 0;
+          return (
+            <details
+              style={{ background: hasMissing ? "#FFFBEB" : "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8 }}
+              open={mappingExpanded}
+              onToggle={(e) => setMappingExpanded(e.currentTarget.open)}
+            >
+              <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: hasMissing ? "#92400E" : "#111827", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span></span>
+                {hasMissing && <span style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>{issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
+              </summary>
+              <div style={{ padding: "0 16px 16px", display: "grid", gap: 4 }}>
+                {/* Hauptbild-Zuordnung (separat, nicht konfigurierbar – kommt aus Spaltenerkennung) */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>Hauptbild (+ Zusatzb.)</span>
+                  <div style={{ flex: 1, fontSize: 10, padding: "4px 8px", borderRadius: 5, border: `1px solid ${mcImageColumns.length > 0 ? "#D1D5DB" : "#FCA5A5"}`, background: "#F9FAFB", color: mcImageColumns.length > 0 ? "#166534" : "#DC2626", fontWeight: 600 }}>
+                    {mcImageColumns.length > 0 ? mcImageColumns.join(", ") : "–"}
+                  </div>
+                </div>
+                {allMcFields.map((f) => {
+                  const isManual = f in manualMapping;
+                  const col = mcMapping[f];
+                  const isPflicht = MC_PFLICHT_COLS.includes(f);
+                  const missing = !col && isPflicht;
+                  return (
+                    <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>{LEFT_FL[f] || f}{isPflicht && <span style={{ color: "#DC2626", marginLeft: 2 }}>*</span>}</span>
+                      <select
+                        value={col || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
+                        }}
+                        style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                      >
+                        <option value="">-- Nicht zugeordnet --</option>
+                        {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                      {isManual && (
+                        <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                          style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          );
+        })()}
+
         {/* Content Tips */}
         <details style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8 }}>
           <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#111827" }}>
@@ -3754,26 +3835,26 @@ function McAngebotsfeed() {
         return (
         <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
 
-          {/* ── PARTNER-STATUS-BANNER ── */}
-          <div style={{
-            padding: "10px 14px", borderRadius: 8,
-            border: `1px solid ${stufe1Passed ? "#BBF7D0" : "#FECACA"}`,
-            background: stufe1Passed ? "#F0FDF4" : "#FEF2F2",
-            display: "flex", gap: 10, alignItems: "flex-start",
-          }}>
-            <div style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1, borderRadius: 3, border: `1.5px solid ${stufe1Passed ? "#16A34A" : "#DC2626"}`, display: "flex", alignItems: "center", justifyContent: "center", background: stufe1Passed ? "#16A34A" : "transparent", color: "#FFF", fontSize: 11, fontWeight: 800 }}>{stufe1Passed ? "✓" : ""}</div>
-            <div style={{ fontSize: 12, color: "#111827", lineHeight: "1.5" }}>
-              <strong style={{ color: stufe1Passed ? "#166534" : "#991B1B" }}>
-                {stufe1Passed ? "Partner freigeschaltet." : "Partner nicht freigeschaltet."}
-              </strong>{" "}
-              {stufe1Passed
-                ? "Die technische Prüfung wurde bestanden. Ihre Artikel werden angelegt."
-                : "Die technische Prüfung muss bestanden werden, bevor Ihre Artikel angelegt werden können. Bitte beheben Sie die Fehler und laden Sie den Feed erneut hoch."}
-            </div>
-          </div>
-
           {/* ── STUFE 1 – TECHNISCHE PRÜFUNG ── */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
+            {/* Partner-Status-Banner (oben im Stufe-1-Block) */}
+            <div style={{
+              padding: "10px 14px",
+              borderBottom: `1px solid ${stufe1Passed ? "#BBF7D0" : "#FECACA"}`,
+              background: stufe1Passed ? "#F0FDF4" : "#FEF2F2",
+              display: "flex", gap: 10, alignItems: "flex-start",
+            }}>
+              <div style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1, borderRadius: 3, border: `1.5px solid ${stufe1Passed ? "#16A34A" : "#DC2626"}`, display: "flex", alignItems: "center", justifyContent: "center", background: stufe1Passed ? "#16A34A" : "transparent", color: "#FFF", fontSize: 11, fontWeight: 800 }}>{stufe1Passed ? "✓" : ""}</div>
+              <div style={{ fontSize: 12, color: "#111827", lineHeight: "1.5" }}>
+                <strong style={{ color: stufe1Passed ? "#166534" : "#991B1B" }}>
+                  {stufe1Passed ? "Partner freigeschaltet." : "Partner nicht freigeschaltet."}
+                </strong>{" "}
+                {stufe1Passed
+                  ? "Die technische Prüfung wurde bestanden. Ihre Artikel werden angelegt."
+                  : "Die technische Prüfung muss bestanden werden, bevor Ihre Artikel angelegt werden können. Bitte beheben Sie die Fehler und laden Sie den Feed erneut hoch."}
+              </div>
+            </div>
+
             {/* Sektion-Label + Status-Pille */}
             <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
@@ -3793,9 +3874,6 @@ function McAngebotsfeed() {
             {/* Pflichtattribute-Block */}
             <div style={{ margin: "0 18px 14px", borderRadius: 8, borderLeft: `4px solid ${stufe1Passed ? "#16A34A" : "#DC2626"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Pflichtattribute (25 Attribute)</div>
-              <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>
-                {issues.pflichtOkCount.toLocaleString("de-DE")} von {issues.totalRows.toLocaleString("de-DE")} Artikeln vollständig.
-              </div>
               {issues.blockiertCount > 0 && (
                 <div style={{ fontSize: 11, color: "#374151", marginBottom: 8, fontWeight: 600 }}>
                   {issues.blockiertCount.toLocaleString("de-DE")} Artikel mit fehlenden Pflichtfeldern → werden <strong>nicht gelistet</strong>.
@@ -3852,76 +3930,6 @@ function McAngebotsfeed() {
               ))}
             </div>
 
-            {/* ── Spalten-Zuordnung (innerhalb Stufe 1, unter den Stats) ── */}
-            {(() => {
-              const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
-              const optFL = {
-                deeplink: "Deeplink", model: "Modellbezeichnung",
-                size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe",
-                ausrichtung: "Ausrichtung", style: "Stil", temper: "Härtegrad",
-                weight: "Gewicht", weight_capacity: "Belastbarkeit",
-                youtube_link: "Youtube-Video", bild_3d_glb: "3D-Ansicht (GLB)", bild_3d_usdz: "3D-Ansicht (USDZ)",
-                assembly_instructions: "Montageanleitung",
-                illuminant_included: "Leuchtmittel inklusive", incl_mattress: "Matratze inklusive",
-                incl_slatted_frame: "Lattenrost inklusive", led_verbaut: "LED verbaut",
-                lighting_included: "Beleuchtung inklusive", set_includes: "Set-Inhalt", socket: "Steckdose/Anschluss",
-                care_instructions: "Pflegehinweise", filling: "Füllung",
-                removable_cover: "Bezug abnehmbar", suitable_for_allergic: "Allergikergeeignet",
-                energy_efficiency_category: "Energieeffizienzklasse", product_data_sheet: "Produktdatenblatt",
-                manufacturer_phone_number: "Herstellertelefonnummer",
-              };
-              const allFL = { ...FL, ...optFL };
-              const totalFields = allMcFields.length + 1;
-              const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
-              const hasMissing = issues.missingPflichtCols.length > 0;
-              return (
-                <details
-                  style={{ borderTop: "1px solid #F3F4F6", background: hasMissing ? "#FFFBEB" : "#FFF" }}
-                  open={mappingExpanded}
-                  onToggle={(e) => setMappingExpanded(e.currentTarget.open)}
-                >
-                  <summary style={{ padding: "10px 18px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: hasMissing ? "#92400E" : "#374151", display: "flex", justifyContent: "space-between", alignItems: "center", listStyle: "none" }}>
-                    <span>▸ Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span></span>
-                    {hasMissing && <span style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>{issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
-                  </summary>
-                  <div style={{ padding: "0 18px 14px", display: "grid", gap: 4 }}>
-                    {/* Hauptbild-Zuordnung (separat, nicht konfigurierbar – kommt aus Spaltenerkennung) */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>Hauptbild (+ Zusatzb.)</span>
-                      <div style={{ flex: 1, fontSize: 10, padding: "4px 8px", borderRadius: 5, border: `1px solid ${mcImageColumns.length > 0 ? "#D1D5DB" : "#FCA5A5"}`, background: "#F9FAFB", color: mcImageColumns.length > 0 ? "#166534" : "#DC2626", fontWeight: 600 }}>
-                        {mcImageColumns.length > 0 ? mcImageColumns.join(", ") : "–"}
-                      </div>
-                    </div>
-                    {allMcFields.map((f) => {
-                      const isManual = f in manualMapping;
-                      const col = mcMapping[f];
-                      const isPflicht = MC_PFLICHT_COLS.includes(f);
-                      const missing = !col && isPflicht;
-                      return (
-                        <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>{allFL[f] || f}{isPflicht && <span style={{ color: "#DC2626", marginLeft: 2 }}>*</span>}</span>
-                          <select
-                            value={col || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
-                            }}
-                            style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
-                          >
-                            <option value="">-- Nicht zugeordnet --</option>
-                            {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                          </select>
-                          {isManual && (
-                            <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
-                              style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </details>
-              );
-            })()}
           </div>
 
           {/* ── CSV DOWNLOAD (highlighted primary action) ── */}
