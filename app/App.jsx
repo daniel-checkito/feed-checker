@@ -3603,9 +3603,9 @@ function McAngebotsfeed() {
   const mcIsWrongFile = rows.length > 0 && Object.values(mcMapping).filter(Boolean).length === 0 && mcImageColumns.length === 0;
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1200, margin: "0 auto", paddingLeft: 60, paddingRight: 60 }}>
+    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1500, margin: "0 auto" }}>
       {/* ── LEFT: Upload & Settings ── */}
-      <div style={{ flex: "0 0 50%", display: "grid", gap: 12, alignContent: "start" }}>
+      <div style={{ flex: "1 1 0", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
         {/* Upload Method Toggle */}
@@ -3823,7 +3823,7 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {mcIsWrongFile && (
-        <div style={{ flex: "0 0 50%", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ flex: "1 1 0", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
           <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
@@ -3878,7 +3878,7 @@ function McAngebotsfeed() {
         ].filter((g) => g.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
 
         return (
-        <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+        <div style={{ flex: "1 1 0", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
 
           {/* ── STUFE 1 – TECHNISCHE PRÜFUNG ── */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
