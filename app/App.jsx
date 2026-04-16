@@ -3605,7 +3605,7 @@ function McAngebotsfeed() {
   return (
     <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1500, margin: "0 auto" }}>
       {/* ── LEFT: Upload & Settings ── */}
-      <div style={{ flex: "1 1 0", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+      <div style={{ flex: "0 1 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
         {/* Upload Method Toggle */}
@@ -3823,7 +3823,7 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {mcIsWrongFile && (
-        <div style={{ flex: "1 1 0", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ flex: "0 1 50%", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
           <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
@@ -3869,16 +3869,16 @@ function McAngebotsfeed() {
           else if (["name", "brand", "category_path", "seller_offer_id", "ean"].includes(e.field)) rowsByGroup.ids.add(e.row);
         });
         const topGroups = [
-          { key: "desc", label: "Beschreibung", hint: "fehlt oder leer", count: rowsByGroup.desc.size },
+          { key: "desc", label: "Beschreibung", hint: "Fehlt oder leer", count: rowsByGroup.desc.size },
           { key: "size", label: "Maße / Höhe / Tiefe", hint: "Unvollständig", count: rowsByGroup.size.size },
           { key: "mfr", label: "Herstellerangaben", hint: "Name, Adresse oder E-Mail fehlt", count: rowsByGroup.mfr.size },
-          { key: "img", label: "Hauptbild", hint: "fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
+          { key: "img", label: "Hauptbild", hint: "Fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
           { key: "price", label: "Preis & Verfügbarkeit", hint: "Unvollständig", count: rowsByGroup.price.size },
           { key: "ids", label: "Identifikation", hint: "Name, Marke oder EAN fehlen", count: rowsByGroup.ids.size },
         ].filter((g) => g.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
 
         return (
-        <div style={{ flex: "1 1 0", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+        <div style={{ flex: "0 1 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
 
           {/* ── STUFE 1 – TECHNISCHE PRÜFUNG ── */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
@@ -3902,14 +3902,14 @@ function McAngebotsfeed() {
             </div>
 
             {/* Sektion-Label + Status-Pille */}
-            <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
-                <span>STUFE 1 — TECHNISCHE PRÜFUNG</span>
-                <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
+            <div style={{ padding: "14px 18px 8px", display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                <span style={{ whiteSpace: "nowrap" }}>STUFE 1 — TECHNISCHE PRÜFUNG</span>
+                <span style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
               </div>
               {stufe1Passed
-                ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A" }}>✓ Bestanden</span>
-                : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626" }}>✗ Nicht bestanden</span>}
+                ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A", whiteSpace: "nowrap" }}>✓ Bestanden</span>
+                : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626", whiteSpace: "nowrap" }}>✗ Nicht bestanden</span>}
             </div>
 
             {/* Titel */}
@@ -3943,7 +3943,7 @@ function McAngebotsfeed() {
               {/* Pflichtattribute-Dropdown mit allen 25 Feldnamen */}
               <details style={{ marginTop: 4 }}>
                 <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>Pflichtattribute anzeigen</summary>
-                <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF", lineHeight: "1.6" }}>
+                <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF", lineHeight: "1.6", overflowWrap: "anywhere", wordBreak: "break-word" }}>
                   {MC_PFLICHT_COLS.map((f, i) => (
                     <React.Fragment key={f}>
                       {i > 0 && <span style={{ margin: "0 4px" }}>·</span>}
@@ -3966,13 +3966,16 @@ function McAngebotsfeed() {
                   tip: "Artikel mit mindestens einem fehlenden oder ungültigen Pflichtattribut. Diese Artikel werden nicht gelistet, bis die Fehler behoben sind.",
                 },
                 {
-                  val: issues.totalRows, label: "Gesamt", color: "#2563EB",
+                  val: issues.totalRows, label: "Gesamt", color: "#111827",
                   tip: "Gesamtzahl der Artikel in Ihrem hochgeladenen Feed.",
                 },
               ].map(({ val, label, color, tip }) => (
-                <div key={label} title={tip} style={{ padding: "3px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color }}>{val.toLocaleString("de-DE")}</div>
-                  <div style={{ fontSize: 9, color: "#6B7280", marginTop: 0 }}>{label}</div>
+                <div key={label} title={tip} style={{ padding: "6px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color }}>{val.toLocaleString("de-DE")}</div>
+                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    {label}
+                    <span aria-hidden="true" style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700 }}>ⓘ</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -4025,14 +4028,14 @@ function McAngebotsfeed() {
             <div style={{ opacity: stufe1Passed ? 1 : 0.55 }}>
 
               {/* Sektion-Label */}
-              <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
-                  <span>STUFE 2 — FEED-QUALITÄTSSCORE</span>
-                  <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
+              <div style={{ padding: "14px 18px 8px", display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                  <span style={{ whiteSpace: "nowrap" }}>STUFE 2 — FEED-QUALITÄTSSCORE</span>
+                  <span style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
                 </div>
                 {score >= 70
-                  ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A" }}>✓ Zielwert erreicht</span>
-                  : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626" }}>✗ Zielwert nicht erreicht</span>}
+                  ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A", whiteSpace: "nowrap" }}>✓ Zielwert erreicht</span>
+                  : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626", whiteSpace: "nowrap" }}>✗ Zielwert nicht erreicht</span>}
               </div>
 
               {/* Score */}
@@ -4067,7 +4070,7 @@ function McAngebotsfeed() {
 
               {/* Scoring-Logik – als Dropdown, geschlossen (direkt unter Progress-Bar) */}
               <details style={{ padding: "0 18px", marginTop: 8 }}>
-                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none", padding: "6px 0" }}>▾ Scoring-Logik anzeigen</summary>
+                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none", padding: "6px 0" }}>Scoring-Logik anzeigen</summary>
 
                 <div style={{ marginTop: 4, padding: "7px 12px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #E5E7EB", fontSize: 11, fontFamily: "monospace", color: "#374151", marginBottom: 10 }}>
                   Score = Pflichtfelder-Score + Empfohlene-Felder-Score
@@ -4123,11 +4126,11 @@ function McAngebotsfeed() {
                   <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
                     Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein:
                   </div>
-                  <ul style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "1.6" }}>
-                    <li>Stornoquote ≤ 2,5 %</li>
-                    <li>Liefertermintreue ≥ 94 %</li>
-                    <li>Trackingquote ≥ 92 %</li>
-                    <li>Preisparität ≥ 95 %</li>
+                  <ul style={{ margin: "4px 0 0 0", paddingLeft: 18, fontSize: 11, color: "#374151", lineHeight: "1.6", listStyleType: "disc", listStylePosition: "outside" }}>
+                    <li style={{ display: "list-item" }}>Stornoquote ≤ 2,5 %</li>
+                    <li style={{ display: "list-item" }}>Liefertermintreue ≥ 94 %</li>
+                    <li style={{ display: "list-item" }}>Trackingquote ≥ 92 %</li>
+                    <li style={{ display: "list-item" }}>Preisparität ≥ 95 %</li>
                   </ul>
                 </details>
                 <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-start" }}>
