@@ -5104,10 +5104,13 @@ export default function App() {
     const shippingModeAliases = { package: "paket", pakete: "paket", parcel: "paket", pkg: "paket", karton: "paket", shipment: "spedition", spedition_ware: "spedition", speditionsware: "spedition", freight: "spedition", forwarding: "spedition" };
     // Safety: only validate mounting_side if the mapped column actually contains
     // mounting-side-like values (links/rechts/beidseitig). Avoids false positives
-    // from auto-detected columns that aren't really mounting side.
+    // from auto-detected columns that aren't really mounting side. Also skip any
+    // column whose header looks like assembly/montage/instruction — those should
+    // never produce errors.
+    const montageInstrRe = /(montage|instruction|anleitung)/i;
     const mountingRe = /^(links|rechts|beidseitig|beide|left|right|both)$/i;
     let validateMountingSide = false;
-    if (mapping.mounting_side) {
+    if (mapping.mounting_side && !montageInstrRe.test(String(mapping.mounting_side))) {
       let mountingHits = 0;
       for (let i = 0; i < Math.min(rows.length, 50); i++) {
         const v = String(rows[i]?.[mapping.mounting_side] ?? "").trim();
@@ -7191,7 +7194,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {mapping.mounting_side && optionalFindings.invalidMountingSide.length > 0 && (
+                  {mapping.mounting_side && !/(montage|instruction|anleitung)/i.test(String(mapping.mounting_side)) && optionalFindings.invalidMountingSide.length > 0 && (
                     <div style={{ marginTop: 12 }}>
                       <CollapsibleList title="Montageseite ungültig"
                         items={groupByValueWithEans(optionalFindings.invalidMountingSide).slice(0, 50).map((g) => `${g.value} – ${g.eans.length} EANs`)}
