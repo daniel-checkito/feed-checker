@@ -1750,7 +1750,8 @@ function QsPage({ headers, rows }) {
   const [imageSampleLimit, setImageSampleLimit] = useState(5);
   const [freistellerChecks, setFreistellerChecks] = useState({});
   const [freistellerLoading, setFreistellerLoading] = useState(false);
-  const [showCriteria, setShowCriteria] = useState(false);
+  const [expandedCriteria, setExpandedCriteria] = useState({});
+  const toggleCriteria = (id) => setExpandedCriteria((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const imageColumns = useMemo(() => {
     if (!headers.length) return [];
@@ -2622,17 +2623,7 @@ function QsPage({ headers, rows }) {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-        <button
-          type="button"
-          onClick={() => setShowCriteria((v) => !v)}
-          style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: showCriteria ? BRAND_COLOR : "#FFF", color: showCriteria ? "#FFF" : "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-        >
-          {showCriteria ? "Schwellenwerte ausblenden" : "Schwellenwerte anzeigen"}
-        </button>
-      </div>
-
-      <div style={{ marginTop: 8, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+      <div style={{ marginTop: 12, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
         <SmallText>
           Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen. Herstellerfeed wird
@@ -2685,25 +2676,47 @@ function QsPage({ headers, rows }) {
                 </div>
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
-                {/* Scoring thresholds */}
-                {showCriteria && item.criteria && item.criteria.length ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                    {item.criteria.map((line, idx) => {
-                      const pts = line.match(/^(\d+)\s*P/);
-                      const isActive = pts && Number(pts[1]) === item.value;
-                      return (
-                        <div key={idx} style={{
-                          fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                          background: isActive ? toneBg : "#F3F4F6",
-                          border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                          color: isActive ? toneColor : "#6B7280",
-                          fontWeight: isActive ? 600 : 400,
-                        }}>
-                          {line}
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* Per-item criteria dropdown */}
+                {item.criteria && item.criteria.length ? (
+                  <>
+                    {expandedCriteria[item.id] ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                        {item.criteria.map((line, idx) => {
+                          const pts = line.match(/^(\d+)\s*P/);
+                          const isActive = pts && Number(pts[1]) === item.value;
+                          return (
+                            <div key={idx} style={{
+                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                              background: isActive ? toneBg : "#F3F4F6",
+                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                              color: isActive ? toneColor : "#6B7280",
+                              fontWeight: isActive ? 600 : 400,
+                            }}>
+                              {line}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => toggleCriteria(item.id)}
+                      style={{
+                        alignSelf: "flex-start",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        background: "#FFF",
+                        color: "#374151",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        marginTop: 2,
+                      }}
+                    >
+                      {expandedCriteria[item.id] ? "▲ Kriterien ausblenden" : "▼ Kriterien anzeigen"}
+                    </button>
+                  </>
                 ) : null}
               </div>
             );
@@ -2744,25 +2757,47 @@ function QsPage({ headers, rows }) {
                 </div>
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
-                {/* Scoring thresholds */}
-                {showCriteria && item.criteria && item.criteria.length ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                    {item.criteria.map((line, idx) => {
-                      const pts = line.match(/^(\d+)\s*P/);
-                      const isActive = pts && Number(pts[1]) === item.value;
-                      return (
-                        <div key={idx} style={{
-                          fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                          background: isActive ? toneBg : "#F3F4F6",
-                          border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                          color: isActive ? toneColor : "#6B7280",
-                          fontWeight: isActive ? 600 : 400,
-                        }}>
-                          {line}
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* Per-item criteria dropdown */}
+                {item.criteria && item.criteria.length ? (
+                  <>
+                    {expandedCriteria[item.id] ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                        {item.criteria.map((line, idx) => {
+                          const pts = line.match(/^(\d+)\s*P/);
+                          const isActive = pts && Number(pts[1]) === item.value;
+                          return (
+                            <div key={idx} style={{
+                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                              background: isActive ? toneBg : "#F3F4F6",
+                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                              color: isActive ? toneColor : "#6B7280",
+                              fontWeight: isActive ? 600 : 400,
+                            }}>
+                              {line}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => toggleCriteria(item.id)}
+                      style={{
+                        alignSelf: "flex-start",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        background: "#FFF",
+                        color: "#374151",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        marginTop: 2,
+                      }}
+                    >
+                      {expandedCriteria[item.id] ? "▲ Kriterien ausblenden" : "▼ Kriterien anzeigen"}
+                    </button>
+                  </>
                 ) : null}
               </div>
             );
