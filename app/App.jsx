@@ -3259,20 +3259,19 @@ const MC_NAV_ITEMS = [
 ];
 
 // Stufe 1: Live-Fähigkeit (Hard Gate) – 25 Pflichtattribute (CHECK24 Attributübersicht V2025)
+// Sortiert absteigend nach Wichtigkeit
 const MC_PFLICHT_COLS = [
-  // Informationen (6)
-  "ean", "brand", "category_path", "description", "name", "seller_offer_id",
-  // Produktmerkmale (6)
-  "color", "material", "size", "size_depth", "size_diameter", "size_height",
-  // Medien (1) – handled via image column detection
+  // Kern-Identifikation (am wichtigsten)
+  "name", "description", "brand", "category_path", "seller_offer_id", "ean",
+  // Preis & Verfügbarkeit
+  "price", "availability", "stock_amount", "delivery_time", "delivery_includes", "shipping_mode",
+  // Hauptbild
   "image_url",
-  // Herstellerangaben (6)
+  // Produktmerkmale
+  "color", "material", "size", "size_height", "size_depth", "size_diameter",
+  // Herstellerangaben
   "manufacturer_name", "manufacturer_street", "manufacturer_postcode",
   "manufacturer_city", "manufacturer_country", "manufacturer_email",
-  // Preis & Verfügbarkeit (5)
-  "availability", "delivery_time", "delivery_includes", "price", "stock_amount",
-  // Versand (1)
-  "shipping_mode",
 ];
 // Stufe 2: Feed-Qualitätsscore – empfohlene Attribute (Score-relevant, 27 + Bildlink_2–10)
 const MC_OPTIONAL_COLS = [
@@ -3535,11 +3534,11 @@ function McAngebotsfeed() {
     eanDupRows.forEach((rn) => catRows.informationen.add(rn));
     const pflichtCategoryErrors = Object.fromEntries(Object.entries(catRows).map(([k, s]) => [k, s.size]));
 
-    // Scoring (Stufe 2)
+    // Scoring (Stufe 2) – Pflichtfelder-Score (max. 70) + Empfohlene-Felder-Score (max. 30)
     const pflichtScore = rows.length ? Math.round((pflichtOkCount / rows.length) * 70) : 0;
-    const dupPenalty = rows.length ? Math.min(10, Math.round((dupNameEanCount / rows.length) * 30)) : 0;
-    const optionalScore = rows.length && optionalFieldCount > 0 ? Math.round((totalOptionalFieldsPresent / (rows.length * optionalFieldCount)) * 30) : 0;
-    const totalScore = Math.max(0, pflichtScore - dupPenalty + optionalScore);
+    const optionalFillRatio = rows.length && optionalFieldCount > 0 ? (totalOptionalFieldsPresent / (rows.length * optionalFieldCount)) : 0;
+    const optionalScore = Math.round(optionalFillRatio * 30);
+    const totalScore = Math.max(0, Math.min(100, pflichtScore + optionalScore));
 
     return {
       totalRows: rows.length,
@@ -3552,13 +3551,10 @@ function McAngebotsfeed() {
       totalOptionalFieldsPresent, optionalFieldCount,
       dupEanCount, dupNameEanCount,
       pflichtCategoryErrors,
-      pflichtScore, dupPenalty, optionalScore, totalScore,
+      pflichtScore, optionalScore, optionalFillRatio, totalScore,
     };
   }, [rows, headers, mcMapping, mcImageColumns]);
 
-  const errorCount = issues ? issues.pflichtErrors.length : 0;
-  const warningCount = issues ? issues.optionalHints.length : 0;
-  const mcScore = issues ? issues.totalScore : 0;
   const mcIsWrongFile = rows.length > 0 && Object.values(mcMapping).filter(Boolean).length === 0 && mcImageColumns.length === 0;
 
   return (
@@ -3712,352 +3708,149 @@ function McAngebotsfeed() {
           </div>
         </div>
       )}
-      {issues && !mcIsWrongFile && (
-        <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 10, alignContent: "start", overflow: "auto", maxHeight: "100vh" }}>
-          {/* ── STUFE 1 – TECHNISCHE PRÜFUNG (Hard Gate) ── */}
-          <div style={{ background: "#FFF", border: `1px solid ${issues.blockiertCount > 0 ? "#FECACA" : "#BBF7D0"}`, borderRadius: 8, overflow: "hidden", order: 3 }}>
-            {/* Section header */}
-            <div style={{ background: issues.blockiertCount > 0 ? "#FEF2F2" : "#F0FDF4", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
+      {issues && !mcIsWrongFile && (() => {
+        // ── Gesamt-Pass/Fail-Logik ──
+        // Technische Prüfung bestanden = Fehlerquote ≤ 5% (gleicher Schwellwert wie APA)
+        const errorRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
+        const stufe1Passed = errorRate <= 5;
+        const score = issues.totalScore;
+        const campaignEligible = stufe1Passed && score >= 70;
+        const fillPct = Math.round(issues.optionalFillRatio * 100);
 
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Datenvalidierung</div>
+        // Deutsche Feld-Labels (sortiert nach Wichtigkeit)
+        const FL = {
+          name: "Artikelname", description: "Beschreibung", brand: "Marke",
+          category_path: "Kategoriepfad", seller_offer_id: "Eigene Artikel-ID",
+          ean: "EAN (GTIN14)", price: "Preis", availability: "Verfügbarkeit",
+          stock_amount: "Bestand", delivery_time: "Lieferzeit",
+          delivery_includes: "Lieferumfang", shipping_mode: "Versandart",
+          image_url: "Hauptbild", color: "Farbe", material: "Material",
+          size: "Maße (Gesamt)", size_height: "Höhe", size_depth: "Tiefe",
+          size_diameter: "Durchmesser", manufacturer_name: "Herstellername",
+          manufacturer_street: "Herstellerstraße", manufacturer_postcode: "Herstellerpostleitzahl",
+          manufacturer_city: "Herstellerstadt", manufacturer_country: "Herstellerland",
+          manufacturer_email: "Hersteller-E-Mail",
+        };
+
+        // Top-Fehlergruppen berechnen (für Fehlerfall oben im Pflichtattribute-Block)
+        const rowsByGroup = { desc: new Set(), size: new Set(), mfr: new Set(), img: new Set(), price: new Set(), ids: new Set() };
+        issues.pflichtErrors.forEach((e) => {
+          if (e.field === "description") rowsByGroup.desc.add(e.row);
+          else if (["size", "size_height", "size_depth", "size_diameter"].includes(e.field)) rowsByGroup.size.add(e.row);
+          else if (e.field.startsWith("manufacturer_")) rowsByGroup.mfr.add(e.row);
+          else if (e.field === "image_url") rowsByGroup.img.add(e.row);
+          else if (["price", "availability", "stock_amount", "delivery_time", "delivery_includes", "shipping_mode"].includes(e.field)) rowsByGroup.price.add(e.row);
+          else if (["name", "brand", "category_path", "seller_offer_id", "ean"].includes(e.field)) rowsByGroup.ids.add(e.row);
+        });
+        const topGroups = [
+          { key: "desc", label: "Beschreibung", hint: "fehlt oder leer", count: rowsByGroup.desc.size },
+          { key: "size", label: "Maße / Höhe / Tiefe", hint: "unvollständig", count: rowsByGroup.size.size },
+          { key: "mfr", label: "Herstellerangaben", hint: "Name, Adresse oder E-Mail fehlt", count: rowsByGroup.mfr.size },
+          { key: "img", label: "Hauptbild", hint: "fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
+          { key: "price", label: "Preis & Verfügbarkeit", hint: "unvollständig", count: rowsByGroup.price.size },
+          { key: "ids", label: "Identifikation", hint: "Name, Marke oder EAN fehlen", count: rowsByGroup.ids.size },
+        ].filter((g) => g.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+
+        return (
+        <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+
+          {/* ── PARTNER-STATUS-BANNER ── */}
+          <div style={{
+            padding: "10px 14px", borderRadius: 8,
+            border: `1px solid ${stufe1Passed ? "#BBF7D0" : "#FECACA"}`,
+            background: stufe1Passed ? "#F0FDF4" : "#FEF2F2",
+            display: "flex", gap: 10, alignItems: "flex-start",
+          }}>
+            <div style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1, borderRadius: 3, border: `1.5px solid ${stufe1Passed ? "#16A34A" : "#DC2626"}`, display: "flex", alignItems: "center", justifyContent: "center", background: stufe1Passed ? "#16A34A" : "transparent", color: "#FFF", fontSize: 11, fontWeight: 800 }}>{stufe1Passed ? "✓" : ""}</div>
+            <div style={{ fontSize: 12, color: "#111827", lineHeight: "1.5" }}>
+              <strong style={{ color: stufe1Passed ? "#166534" : "#991B1B" }}>
+                {stufe1Passed ? "Partner freigeschaltet." : "Partner nicht freigeschaltet."}
+              </strong>{" "}
+              {stufe1Passed
+                ? "Die technische Prüfung wurde bestanden. Ihre Artikel werden angelegt."
+                : "Die technische Prüfung muss bestanden werden, bevor Ihre Artikel angelegt werden können. Bitte beheben Sie die Fehler und laden Sie den Feed erneut hoch."}
+            </div>
+          </div>
+
+          {/* ── STUFE 1 – TECHNISCHE PRÜFUNG (Hard Gate) ── */}
+          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
+            {/* Sektion-Label + HARD GATE Badge */}
+            <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
+                <span>STUFE 1 — TECHNISCHE PRÜFUNG</span>
+                <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                {issues.blockiertCount > 0
-                  ? <span style={{ fontSize: 10, color: "#DC2626", fontWeight: 700 }}>✗ Fehler vorhanden</span>
-                  : <span style={{ fontSize: 10, color: "#16A34A", fontWeight: 700 }}>✓ Bestanden</span>}
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#FEE2E2", color: "#B91C1C", letterSpacing: "0.04em" }}>HARD GATE</span>
+            </div>
+
+            {/* Titel + Bestanden-Pille */}
+            <div style={{ padding: "0 18px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>Datenvalidierung</div>
+              {stufe1Passed
+                ? <span style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 6, background: "#DCFCE7", color: "#16A34A" }}>✓ Bestanden</span>
+                : <span style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 6, background: "#FEE2E2", color: "#DC2626" }}>✗ Nicht bestanden</span>}
+            </div>
+
+            {/* Pflichtattribute-Block */}
+            <div style={{ margin: "0 18px 14px", borderRadius: 8, borderLeft: `4px solid ${stufe1Passed ? "#16A34A" : "#DC2626"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Pflichtattribute (25 Attribute)</div>
+              <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>
+                {issues.pflichtOkCount.toLocaleString("de-DE")} von {issues.totalRows.toLocaleString("de-DE")} Artikeln vollständig.
+              </div>
+              {issues.blockiertCount > 0 && (
+                <div style={{ fontSize: 11, color: "#374151", marginBottom: 8, fontWeight: 600 }}>
+                  {issues.blockiertCount.toLocaleString("de-DE")} Artikel mit fehlenden Pflichtfeldern → werden <strong>nicht gelistet</strong>.
+                </div>
+              )}
+
+              {/* Top 3 Fehlergruppen – nur wenn nicht bestanden */}
+              {!stufe1Passed && topGroups.length > 0 && (
+                <div style={{ display: "grid", gap: 5, marginBottom: 10 }}>
+                  {topGroups.map((g) => (
+                    <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#374151" }}>
+                      <span style={{ minWidth: 34, padding: "2px 6px", borderRadius: 4, background: "#DC2626", color: "#FFF", fontWeight: 700, textAlign: "center", fontSize: 10 }}>{g.count}</span>
+                      <span style={{ fontWeight: 700, color: "#111827" }}>{g.label}</span>
+                      <span style={{ color: "#6B7280" }}>— {g.hint}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Inline-Liste aller 25 Pflichtfelder, · getrennt */}
+              <div style={{ fontSize: 10, color: "#9CA3AF", lineHeight: "1.6" }}>
+                {MC_PFLICHT_COLS.map((f, i) => (
+                  <React.Fragment key={f}>
+                    {i > 0 && <span style={{ margin: "0 4px" }}>·</span>}
+                    {FL[f]}
+                  </React.Fragment>
+                ))}
               </div>
             </div>
 
-            {/* Pflichtattribute categories with inline field-level detail */}
-            {(() => {
-              const FL = {
-                ean: "EAN", brand: "Marke", category_path: "Kategorie", description: "Beschreibung", name: "Name", seller_offer_id: "Offer ID",
-                color: "Farbe", material: "Material", size: "Maße/Größe", size_depth: "Tiefe", size_diameter: "Durchmesser", size_height: "Höhe",
-                image_url: "Bilder",
-                manufacturer_name: "Hersteller Name", manufacturer_street: "Straße", manufacturer_postcode: "PLZ",
-                manufacturer_city: "Ort", manufacturer_country: "Land", manufacturer_email: "E-Mail",
-                availability: "Verfügbarkeit", delivery_time: "Lieferzeit", delivery_includes: "Lieferumfang", price: "Preis", stock_amount: "Bestand",
-                shipping_mode: "Versandart",
-              };
-              const errByField = {};
-              issues.pflichtErrors.forEach((e) => { errByField[e.field] = (errByField[e.field] || 0) + 1; });
-              const CATS = [
-                { key: "informationen", label: "Informationen", fields: ["ean", "brand", "category_path", "description", "name", "seller_offer_id"] },
-                { key: "produktmerkmale", label: "Produktmerkmale", fields: ["color", "material", "size", "size_depth", "size_diameter", "size_height"] },
-                { key: "medien", label: "Medien", fields: ["image_url"] },
-                { key: "hersteller", label: "Herstellerangaben", fields: ["manufacturer_name", "manufacturer_street", "manufacturer_postcode", "manufacturer_city", "manufacturer_country", "manufacturer_email"] },
-                { key: "preis", label: "Preis & Verfügbarkeit", fields: ["availability", "delivery_time", "delivery_includes", "price", "stock_amount"] },
-                { key: "versand", label: "Versand", fields: ["shipping_mode"] },
-              ];
-              return (
-                <div style={{ padding: "10px 14px", display: "grid", gap: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>Pflichtattribute (25 Attribute)</div>
-                    <div style={{ fontSize: 9, color: "#9CA3AF" }}>betroffene Artikel</div>
-                  </div>
-                  {CATS.map(({ key, label, fields }, ci) => {
-                    const hasMissingCol = fields.some((f) => issues.missingPflichtCols.includes(f));
-                    const catErrCount = issues.pflichtCategoryErrors[key] || 0;
-                    const dupErr = key === "informationen" && issues.dupEanCount > 0;
-                    const ok = catErrCount === 0 && !hasMissingCol && !dupErr;
-                    const brokenFields = !ok ? [
-                      ...fields.filter((f) => issues.missingPflichtCols.includes(f)).map((f) => ({ f, hint: "Spalte fehlt" })),
-                      ...fields.filter((f) => errByField[f]).map((f) => ({ f, hint: `${errByField[f].toLocaleString("de-DE")} Artikel` })),
-                      ...(dupErr ? [{ f: "_ean_dup", hint: `${issues.dupEanCount.toLocaleString("de-DE")} doppelte EAN` }] : []),
-                    ] : [];
-                    return (
-                      <div key={key} style={{ borderBottom: ci < CATS.length - 1 ? "1px solid #F3F4F6" : "none" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
-                          <div style={{ width: 15, height: 15, borderRadius: "50%", background: ok ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <span style={{ color: "#FFF", fontSize: 8, fontWeight: 800 }}>{ok ? "✓" : "✗"}</span>
-                          </div>
-                          <div style={{ flex: 1, fontSize: 11, color: "#374151" }}>{label}</div>
-                          {!ok && <div style={{ fontSize: 10, fontWeight: 600, color: "#DC2626" }}>{(catErrCount || issues.dupEanCount || 0).toLocaleString("de-DE")} Artikel</div>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
-            {/* Stats bar */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderTop: "1px solid #E5E7EB" }}>
+            {/* Stats: Vollständig | Unvollständig | Gesamt */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "0 18px 16px" }}>
               {[
-                { val: issues.livefaehigCount, label: "Artikel bestanden", color: "#16A34A", bg: "#F0FDF4" },
-                { val: issues.blockiertCount, label: "Artikel blockiert", color: "#DC2626", bg: "#FEF2F2" },
-                { val: issues.totalRows, label: "Gesamtartikel", color: "#374151", bg: "#F9FAFB" },
-              ].map(({ val, label, color, bg }) => (
-                <div key={label} style={{ padding: "8px 6px", background: bg, textAlign: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
-                  <div style={{ fontSize: 8, color: "#6B7280", marginTop: 2 }}>{label}</div>
+                { val: issues.pflichtOkCount, label: "Vollständig", color: "#16A34A" },
+                { val: issues.blockiertCount, label: "Unvollständig", color: "#DC2626" },
+                { val: issues.totalRows, label: "Gesamt", color: "#2563EB" },
+              ].map(({ val, label, color }) => (
+                <div key={label} style={{ padding: "10px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
+                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{label}</div>
                 </div>
               ))}
             </div>
-
-            {/* Warning when articles blocked */}
-            {issues.blockiertCount > 0 && (
-              <div style={{ padding: "8px 14px", background: "#FFFBEB", borderTop: "1px solid #FCD34D" }}>
-                <div style={{ fontSize: 10, color: "#92400E", lineHeight: "1.5" }}>
-                  <strong>{issues.blockiertCount} Artikel</strong> erfüllen die technischen Mindestanforderungen nicht und können nicht live geschaltet werden. Beheben Sie die Fehler, damit diese Artikel für Kampagnen in Frage kommen.
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* ── STUFE 2 – FEED-QUALITÄTSSCORE (Soft Score) ── */}
-          {(() => {
-            const score = issues.totalScore;
-            const tier = score >= 85 ? "Premium" : score >= 70 ? "Qualifiziert" : score >= 50 ? "Fortgeschritten" : "Basis";
-            const tierColor = score >= 70 ? "#16A34A" : score >= 50 ? "#D97706" : "#DC2626";
-            const campaignEligible = score >= 70;
-            const fillPct = issues.totalRows > 0 ? Math.round((issues.totalOptionalFieldsPresent / (issues.totalRows * issues.optionalFieldCount)) * 100) : 0;
-            return (
-              <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden", marginTop: 44, order: 1 }}>
-                {/* Section header */}
-                <div style={{ background: "#F9FAFB", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>Analyse-Ergebnis</div>
-                  </div>
-                </div>
-
-                {/* Score display */}
-                <div style={{ padding: "12px 14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-                        <span style={{ fontSize: 42, fontWeight: 800, color: tierColor, lineHeight: 1 }}>{score}</span>
-                        <span style={{ fontSize: 20, color: "#9CA3AF", fontWeight: 600 }}>/100</span>
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: tierColor, marginTop: 3 }}>{tier}</div>
-                    </div>
-                  </div>
-
-                  {/* Progress bar with campaign threshold marker */}
-                  <div style={{ marginBottom: 4, paddingTop: 18, position: "relative" }}>
-                    {/* Campaign pin label at 70 */}
-                    <div style={{ position: "absolute", top: 0, left: "70%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <div style={{ fontSize: 8, fontWeight: 700, color: campaignEligible ? "#166534" : "#6B7280", whiteSpace: "nowrap", padding: "1px 5px", borderRadius: 3, background: campaignEligible ? "#DCFCE7" : "#F3F4F6", border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}` }}>Kampagnen</div>
-                      <div style={{ width: 1, height: 4, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
-                    </div>
-                    <div style={{ height: 8, borderRadius: 4, background: "#E5E7EB", overflow: "hidden" }}>
-                      <div style={{ height: "100%", borderRadius: 4, background: tierColor, width: `${score}%`, transition: "width 0.4s" }} />
-                    </div>
-                    {/* Notch marker at 70% overlaid on bar */}
-                    <div style={{ position: "absolute", top: 18, left: "70%", transform: "translateX(-50%)", width: 2, height: 8, background: campaignEligible ? "#16A34A" : "#6B7280", pointerEvents: "none" }} />
-                    <div style={{ display: "flex", fontSize: 8, color: "#9CA3AF", marginTop: 3, position: "relative" }}>
-                      <span>0</span>
-                      <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>50</span>
-                      <span style={{ position: "absolute", left: "70%", transform: "translateX(-50%)", color: campaignEligible ? "#16A34A" : "#4B5563", fontWeight: 700 }}>70</span>
-                      <span style={{ position: "absolute", left: "85%", transform: "translateX(-50%)" }}>85</span>
-                      <span style={{ marginLeft: "auto" }}>100</span>
-                    </div>
-                  </div>
-
-                  {/* Campaign achievement card */}
-                  <div style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}`, background: campaignEligible ? "#F0FDF4" : "#F9FAFB", padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: campaignEligible ? "#16A34A" : "#D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
-                      {campaignEligible ? "✓" : "✗"}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: campaignEligible ? "#166534" : "#374151" }}>
-                        {campaignEligible ? "Kampagnen freigeschaltet" : "Kampagnen-Teilnahme"}
-                      </div>
-                      <div style={{ fontSize: 9, color: campaignEligible ? "#15803D" : "#9CA3AF", marginTop: 1 }}>
-                        {campaignEligible ? "Deals & Aktionen · Kampagnen bei CHECK24 möglich" : `Noch ${70 - score} Punkte bis zur Freischaltung`}
-                      </div>
-                    </div>
-                    {!campaignEligible && <div style={{ fontSize: 9, padding: "3px 7px", borderRadius: 999, background: "#E5E7EB", color: "#6B7280", whiteSpace: "nowrap", fontWeight: 600 }}>ab 70 Pkt.</div>}
-                  </div>
-
-                  {/* APA achievement card */}
-                  {(() => {
-                    const apaRate = issues.totalRows > 0 ? (issues.blockiertCount / issues.totalRows) * 100 : 0;
-                    const apaOk = apaRate < 2;
-                    const fixNeeded = issues.blockiertCount - Math.floor(issues.totalRows * 0.02);
-                    return (
-                      <div style={{ marginTop: 8, borderRadius: 8, border: `1px solid ${apaOk ? "#86EFAC" : "#E5E7EB"}`, background: apaOk ? "#F0FDF4" : "#F9FAFB", padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: apaOk ? "#16A34A" : "#D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
-                          {apaOk ? "✓" : "✗"}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: apaOk ? "#166534" : "#374151" }}>
-                            {apaOk ? "APA freigeschaltet" : "APA – Automatische Produktanlage"}
-                          </div>
-                          <div style={{ fontSize: 9, color: apaOk ? "#15803D" : "#9CA3AF", marginTop: 1 }}>
-                            {apaOk
-                              ? `Fehlerquote ${apaRate.toFixed(1)}% – berechtigt (max. 2%)`
-                              : `Fehlerquote ${apaRate.toFixed(1)}% · noch ${fixNeeded} Fehler beheben`}
-                          </div>
-                        </div>
-                        {!apaOk && <div style={{ fontSize: 9, padding: "3px 7px", borderRadius: 999, background: "#E5E7EB", color: "#6B7280", whiteSpace: "nowrap", fontWeight: 600 }}>max. 2%</div>}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Scoring details */}
-                  <details style={{ marginTop: 10 }}>
-                    <summary style={{ cursor: "pointer", fontSize: 10, color: "#6B7280", fontWeight: 600, userSelect: "none" }}>Scoring-Logik anzeigen</summary>
-                    <div style={{ marginTop: 8, borderTop: "1px solid #F3F4F6", fontSize: 10, lineHeight: "1.6", color: "#374151" }}>
-                      {[
-                        {
-                          label: "Pflichtfelder", max: 70, pts: issues.pflichtScore,
-                          detail: `${issues.pflichtOkCount} / ${issues.totalRows} Artikel vollständig`,
-                        },
-                        {
-                          label: "Empfohlene Felder", max: 30, pts: issues.optionalScore,
-                          detail: `Ø ${fillPct}% befüllt · 36 Attribute inkl. Bildlink_2–10`,
-                        },
-                        ...(issues.dupNameEanCount > 0 ? [{
-                          label: "Duplikat-Malus", max: -10, pts: -issues.dupPenalty,
-                          detail: `${issues.dupNameEanCount} Artikel mit identischem Name + EAN`,
-                        }] : []),
-                      ].map((row, i, arr) => (
-                        <div key={row.label} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 0", borderBottom: i < arr.length - 1 ? "1px solid #F3F4F6" : "none" }}>
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontWeight: 600, color: "#111827" }}>{row.label}</span>
-                            <span style={{ color: "#9CA3AF", marginLeft: 4 }}>max. {row.max} Pkt.</span>
-                            <div style={{ color: "#6B7280", fontSize: 9, marginTop: 1 }}>{row.detail}</div>
-                          </div>
-                          <span style={{ fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>{row.pts > 0 ? "+" : ""}{row.pts} Pkt.</span>
-                        </div>
-                      ))}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 6, marginTop: 2, borderTop: "1px solid #E5E7EB" }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#111827" }}>Gesamt</span>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: tierColor }}>{score} / 100</span>
-                      </div>
-                    </div>
-                  </details>
-
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Spalten-Zuordnung – compact summary + optional edit panel */}
-          {(() => {
-            const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
-            const fieldLabels = {
-              ean: "EAN", brand: "Marke", category_path: "Kategorie", description: "Beschreibung", name: "Name", seller_offer_id: "Offer ID",
-              color: "Farbe", material: "Material", size: "Maße/Größe", size_depth: "Tiefe", size_diameter: "Durchmesser", size_height: "Höhe",
-              manufacturer_name: "Hersteller", manufacturer_street: "Hersteller Str.", manufacturer_postcode: "Hersteller PLZ",
-              manufacturer_city: "Hersteller Ort", manufacturer_country: "Hersteller Land", manufacturer_email: "Hersteller E-Mail",
-              availability: "Verfügbarkeit", delivery_time: "Lieferzeit", delivery_includes: "Lieferumfang", price: "Preis", stock_amount: "Bestand",
-              shipping_mode: "Versandart",
-              deeplink: "Deeplink", model: "Modell",
-              size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe", ausrichtung: "Ausrichtung", style: "Stil", temper: "Härte", weight: "Gewicht", weight_capacity: "Tragkraft",
-              youtube_link: "YouTube", bild_3d_glb: "3D-Bild GLB", bild_3d_usdz: "3D-Bild USDZ", assembly_instructions: "Montageanl.",
-              illuminant_included: "Leuchtmittel", incl_mattress: "Matratze inkl.", incl_slatted_frame: "Lattenrost inkl.", led_verbaut: "LED verbaut", lighting_included: "Beleuchtung", set_includes: "Set-Inhalt", socket: "Steckdose",
-              care_instructions: "Pflegehinw.", filling: "Füllung", removable_cover: "Abn. Bezug", suitable_for_allergic: "Allergiker",
-              energy_efficiency_category: "Energieklasse", product_data_sheet: "Datenblatt",
-              manufacturer_phone_number: "Hersteller Tel.",
-            };
-            const hasMissing = issues.missingPflichtCols.length > 0;
-            const totalFields = allMcFields.length + 1;
-            const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
-            // When nothing is wrong, render nothing here — toggle lives in the CSV card below
-            if (!hasMissing && !mappingExpanded) return <div data-mapping-trigger style={{ display: "none", order: 4 }} data-found={foundFields} data-total={totalFields} />;
-            return (
-              <div style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8, padding: "10px 12px", order: 4 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: hasMissing ? 700 : 500, color: hasMissing ? "#92400E" : "#6B7280" }}>
-                    Spalten-Zuordnung {foundFields}/{totalFields}
-                  </div>
-                  <button type="button" onClick={() => setMappingExpanded((v) => !v)}
-                    style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, border: "1px solid #E5E7EB", background: "transparent", color: "#6B7280", cursor: "pointer" }}>
-                    {mappingExpanded ? "Schließen" : "▼"}
-                  </button>
-                </div>
-
-                {/* Compact read-only summary – auto-open when missing, otherwise toggled */}
-                {(hasMissing || mappingExpanded) && (
-                  <div style={{ marginTop: 8 }}>
-                    {/* Compact two-column list */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px" }}>
-                      {allMcFields.map((f) => {
-                        const col = mcMapping[f];
-                        const isManual = f in manualMapping;
-                        const isContent = !mcAutoMapping[f] && !!mcContentMapping[f] && !isManual;
-                        const isPflicht = MC_PFLICHT_COLS.includes(f);
-                        const missing = !col && isPflicht;
-                        return (
-                          <div key={f} style={{ display: "flex", alignItems: "baseline", gap: 3, fontSize: 11, lineHeight: "19px", overflow: "hidden" }}>
-                            <span style={{ color: "#6B7280", flexShrink: 0 }}>{fieldLabels[f] || f}</span>
-                            <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
-                            <span
-                              style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: missing ? "#DC2626" : isManual ? "#7C3AED" : isContent ? "#1D4ED8" : "#166534" }}
-                              title={col || "nicht gefunden"}
-                            >
-                              {col || "–"}
-                            </span>
-                            {isManual && <span style={{ fontSize: 8, color: "#7C3AED", flexShrink: 0 }}>M</span>}
-                            {isContent && <span style={{ fontSize: 8, color: "#1D4ED8", flexShrink: 0 }}>I</span>}
-                          </div>
-                        );
-                      })}
-                      {/* Image columns row */}
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 3, fontSize: 11, lineHeight: "19px", overflow: "hidden" }}>
-                        <span style={{ color: "#6B7280", flexShrink: 0 }}>Bilder</span>
-                        <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
-                        <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: mcImageColumns.length > 0 ? "#166534" : "#DC2626" }} title={mcImageColumns.join(", ") || "nicht gefunden"}>
-                          {mcImageColumns.length > 0 ? `${mcImageColumns.length} Spalte(n)` : "–"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Secondary: full edit panel */}
-                    <details style={{ marginTop: 8 }}>
-                      <summary style={{ fontSize: 11, color: "#6B7280", cursor: "pointer", userSelect: "none" }}>
-                        Spalten manuell anpassen…
-                      </summary>
-                      <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
-                        {allMcFields.map((f) => {
-                          const isManual = f in manualMapping;
-                          const col = mcMapping[f];
-                          const isPflicht = MC_PFLICHT_COLS.includes(f);
-                          const missing = !col && isPflicht;
-                          return (
-                            <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span style={{ fontSize: 11, color: "#374151", width: 100, flexShrink: 0 }}>{fieldLabels[f] || f}</span>
-                              <select
-                                value={col || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
-                                }}
-                                style={{ flex: 1, fontSize: 11, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
-                              >
-                                <option value="">-- Nicht zugeordnet --</option>
-                                {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                              </select>
-                              {isManual && (
-                                <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
-                                  style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </details>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* CSV Download - split columns */}
-          <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", order: 2 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Fehlerliste herunterladen</div>
-              <button type="button" onClick={() => setMappingExpanded((v) => !v)}
-                style={{ fontSize: 10, color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                Spalten-Zuordnung {mappingExpanded ? "▲" : "▼"}
-              </button>
+          {/* ── CSV DOWNLOAD (highlighted primary action) ── */}
+          <div style={{ padding: "14px 16px", borderRadius: 10, border: `2px solid ${MC_BLUE}`, background: "#EEF4FF", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 2px 8px rgba(21, 83, 182, 0.12)" }}>
+            <div style={{ width: 18, height: 18, flexShrink: 0, border: "1.5px solid #9CA3AF", borderRadius: 3, background: "#FFF" }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerbericht exportieren</div>
+              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>Detaillierter Bericht aller Fehler und Hinweise als CSV-Datei</div>
             </div>
-            <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 8 }}>Originaldatei mit zwei zusätzlichen Spalten: Fehler Pflichtfelder und Fehler Optionale Felder.</div>
             <button
+              type="button"
               onClick={() => {
                 const pflichtByRow = {}, optionalByRow = {};
                 issues.pflichtErrors.forEach((e) => { if (!pflichtByRow[e.row]) pflichtByRow[e.row] = []; pflichtByRow[e.row].push(e.field + (e.type === "invalid" ? ` ungültig` : " fehlt")); });
@@ -4080,13 +3873,241 @@ function McAngebotsfeed() {
                 a.click();
                 URL.revokeObjectURL(url);
               }}
-              style={{ width: "100%", padding: "10px 0", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              style={{ padding: "10px 18px", borderRadius: 6, border: "none", background: MC_BLUE, color: "#FFF", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
             >
               CSV herunterladen
             </button>
           </div>
+
+          {/* ── STUFE 2 – FEED-QUALITÄTSSCORE (Soft Score) ── */}
+          <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden", position: "relative" }}>
+
+            {/* Warnung oben, wenn Stufe 1 nicht bestanden */}
+            {!stufe1Passed && (
+              <div style={{ margin: "12px 18px 0", padding: "10px 14px", borderRadius: 6, background: "#FFFBEB", border: "1px solid #FCD34D", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <div style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1, borderRadius: 3, border: "1.5px solid #D97706", background: "#FFF" }} />
+                <div style={{ fontSize: 11, color: "#111827", lineHeight: "1.5" }}>
+                  <strong style={{ color: "#92400E" }}>Score wird aktiv, sobald die technische Prüfung bestanden ist.</strong><br />
+                  <span style={{ color: "#78350F" }}>Beheben Sie die {issues.blockiertCount.toLocaleString("de-DE")} Fehler in Stufe 1, um den Score freizuschalten und für Kampagnen berechtigt zu werden.</span>
+                </div>
+              </div>
+            )}
+
+            <div style={{ opacity: stufe1Passed ? 1 : 0.55 }}>
+
+              {/* Sektion-Label + SOFT SCORE Badge */}
+              <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span>STUFE 2 — FEED-QUALITÄTSSCORE</span>
+                  <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#F3F4F6", color: "#6B7280", letterSpacing: "0.04em" }}>SOFT SCORE</span>
+              </div>
+
+              {/* Titel + Score */}
+              <div style={{ padding: "0 18px 10px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>
+                  Analyse-Ergebnis{!stufe1Passed && " (Vorschau)"}
+                </div>
+                <div style={{ fontSize: 30, fontWeight: 800, color: campaignEligible ? "#16A34A" : "#111827", lineHeight: 1 }}>
+                  {score}<span style={{ fontSize: 16, fontWeight: 600, color: "#9CA3AF" }}>/100</span>
+                </div>
+              </div>
+
+              {/* Fortschrittsbalken + Kampagnen-Status */}
+              <div style={{ padding: "0 18px 4px" }}>
+                <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${score}%`, background: campaignEligible ? "#16A34A" : score >= 50 ? "#D97706" : "#DC2626", transition: "width 0.4s" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, fontSize: 10 }}>
+                  <span style={{ color: "#9CA3AF" }}>Mindestens 70/100 für Kampagnen</span>
+                  <span style={{ color: campaignEligible ? "#16A34A" : "#DC2626", fontWeight: 700 }}>
+                    {campaignEligible ? "✓ Kampagnen-berechtigt" : "✗ Nicht kampagnen-berechtigt"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Scoring-Logik – als Dropdown, geschlossen */}
+              <details style={{ padding: "0 18px", marginTop: 8 }}>
+                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none", padding: "6px 0" }}>▾ Scoring-Logik anzeigen</summary>
+
+                <div style={{ marginTop: 4, padding: "7px 12px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #E5E7EB", fontSize: 11, fontFamily: "monospace", color: "#374151", marginBottom: 10 }}>
+                  Score = Pflichtfelder-Score + Empfohlene-Felder-Score
+                </div>
+
+                {/* Pflichtfelder-Score */}
+                <div style={{ padding: "10px 12px", borderRadius: 6, borderLeft: "3px solid #3B82F6", background: "#EFF6FF", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Pflichtfelder-Score (max. 70 Pkt.)</div>
+                  <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>
+                    {issues.pflichtOkCount.toLocaleString("de-DE")} von {issues.totalRows.toLocaleString("de-DE")} Artikeln mit vollständigen Pflichtattributen.
+                  </div>
+                  <div style={{ fontSize: 11, color: "#111827", fontWeight: 600 }}>
+                    → <strong>{issues.pflichtOkCount.toLocaleString("de-DE")}/{issues.totalRows.toLocaleString("de-DE")} × 70 = {issues.pflichtScore}/70 Punkte</strong>
+                  </div>
+                </div>
+
+                {/* Empfohlene Felder */}
+                <div style={{ padding: "10px 12px", borderRadius: 6, borderLeft: "3px solid #EAB308", background: "#FEFCE8", marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Empfohlene Felder (max. 30 Pkt.)</div>
+                  <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>
+                    Durchschnittlich {fillPct}% der empfohlenen Felder je Artikel befüllt.
+                  </div>
+                  <div style={{ fontSize: 11, color: "#111827", fontWeight: 600, marginBottom: 8 }}>
+                    → <strong>{issues.optionalFillRatio.toFixed(2)} × 30 = {issues.optionalScore}/30 Punkte</strong>
+                  </div>
+                  <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "1.6" }}>
+                    <div><strong style={{ color: "#374151" }}>Produktinfos:</strong> Deeplink · Modellbezeichnung</div>
+                    <div><strong style={{ color: "#374151" }}>Produktmerkmale:</strong> Stil · Gewicht · Belastbarkeit · Sitzhöhe · Liegefläche · Ausrichtung · Härtegrad</div>
+                    <div><strong style={{ color: "#374151" }}>Bilder & Medien:</strong> Zusatzbilder (2–10) · Youtube-Video · 3D-Ansicht (GLB/USDZ) · Montageanleitung</div>
+                    <div><strong style={{ color: "#374151" }}>Ausstattung:</strong> Set-Inhalt · Leuchtmittel inklusive · Matratze inklusive · Lattenrost inklusive · LED verbaut · Beleuchtung inklusive · Steckdose/Anschluss</div>
+                    <div><strong style={{ color: "#374151" }}>Textilien:</strong> Pflegehinweise · Füllung · Bezug abnehmbar · Allergikergeeignet</div>
+                    <div><strong style={{ color: "#374151" }}>Nachweise:</strong> Energieeffizienzklasse · Produktdatenblatt</div>
+                    <div><strong style={{ color: "#374151" }}>Hersteller:</strong> Telefonnummer</div>
+                  </div>
+                </div>
+
+                {/* Gesamt */}
+                <div style={{ padding: "10px 14px", borderRadius: 6, border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}`, background: campaignEligible ? "#F0FDF4" : "#F9FAFB", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 10 }}>
+                  Gesamt: {issues.pflichtScore} + {issues.optionalScore} = {score}/100 → {campaignEligible ? "Kampagnen-berechtigt ✓" : "Nicht kampagnen-berechtigt"}
+                </div>
+              </details>
+
+              {/* Stats: Artikel | Fehler | Hinweise */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "10px 18px 12px" }}>
+                {[
+                  { val: issues.totalRows, label: "Artikel", color: "#374151" },
+                  { val: issues.blockiertCount, label: "Fehler", color: "#DC2626" },
+                  { val: issues.optionalHints.length, label: "Hinweise", color: "#F59E0B" },
+                ].map(({ val, label, color }) => (
+                  <div key={label} style={{ padding: "10px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
+                    <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* APA-Karte */}
+              <div style={{ margin: "0 18px 14px", borderRadius: 8, border: `1px solid ${stufe1Passed ? "#86EFAC" : "#FECACA"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: stufe1Passed ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                    {stufe1Passed ? "✓" : "!"}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>APA (Automatische Produktanlage)</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
+                  {stufe1Passed ? "✓" : "✗"} {stufe1Passed ? "Berechtigt für APA" : "Nicht berechtigt für APA"} · Fehlerquote: {errorRate.toFixed(1).replace(".", ",")}% (Max. 5%)
+                </div>
+                <div style={{ fontSize: 11, color: stufe1Passed ? "#166534" : "#991B1B", fontWeight: 600, marginTop: 4 }}>
+                  {stufe1Passed ? "Ihre Artikel werden automatisch innerhalb von 2–3 Tagen angelegt." : "Ohne APA werden Artikel manuell angelegt. Das kann 1–3 Wochen dauern."}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Spalten-Zuordnung (Dropdown, standardmäßig geschlossen) ── */}
+          {(() => {
+            const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
+            const optFL = {
+              deeplink: "Deeplink", model: "Modellbezeichnung",
+              size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe",
+              ausrichtung: "Ausrichtung", style: "Stil", temper: "Härtegrad",
+              weight: "Gewicht", weight_capacity: "Belastbarkeit",
+              youtube_link: "Youtube-Video", bild_3d_glb: "3D-Ansicht (GLB)", bild_3d_usdz: "3D-Ansicht (USDZ)",
+              assembly_instructions: "Montageanleitung",
+              illuminant_included: "Leuchtmittel inklusive", incl_mattress: "Matratze inklusive",
+              incl_slatted_frame: "Lattenrost inklusive", led_verbaut: "LED verbaut",
+              lighting_included: "Beleuchtung inklusive", set_includes: "Set-Inhalt", socket: "Steckdose/Anschluss",
+              care_instructions: "Pflegehinweise", filling: "Füllung",
+              removable_cover: "Bezug abnehmbar", suitable_for_allergic: "Allergikergeeignet",
+              energy_efficiency_category: "Energieeffizienzklasse", product_data_sheet: "Produktdatenblatt",
+              manufacturer_phone_number: "Herstellertelefonnummer",
+            };
+            const allFL = { ...FL, ...optFL };
+            const totalFields = allMcFields.length + 1;
+            const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
+            const hasMissing = issues.missingPflichtCols.length > 0;
+            return (
+              <details
+                style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8 }}
+                open={mappingExpanded}
+                onToggle={(e) => setMappingExpanded(e.currentTarget.open)}
+              >
+                <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: hasMissing ? "#92400E" : "#111827", display: "flex", justifyContent: "space-between", alignItems: "center", listStyle: "none" }}>
+                  <span>▸ Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span></span>
+                  {hasMissing && <span style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>{issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
+                </summary>
+                <div style={{ padding: "0 16px 16px" }}>
+                  {/* Kompakte Zwei-Spalten-Übersicht */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 12px", marginBottom: 10 }}>
+                    {allMcFields.map((f) => {
+                      const col = mcMapping[f];
+                      const isManual = f in manualMapping;
+                      const isContent = !mcAutoMapping[f] && !!mcContentMapping[f] && !isManual;
+                      const isPflicht = MC_PFLICHT_COLS.includes(f);
+                      const missing = !col && isPflicht;
+                      return (
+                        <div key={f} style={{ display: "flex", alignItems: "baseline", gap: 4, fontSize: 10, lineHeight: "18px", overflow: "hidden" }}>
+                          <span style={{ color: "#6B7280", flexShrink: 0 }}>{allFL[f] || f}</span>
+                          <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
+                          <span
+                            style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: missing ? "#DC2626" : isManual ? "#7C3AED" : isContent ? "#1D4ED8" : col ? "#166534" : "#9CA3AF" }}
+                            title={col || "nicht gefunden"}
+                          >
+                            {col || "–"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 4, fontSize: 10, lineHeight: "18px", overflow: "hidden" }}>
+                      <span style={{ color: "#6B7280", flexShrink: 0 }}>Hauptbild (+ Zusatzbilder)</span>
+                      <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
+                      <span style={{ fontWeight: 600, color: mcImageColumns.length > 0 ? "#166534" : "#DC2626" }} title={mcImageColumns.join(", ") || "nicht gefunden"}>
+                        {mcImageColumns.length > 0 ? `${mcImageColumns.length} Spalte(n)` : "–"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Manuelle Anpassung */}
+                  <details>
+                    <summary style={{ fontSize: 11, color: MC_BLUE, cursor: "pointer", userSelect: "none", fontWeight: 600 }}>
+                      Spalten manuell anpassen…
+                    </summary>
+                    <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
+                      {allMcFields.map((f) => {
+                        const isManual = f in manualMapping;
+                        const col = mcMapping[f];
+                        const isPflicht = MC_PFLICHT_COLS.includes(f);
+                        const missing = !col && isPflicht;
+                        return (
+                          <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>{allFL[f] || f}</span>
+                            <select
+                              value={col || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
+                              }}
+                              style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                            >
+                              <option value="">-- Nicht zugeordnet --</option>
+                              {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            {isManual && (
+                              <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                </div>
+              </details>
+            );
+          })()}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
