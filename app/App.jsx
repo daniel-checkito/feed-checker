@@ -1750,7 +1750,8 @@ function QsPage({ headers, rows }) {
   const [imageSampleLimit, setImageSampleLimit] = useState(5);
   const [freistellerChecks, setFreistellerChecks] = useState({});
   const [freistellerLoading, setFreistellerLoading] = useState(false);
-  const [showCriteria, setShowCriteria] = useState(false);
+  const [expandedCriteria, setExpandedCriteria] = useState({});
+  const toggleCriteria = (id) => setExpandedCriteria((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const imageColumns = useMemo(() => {
     if (!headers.length) return [];
@@ -2622,17 +2623,7 @@ function QsPage({ headers, rows }) {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-        <button
-          type="button"
-          onClick={() => setShowCriteria((v) => !v)}
-          style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #D1D5DB", background: showCriteria ? BRAND_COLOR : "#FFF", color: showCriteria ? "#FFF" : "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-        >
-          {showCriteria ? "Schwellenwerte ausblenden" : "Schwellenwerte anzeigen"}
-        </button>
-      </div>
-
-      <div style={{ marginTop: 8, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+      <div style={{ marginTop: 12, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
         <SmallText>
           Bewertung von Herstellerfeed, Titeln, Beschreibungen, Abmessungen, Lieferumfang und Textattributen. Herstellerfeed wird
@@ -2685,25 +2676,47 @@ function QsPage({ headers, rows }) {
                 </div>
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
-                {/* Scoring thresholds */}
-                {showCriteria && item.criteria && item.criteria.length ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                    {item.criteria.map((line, idx) => {
-                      const pts = line.match(/^(\d+)\s*P/);
-                      const isActive = pts && Number(pts[1]) === item.value;
-                      return (
-                        <div key={idx} style={{
-                          fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                          background: isActive ? toneBg : "#F3F4F6",
-                          border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                          color: isActive ? toneColor : "#6B7280",
-                          fontWeight: isActive ? 600 : 400,
-                        }}>
-                          {line}
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* Per-item criteria dropdown */}
+                {item.criteria && item.criteria.length ? (
+                  <>
+                    {expandedCriteria[item.id] ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                        {item.criteria.map((line, idx) => {
+                          const pts = line.match(/^(\d+)\s*P/);
+                          const isActive = pts && Number(pts[1]) === item.value;
+                          return (
+                            <div key={idx} style={{
+                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                              background: isActive ? toneBg : "#F3F4F6",
+                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                              color: isActive ? toneColor : "#6B7280",
+                              fontWeight: isActive ? 600 : 400,
+                            }}>
+                              {line}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => toggleCriteria(item.id)}
+                      style={{
+                        alignSelf: "flex-start",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        background: "#FFF",
+                        color: "#374151",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        marginTop: 2,
+                      }}
+                    >
+                      {expandedCriteria[item.id] ? "▲ Kriterien ausblenden" : "▼ Kriterien anzeigen"}
+                    </button>
+                  </>
                 ) : null}
               </div>
             );
@@ -2744,25 +2757,47 @@ function QsPage({ headers, rows }) {
                 </div>
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
-                {/* Scoring thresholds */}
-                {showCriteria && item.criteria && item.criteria.length ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                    {item.criteria.map((line, idx) => {
-                      const pts = line.match(/^(\d+)\s*P/);
-                      const isActive = pts && Number(pts[1]) === item.value;
-                      return (
-                        <div key={idx} style={{
-                          fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                          background: isActive ? toneBg : "#F3F4F6",
-                          border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                          color: isActive ? toneColor : "#6B7280",
-                          fontWeight: isActive ? 600 : 400,
-                        }}>
-                          {line}
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* Per-item criteria dropdown */}
+                {item.criteria && item.criteria.length ? (
+                  <>
+                    {expandedCriteria[item.id] ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                        {item.criteria.map((line, idx) => {
+                          const pts = line.match(/^(\d+)\s*P/);
+                          const isActive = pts && Number(pts[1]) === item.value;
+                          return (
+                            <div key={idx} style={{
+                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                              background: isActive ? toneBg : "#F3F4F6",
+                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                              color: isActive ? toneColor : "#6B7280",
+                              fontWeight: isActive ? 600 : 400,
+                            }}>
+                              {line}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => toggleCriteria(item.id)}
+                      style={{
+                        alignSelf: "flex-start",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        background: "#FFF",
+                        color: "#374151",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        marginTop: 2,
+                      }}
+                    >
+                      {expandedCriteria[item.id] ? "▲ Kriterien ausblenden" : "▼ Kriterien anzeigen"}
+                    </button>
+                  </>
                 ) : null}
               </div>
             );
@@ -3568,9 +3603,9 @@ function McAngebotsfeed() {
   const mcIsWrongFile = rows.length > 0 && Object.values(mcMapping).filter(Boolean).length === 0 && mcImageColumns.length === 0;
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1200, margin: "0 auto", paddingLeft: 60, paddingRight: 60 }}>
+    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1500, margin: "0 auto" }}>
       {/* ── LEFT: Upload & Settings ── */}
-      <div style={{ flex: "0 0 50%", display: "grid", gap: 12, alignContent: "start" }}>
+      <div style={{ flex: "1 1 0", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
 
         {/* Upload Method Toggle */}
@@ -3788,7 +3823,7 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {mcIsWrongFile && (
-        <div style={{ flex: "0 0 50%", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ flex: "1 1 0", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
           <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
@@ -3835,15 +3870,15 @@ function McAngebotsfeed() {
         });
         const topGroups = [
           { key: "desc", label: "Beschreibung", hint: "fehlt oder leer", count: rowsByGroup.desc.size },
-          { key: "size", label: "Maße / Höhe / Tiefe", hint: "UNVOLLSTÄNDIG", count: rowsByGroup.size.size },
+          { key: "size", label: "Maße / Höhe / Tiefe", hint: "Unvollständig", count: rowsByGroup.size.size },
           { key: "mfr", label: "Herstellerangaben", hint: "Name, Adresse oder E-Mail fehlt", count: rowsByGroup.mfr.size },
           { key: "img", label: "Hauptbild", hint: "fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
-          { key: "price", label: "Preis & Verfügbarkeit", hint: "UNVOLLSTÄNDIG", count: rowsByGroup.price.size },
+          { key: "price", label: "Preis & Verfügbarkeit", hint: "Unvollständig", count: rowsByGroup.price.size },
           { key: "ids", label: "Identifikation", hint: "Name, Marke oder EAN fehlen", count: rowsByGroup.ids.size },
         ].filter((g) => g.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
 
         return (
-        <div style={{ flex: "0 0 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+        <div style={{ flex: "1 1 0", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
 
           {/* ── STUFE 1 – TECHNISCHE PRÜFUNG ── */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
