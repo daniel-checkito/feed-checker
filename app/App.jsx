@@ -3482,6 +3482,7 @@ function McAngebotsfeed() {
         const val = String(row[col] ?? "").trim();
         if (!val) { pflichtErrors.push({ row: rn, ean, field: key, type: "missing" }); pflichtOk = false; continue; }
         if (key === "price") { const n = parseFloat(val.replace(",", ".")); if (isNaN(n) || n <= 0) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; } }
+        if (key === "stock_amount" && !/^\d+$/.test(val)) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
         if (key === "shipping_mode" && val.toLowerCase() !== "paket" && val.toLowerCase() !== "spedition") { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
       }
       if (mcImageColumns.length > 0) {
@@ -5057,6 +5058,7 @@ export default function App() {
         invalidWashableCover: [],
         invalidMountingSide: [],
         invalidDeliveryTime: [],
+        invalidStock: [],
         templateValueHits: [],
         lightingEnergyMissing: [],
       };
@@ -5070,7 +5072,7 @@ export default function App() {
 
     const missingEANs = [];
     const missingEansByField = { material: [], color: [], delivery_includes: [], delivery_time: [], price: [], hs_code: [], manufacturer_name: [], manufacturer_country: [] };
-    const invalidDeliveryIncludes = [], invalidWashableCover = [], invalidMountingSide = [], invalidDeliveryTime = [];
+    const invalidDeliveryIncludes = [], invalidWashableCover = [], invalidMountingSide = [], invalidDeliveryTime = [], invalidStock = [];
     const imageZero = [], imageOne = [], imageLow = [], scientificEans = [];
     const invalidShipping = [], missingShipping = [], invalidMaterial = [], invalidColor = [];
     const titleIssues = { tooShort: [], seeAbove: [], missingAttributes: [] };
@@ -5112,7 +5114,15 @@ export default function App() {
       const ean = eans[idx];
 
       // Missing EAN
-      if (eanColumn && isBlank(r[eanColumn])) missingEANs.push(`ROW_${idx + 1}`);
+      if (eanColumn && isBlank(r[eanColumn])) {
+        const nameVal = mapping.name ? String(r[mapping.name] ?? "").trim() : "";
+        const sellerVal = mapping.seller_offer_id ? String(r[mapping.seller_offer_id] ?? "").trim() : "";
+        let label;
+        if (nameVal) label = `${nameVal} · Zeile ${idx + 1}`;
+        else if (sellerVal) label = `Offer ID ${sellerVal} · Zeile ${idx + 1}`;
+        else label = `Zeile ${idx + 1}`;
+        missingEANs.push(label);
+      }
       // Scientific EAN
       if (eanColumn && looksLikeScientificEAN(r[eanColumn])) scientificEans.push(ean);
 
@@ -5133,6 +5143,8 @@ export default function App() {
       if (mapping.mounting_side) { const v = String(r[mapping.mounting_side] ?? "").trim().toLowerCase(); if (v && v !== "links" && v !== "rechts" && v !== "beidseitig") invalidMountingSide.push({ ean, value: v }); }
       // Delivery time
       if (mapping.delivery_time) { const v = String(r[mapping.delivery_time] ?? "").trim(); if (!v || (!dtReUnit.test(v) && !dtReNum.test(v))) invalidDeliveryTime.push({ ean, value: v }); }
+      // Stock amount – must be a non-negative integer
+      if (mapping.stock_amount) { const v = String(r[mapping.stock_amount] ?? "").trim(); if (v && !/^\d+$/.test(v)) invalidStock.push({ ean, value: v }); }
       // Images
       const imgCount = countNonEmptyImageLinks(r, imageColumns);
       if (imgCount === 0) imageZero.push(ean);
@@ -5195,6 +5207,7 @@ export default function App() {
       invalidWashableCover,
       invalidMountingSide,
       invalidDeliveryTime,
+      invalidStock,
       templateValueHits,
       lightingEnergyMissing: uniqueNonEmpty(lightingEnergyMissing).sort(),
     };
@@ -5215,8 +5228,9 @@ export default function App() {
     const materialBad = optionalFindings.invalidMaterial?.length > 0;
     const colorBad = optionalFindings.invalidColor?.length > 0;
     const deliveryTimeBad = optionalFindings.invalidDeliveryTime?.length > 0;
+    const stockBad = optionalFindings.invalidStock?.length > 0;
     const templateValuesBad = optionalFindings.templateValueHits?.length > 0;
-    return anyMissing || imagesBad || shipBad || materialBad || colorBad || deliveryTimeBad || templateValuesBad
+    return anyMissing || imagesBad || shipBad || materialBad || colorBad || deliveryTimeBad || stockBad || templateValuesBad
       ? "warn"
       : "ok";
   }, [headers, optionalFindings]);
@@ -5238,6 +5252,7 @@ export default function App() {
       (optionalFindings.invalidColor || []).length > 0 ||
       (optionalFindings.invalidDeliveryIncludes || []).length > 0 ||
       (optionalFindings.invalidDeliveryTime || []).length > 0 ||
+      (optionalFindings.invalidStock || []).length > 0 ||
       (optionalFindings.templateValueHits || []).length > 0 ||
       (optionalFindings.invalidWashableCover || []).length > 0 ||
       (optionalFindings.invalidMountingSide || []).length > 0 ||
@@ -5578,6 +5593,16 @@ export default function App() {
         findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean))
       );
       addTip("Lieferzeit-Format ungültig.", { ...findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean)), column: mapping.delivery_time });
+      score -= 5;
+    }
+
+    if (mapping.stock_amount && optionalFindings.invalidStock.length > 0) {
+      addRowsByEanObjects(optionalFindings.invalidStock, criticalRowIdx);
+      addIssue(
+        `Bestand ungültig in ${optionalFindings.invalidStock.length} Artikeln. Es sind nur ganze Zahlen erlaubt.`,
+        findTargetsByEans(optionalFindings.invalidStock.map((x) => x?.ean))
+      );
+      addTip("Bestand muss eine Zahl sein.", { ...findTargetsByEans(optionalFindings.invalidStock.map((x) => x?.ean)), column: mapping.stock_amount });
       score -= 5;
     }
 
@@ -6921,10 +6946,13 @@ export default function App() {
                     <div style={{ marginTop: 14 }}>
                       <CollapsibleList
                         title={`Zeilen ohne EAN (${optionalFindings.missingEANs.length})`}
-                        items={optionalFindings.missingEANs.slice(0, 50).map((ean) => String(ean))}
+                        items={optionalFindings.missingEANs.slice(0, 50).map((label) => String(label))}
                         tone="bad"
                         hint="EAN nachliefern"
-                        onItemClick={(ean) => jumpToEanWithColumn(ean, eanColumn)}
+                        onItemClick={(label) => {
+                          const m = String(label).match(/Zeile (\d+)\s*$/);
+                          if (m) jumpToIssueTarget({ rowIndex: parseInt(m[1], 10) - 1, column: eanColumn });
+                        }}
                       />
                     </div>
                   ) : null}
