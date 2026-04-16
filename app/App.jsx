@@ -3873,22 +3873,23 @@ function McAngebotsfeed() {
             {/* Pflichtattribute-Block */}
             <div style={{ margin: "0 18px 14px", borderRadius: 8, borderLeft: `4px solid ${stufe1Passed ? "#16A34A" : "#DC2626"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Pflichtattribute (25 Attribute)</div>
-              {issues.blockiertCount > 0 && (
-                <div style={{ fontSize: 11, color: "#374151", marginBottom: 8, fontWeight: 600 }}>
-                  {issues.blockiertCount.toLocaleString("de-DE")} Artikel mit fehlenden Pflichtfeldern → werden <strong>nicht gelistet</strong>.
-                </div>
-              )}
 
               {/* Top 3 Fehlergruppen – nur wenn nicht bestanden */}
               {!stufe1Passed && topGroups.length > 0 && (
-                <div style={{ display: "grid", gap: 5, marginBottom: 10 }}>
+                <div style={{ display: "grid", gap: 5, marginBottom: 8 }}>
                   {topGroups.map((g) => (
                     <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#374151" }}>
-                      <span style={{ minWidth: 34, padding: "2px 6px", borderRadius: 4, background: "#DC2626", color: "#FFF", fontWeight: 700, textAlign: "center", fontSize: 10 }}>{g.count}</span>
+                      <span style={{ width: 44, padding: "2px 0", borderRadius: 4, background: "#DC2626", color: "#FFF", fontWeight: 700, textAlign: "center", fontSize: 10, flexShrink: 0 }}>{g.count}</span>
                       <span style={{ fontWeight: 700, color: "#111827" }}>{g.label}</span>
                       <span style={{ color: "#6B7280" }}>— {g.hint}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {issues.blockiertCount > 0 && (
+                <div style={{ fontSize: 11, color: "#374151", marginBottom: 8, fontStyle: "italic" }}>
+                  {issues.blockiertCount.toLocaleString("de-DE")} Artikel mit fehlenden Pflichtfeldern werden nicht gelistet.
                 </div>
               )}
 
