@@ -3698,9 +3698,9 @@ function McAngebotsfeed() {
               open={mappingExpanded}
               onToggle={(e) => setMappingExpanded(e.currentTarget.open)}
             >
-              <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: hasMissing ? "#92400E" : "#111827", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span></span>
-                {hasMissing && <span style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>{issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
+              <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: hasMissing ? "#92400E" : "#111827" }}>
+                Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span>
+                {hasMissing && <span style={{ marginLeft: 8, fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>· {issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
               </summary>
               <div style={{ padding: "0 16px 16px", display: "grid", gap: 4 }}>
                 {/* Hauptbild-Zuordnung (separat, nicht konfigurierbar – kommt aus Spaltenerkennung) */}
@@ -3846,11 +3846,11 @@ function McAngebotsfeed() {
             }}>
               <div style={{ fontSize: 12, color: "#111827", lineHeight: "1.5" }}>
                 <strong style={{ color: stufe1Passed ? "#166534" : "#991B1B" }}>
-                  {stufe1Passed ? "Partner freigeschaltet." : "Partner nicht freigeschaltet."}
+                  {stufe1Passed ? "Partner freigeschaltet." : "Account nicht aktivierbar."}
                 </strong>{" "}
                 {stufe1Passed
                   ? "Die technische Prüfung wurde bestanden. Ihre Artikel werden angelegt."
-                  : "Die technische Prüfung muss bestanden werden, bevor Ihre Artikel angelegt werden können. Bitte beheben Sie die Fehler und laden Sie den Feed erneut hoch."}
+                  : "Bitte beheben Sie die Fehler und laden Sie den Feed erneut hoch."}
               </div>
             </div>
 
@@ -3907,7 +3907,7 @@ function McAngebotsfeed() {
             </div>
 
             {/* Stats: Vollständig | Unvollständig | Gesamt (kompakt, mit Tooltips) */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 18px 12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, padding: "0 18px 10px" }}>
               {[
                 {
                   val: issues.pflichtOkCount, label: "Vollständig", color: "#16A34A",
@@ -3922,9 +3922,9 @@ function McAngebotsfeed() {
                   tip: "Gesamtzahl der Artikel in Ihrem hochgeladenen Feed.",
                 },
               ].map(({ val, label, color, tip }) => (
-                <div key={label} title={tip} style={{ padding: "6px 6px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
-                  <div style={{ fontSize: 9, color: "#6B7280", marginTop: 1 }}>{label}</div>
+                <div key={label} title={tip} style={{ padding: "3px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color }}>{val.toLocaleString("de-DE")}</div>
+                  <div style={{ fontSize: 9, color: "#6B7280", marginTop: 0 }}>{label}</div>
                 </div>
               ))}
             </div>
@@ -3978,17 +3978,15 @@ function McAngebotsfeed() {
                   <span>STUFE 2 — FEED-QUALITÄTSSCORE</span>
                   <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
                 </div>
-                {campaignEligible && (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#16A34A" }}>
-                    ✓ Kampagnen-berechtigt
-                  </span>
-                )}
+                {score >= 70
+                  ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A" }}>✓ Zielwert erreicht</span>
+                  : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626" }}>✗ Zielwert nicht erreicht</span>}
               </div>
 
               {/* Score */}
               <div style={{ padding: "0 18px 10px", display: "flex", justifyContent: "flex-end", alignItems: "flex-end" }}>
-                <div style={{ fontSize: 30, fontWeight: 800, color: campaignEligible ? "#16A34A" : "#111827", lineHeight: 1 }}>
-                  {score}<span style={{ fontSize: 16, fontWeight: 600, color: "#9CA3AF" }}>/100</span>
+                <div style={{ fontSize: 20, fontWeight: 800, color: campaignEligible ? "#16A34A" : "#111827", lineHeight: 1 }}>
+                  {score}<span style={{ fontWeight: 600, color: "#9CA3AF" }}>/100</span>
                 </div>
               </div>
 
