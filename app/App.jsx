@@ -3894,7 +3894,7 @@ function McAngebotsfeed() {
 
               {/* Pflichtattribute-Dropdown mit allen 25 Feldnamen */}
               <details style={{ marginTop: 4 }}>
-                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>▸ Pflichtattribute anzeigen</summary>
+                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>Pflichtattribute anzeigen</summary>
                 <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF", lineHeight: "1.6" }}>
                   {MC_PFLICHT_COLS.map((f, i) => (
                     <React.Fragment key={f}>
@@ -3985,11 +3985,8 @@ function McAngebotsfeed() {
                 )}
               </div>
 
-              {/* Titel + Score */}
-              <div style={{ padding: "0 18px 10px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>
-                  Analyse-Ergebnis{!stufe1Passed && " (Vorschau)"}
-                </div>
+              {/* Score */}
+              <div style={{ padding: "0 18px 10px", display: "flex", justifyContent: "flex-end", alignItems: "flex-end" }}>
                 <div style={{ fontSize: 30, fontWeight: 800, color: campaignEligible ? "#16A34A" : "#111827", lineHeight: 1 }}>
                   {score}<span style={{ fontSize: 16, fontWeight: 600, color: "#9CA3AF" }}>/100</span>
                 </div>
