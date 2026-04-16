@@ -3870,10 +3870,10 @@ function McAngebotsfeed() {
         });
         const topGroups = [
           { key: "desc", label: "Beschreibung", hint: "fehlt oder leer", count: rowsByGroup.desc.size },
-          { key: "size", label: "Maße / Höhe / Tiefe", hint: "UNVOLLSTÄNDIG", count: rowsByGroup.size.size },
+          { key: "size", label: "Maße / Höhe / Tiefe", hint: "Unvollständig", count: rowsByGroup.size.size },
           { key: "mfr", label: "Herstellerangaben", hint: "Name, Adresse oder E-Mail fehlt", count: rowsByGroup.mfr.size },
           { key: "img", label: "Hauptbild", hint: "fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
-          { key: "price", label: "Preis & Verfügbarkeit", hint: "UNVOLLSTÄNDIG", count: rowsByGroup.price.size },
+          { key: "price", label: "Preis & Verfügbarkeit", hint: "Unvollständig", count: rowsByGroup.price.size },
           { key: "ids", label: "Identifikation", hint: "Name, Marke oder EAN fehlen", count: rowsByGroup.ids.size },
         ].filter((g) => g.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
 
