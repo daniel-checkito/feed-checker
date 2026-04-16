@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 // Inline spinner component
 function Spinner({ size = 16, color = "#1553B6" }) {
@@ -4720,13 +4721,6 @@ export default function App() {
   }, [rules]);
 
   const [optionalFields] = useState([
-    "category_path",
-    "description",
-    "brand",
-    "material",
-    "color",
-    "delivery_includes",
-    "manufacturer_name",
     "washable_cover",
     "mounting_side",
   ]);
@@ -4739,6 +4733,14 @@ export default function App() {
     "stock_amount",
     "delivery_time",
     "shipping_mode",
+    "brand",
+    "description",
+    "category_path",
+    "material",
+    "color",
+    "delivery_includes",
+    "manufacturer_name",
+    "size",
   ]);
 
   // Manual overrides set by the user in the mapping UI
@@ -4761,7 +4763,13 @@ export default function App() {
       material: ["material", "materials"],
       color: ["color", "farbe"],
       delivery_includes: ["delivery_includes", "lieferumfang"],
-      size: ["size", "abmessungen", "dimension", "dimensions"],
+      size: [
+        "size", "abmessungen", "dimension", "dimensions", "maße", "masse",
+        "size_height", "height", "höhe", "hoehe",
+        "size_depth", "depth", "tiefe",
+        "size_width", "width", "breite",
+        "size_diameter", "diameter", "durchmesser",
+      ],
       washable_cover: ["washable_cover", "waschbarer bezug", "waschbarer_bezug"],
       mounting_side: ["mounting_side", "montageseite", "einbau", "links_rechts"],
       hs_code: ["hs_code", "hs-code", "hs code", "zolltarifnummer", "warennummer"],
@@ -5372,6 +5380,36 @@ export default function App() {
       addTip("Bitte prüfen Sie die Spaltennamen oder liefern Sie die fehlenden Pflichtfelder nach.");
     }
 
+    // Language check: flag feeds whose content is in English rather than German.
+    // Scan name/description/color/material/delivery_includes text across a sample of rows
+    // and compare German vs English function-word hits. A clear English majority
+    // (and absence of German diacritics/stopwords) is surfaced as a critical issue.
+    (() => {
+      const textCols = ["name", "description", "color", "material", "delivery_includes", "category_path"]
+        .map((f) => mapping[f])
+        .filter(Boolean);
+      if (!textCols.length || !rows.length) return;
+      const sample = rows.slice(0, Math.min(50, rows.length));
+      const bigText = sample
+        .map((r) => textCols.map((c) => String(r?.[c] ?? "")).join(" "))
+        .join(" ")
+        .toLowerCase();
+      if (bigText.trim().length < 40) return;
+      const countMatches = (regex) => (bigText.match(regex) || []).length;
+      // German function words / diacritics
+      const germanScore =
+        countMatches(/\b(der|die|das|den|dem|des|und|oder|mit|für|von|vom|zur|zum|ein|eine|einen|einer|eines|auf|aus|bei|nicht|auch|sowie|inkl|ohne|als|wie|sehr|bis)\b/g) +
+        countMatches(/[äöüß]/g);
+      // English function words
+      const englishScore = countMatches(/\b(the|and|with|for|of|from|this|that|these|those|are|is|was|were|has|have|including|without|made|use|used|product|features|material|color|size|height|width|length|depth|black|white|brown|grey|gray)\b/g);
+      const total = germanScore + englishScore;
+      if (total < 20) return; // not enough signal
+      if (englishScore >= germanScore * 2 && germanScore < 10) {
+        addIssue("Der Feed-Inhalt (z. B. Produktname, Beschreibung, Farbe, Lieferumfang) scheint auf Englisch zu sein. Bitte liefern Sie den Content auf Deutsch.");
+        addTip("Übersetzen Sie Produkttitel, Beschreibungen sowie Farb- und Materialangaben ins Deutsche, bevor Sie den Feed erneut hochladen.");
+      }
+    })();
+
     if (eanColumn) {
       const missingEanIndices = [];
       rows.forEach((r, idx) => {
@@ -5885,6 +5923,35 @@ export default function App() {
     if (!file) return;
     setParsing(true);
 
+    const name = (file.name || "").toLowerCase();
+    const isXlsx = name.endsWith(".xlsx") || name.endsWith(".xls");
+
+    if (isXlsx) {
+      // Parse Excel workbook via SheetJS
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = evt.target?.result;
+          if (!data) { setParseError("Datei konnte nicht gelesen werden."); setParsing(false); return; }
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          if (!firstSheetName) { setParseError("Excel-Datei enthält keine Tabellenblätter."); setParsing(false); return; }
+          const sheet = workbook.Sheets[firstSheetName];
+          const json = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+          const h = json.length ? Object.keys(json[0]) : [];
+          setHeaders(h);
+          setRawRows(json);
+          setParsing(false);
+        } catch (err) {
+          setParseError(String(err?.message || err || "Excel-Datei konnte nicht gelesen werden."));
+          setParsing(false);
+        }
+      };
+      reader.onerror = () => { setParseError("Datei konnte nicht gelesen werden."); setParsing(false); };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
     // Try reading with UTF-8 first; if garbled German chars detected, retry with Windows-1252
     const tryParse = (encoding) => {
       const reader = new FileReader();
@@ -6230,7 +6297,7 @@ export default function App() {
                 <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>
                   {fileName ? `Aktuelle Datei: ${fileName}` : ""}
                 </div>
-                <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
+                <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
               </div>
               {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
               {parsing && <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, color: BRAND_COLOR, fontSize: 13, fontWeight: 600 }}><Spinner /> Datei wird analysiert...</div>}
@@ -7550,7 +7617,7 @@ export default function App() {
             </div>
             <div style={{ display: "flex", gap: 24, marginTop: 20 }}>
               {[
-                { step: "1", title: "Feed hochladen", desc: "CSV-Datei mit Ihren Produktdaten", icon: "📁" },
+                { step: "1", title: "Feed hochladen", desc: "CSV- oder Excel-Datei (.xlsx) mit Ihren Produktdaten", icon: "📁" },
                 { step: "2", title: "Produktidentifikation", desc: "Technische Pflichtfelder mappen", icon: "🔑" },
                 { step: "3", title: "Attributmapping", desc: "Sichtbare Produktattribute zuordnen", icon: "🏷️" },
                 { step: "4", title: "Bilder & Dokumente", desc: "Bildquellen und Dateien mappen", icon: "🖼️" },
@@ -7571,7 +7638,7 @@ export default function App() {
             <div style={{ background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "16px 20px", marginBottom: 24 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#1E40AF" }}>💡 So starten Sie</div>
               <div style={{ fontSize: 12, color: "#1E40AF", marginTop: 4 }}>
-                Laden Sie Ihre CSV-Datei oben hoch. Das System erkennt die Spalten automatisch und schlägt passende Zuordnungen vor. Je mehr Attribute korrekt gemappt sind, desto besser werden Ihre Produkte bei CHECK24 angezeigt.
+                Laden Sie Ihre CSV- oder Excel-Datei (.xlsx) oben hoch. Das System erkennt die Spalten automatisch und schlägt passende Zuordnungen vor. Je mehr Attribute korrekt gemappt sind, desto besser werden Ihre Produkte bei CHECK24 angezeigt.
               </div>
             </div>
           )}
