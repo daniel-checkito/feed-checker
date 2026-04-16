@@ -3825,10 +3825,10 @@ function McAngebotsfeed() {
         });
         const topGroups = [
           { key: "desc", label: "Beschreibung", hint: "fehlt oder leer", count: rowsByGroup.desc.size },
-          { key: "size", label: "Maße / Höhe / Tiefe", hint: "unvollständig", count: rowsByGroup.size.size },
+          { key: "size", label: "Maße / Höhe / Tiefe", hint: "UNVOLLSTÄNDIG", count: rowsByGroup.size.size },
           { key: "mfr", label: "Herstellerangaben", hint: "Name, Adresse oder E-Mail fehlt", count: rowsByGroup.mfr.size },
           { key: "img", label: "Hauptbild", hint: "fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
-          { key: "price", label: "Preis & Verfügbarkeit", hint: "unvollständig", count: rowsByGroup.price.size },
+          { key: "price", label: "Preis & Verfügbarkeit", hint: "UNVOLLSTÄNDIG", count: rowsByGroup.price.size },
           { key: "ids", label: "Identifikation", hint: "Name, Marke oder EAN fehlen", count: rowsByGroup.ids.size },
         ].filter((g) => g.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
 
@@ -3881,7 +3881,7 @@ function McAngebotsfeed() {
                     <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#374151" }}>
                       <span style={{ width: 44, padding: "2px 0", borderRadius: 4, background: "#DC2626", color: "#FFF", fontWeight: 700, textAlign: "center", fontSize: 10, flexShrink: 0 }}>{g.count}</span>
                       <span style={{ fontWeight: 700, color: "#111827" }}>{g.label}</span>
-                      <span style={{ color: "#6B7280" }}>— {g.hint}</span>
+                      <span style={{ color: "#6B7280", fontStyle: "italic" }}>— {g.hint}</span>
                     </div>
                   ))}
                 </div>
@@ -3936,7 +3936,11 @@ function McAngebotsfeed() {
           <div style={{ padding: "14px 16px", borderRadius: 10, border: `2px solid ${MC_BLUE}`, background: "#EEF4FF", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 2px 8px rgba(21, 83, 182, 0.12)" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerbericht exportieren</div>
-              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>Ihre hochgeladene Datei mit zwei zusätzlichen Spalten am Anfang: <strong>Fehler Pflichtfelder</strong> und <strong>Fehler Optionale Felder</strong>.</div>
+              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 4, lineHeight: "1.6" }}>
+                Ihre hochgeladene Datei mit zwei zusätzlichen Spalten am Anfang:<br />
+                · <strong>Fehler Pflichtfelder</strong><br />
+                · <strong>Fehler Optionale Felder</strong>
+              </div>
             </div>
             <button
               type="button"
@@ -4012,12 +4016,9 @@ function McAngebotsfeed() {
                     <span style={{ marginLeft: "auto" }}>100</span>
                   </div>
                 </div>
-                <div style={{ marginTop: 8, fontSize: 10, color: "#6B7280", lineHeight: "1.5" }}>
-                  Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein: <strong>Stornoquote ≤ 2,5 %</strong>, <strong>Liefertermintreue ≥ 94 %</strong>, <strong>Trackingquote ≥ 92 %</strong> und <strong>Preisparität ≥ 95 %</strong>.
-                </div>
               </div>
 
-              {/* Scoring-Logik – als Dropdown, geschlossen */}
+              {/* Scoring-Logik – als Dropdown, geschlossen (direkt unter Progress-Bar) */}
               <details style={{ padding: "0 18px", marginTop: 8 }}>
                 <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none", padding: "6px 0" }}>▾ Scoring-Logik anzeigen</summary>
 
@@ -4062,22 +4063,36 @@ function McAngebotsfeed() {
                 </div>
               </details>
 
-              {/* Kampagnen-Aktions-Karte (wenn Kampagnen-berechtigt) */}
-              {campaignEligible && (
-                <div style={{ margin: "10px 18px 0", borderRadius: 8, border: "1px solid #86EFAC", background: "#F0FDF4", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Kampagnen freigeschaltet</div>
-                    <div style={{ fontSize: 10, color: "#15803D", marginTop: 2 }}>Laden Sie jetzt Ihre Deals und Aktionen hoch.</div>
+              {/* Kampagnen-Karte (Kriterien, analog zur APA-Karte) */}
+              <div style={{ margin: "10px 18px 0", borderRadius: 8, border: `1px solid ${campaignEligible ? "#86EFAC" : "#FECACA"}`, background: campaignEligible ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: campaignEligible ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                    {campaignEligible ? "✓" : "!"}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => window.open("http://mc.moebel.check24.de/campaigns", "_blank", "noopener,noreferrer")}
-                    style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Kampagnen-Teilnahme</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
+                  Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein:
+                </div>
+                <ul style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "1.6" }}>
+                  <li>Stornoquote ≤ 2,5 %</li>
+                  <li>Liefertermintreue ≥ 94 %</li>
+                  <li>Trackingquote ≥ 92 %</li>
+                  <li>Preisparität ≥ 95 %</li>
+                </ul>
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                  <a
+                    href={campaignEligible ? "http://mc.moebel.check24.de/campaigns" : undefined}
+                    target={campaignEligible ? "_blank" : undefined}
+                    rel={campaignEligible ? "noopener noreferrer" : undefined}
+                    onClick={(e) => { if (!campaignEligible) e.preventDefault(); }}
+                    aria-disabled={!campaignEligible}
+                    style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: campaignEligible ? "#16A34A" : "#D1D5DB", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: campaignEligible ? "pointer" : "not-allowed", whiteSpace: "nowrap", textDecoration: "none", opacity: campaignEligible ? 1 : 0.7 }}
                   >
                     Zum Deal-Tool →
-                  </button>
+                  </a>
                 </div>
-              )}
+              </div>
 
               {/* APA-Karte */}
               <div style={{ margin: "10px 18px 14px", borderRadius: 8, border: `1px solid ${stufe1Passed ? "#86EFAC" : "#FECACA"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
@@ -4093,16 +4108,16 @@ function McAngebotsfeed() {
                 <div style={{ fontSize: 11, color: stufe1Passed ? "#166534" : "#991B1B", fontWeight: 600, marginTop: 4 }}>
                   {stufe1Passed ? "Ihre Artikel werden automatisch innerhalb von 2–3 Tagen angelegt." : "Ohne APA werden Artikel manuell angelegt. Das kann 1–3 Wochen dauern."}
                 </div>
-                {stufe1Passed && (
-                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
-                    <a
-                      href={"mailto:partnerbetreuung@check24.de?subject=" + encodeURIComponent("APA-Freischaltung anfordern") + "&body=" + encodeURIComponent("Hallo CHECK24-Team,\n\nwir möchten die automatische Produktanlage (APA) für unseren Shop aktivieren. Unsere aktuelle Fehlerquote liegt bei " + errorRate.toFixed(1).replace(".", ",") + "% und damit innerhalb des Grenzwerts von 5%.\n\nBitte schalten Sie uns für APA frei.\n\nVielen Dank\nIhr Partner")}
-                      style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none" }}
-                    >
-                      APA-Zugang per E-Mail anfordern
-                    </a>
-                  </div>
-                )}
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                  <a
+                    href={stufe1Passed ? ("mailto:partnerbetreuung@check24.de?subject=" + encodeURIComponent("APA-Freischaltung anfordern") + "&body=" + encodeURIComponent("Hallo CHECK24-Team,\n\nwir möchten die automatische Produktanlage (APA) für unseren Shop aktivieren. Unsere aktuelle Fehlerquote liegt bei " + errorRate.toFixed(1).replace(".", ",") + "% und damit innerhalb des Grenzwerts von 5%.\n\nBitte schalten Sie uns für APA frei.\n\nVielen Dank\nIhr Partner")) : undefined}
+                    onClick={(e) => { if (!stufe1Passed) e.preventDefault(); }}
+                    aria-disabled={!stufe1Passed}
+                    style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: stufe1Passed ? "#16A34A" : "#D1D5DB", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: stufe1Passed ? "pointer" : "not-allowed", whiteSpace: "nowrap", textDecoration: "none", opacity: stufe1Passed ? 1 : 0.7 }}
+                  >
+                    APA-Zugang per E-Mail anfordern
+                  </a>
+                </div>
               </div>
             </div>
           </div>
