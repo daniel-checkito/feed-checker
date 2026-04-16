@@ -2924,9 +2924,131 @@ function QsPage({ headers, rows }) {
       ],
     };
 
+    const details = {
+      herstellerfeed: {
+        what: "Manuelle Bewertung (Ja/Nein). Zusätzlich wird automatisch geprüft, ob eine Hersteller-/Brand-Spalte vorhanden und gefüllt ist – als Hinweis, dass ein Herstellerfeed mitläuft.",
+        sources: ["Spalten: herstellerfeed, manufacturer, brand, marke"],
+        signals: [
+          "Fill-Rate der Brand/Herstellerfeed-Spalte (≥ 80% → Vorschlag für 5 P)",
+          "Wenn Spalte fehlt oder < 80% gefüllt → Vorschlag 0 P",
+          "Finaler Wert wird ausschließlich per Ja/Nein-Button gesetzt",
+        ],
+      },
+      titel: {
+        what: "Prüft pro Zeile Marke, Produktname, Kategorie, Farbe, Material, Maße, Zusatzinfos und die allgemeine Lesbarkeit. Fill-Rate ist nicht relevant.",
+        sources: ["Spalten: name, product_name, titel, title (zusätzlich Abgleich mit der Brand-Spalte)"],
+        signals: [
+          "Marke: Token aus der Brand-Spalte im Titel enthalten",
+          "Kategorie-Wörter: Stuhl, Tisch, Regal, Bett, Sofa, Schrank, Kommode, Lampe, Teppich, … (70+ Begriffe)",
+          "Farbe: schwarz, weiß, grau, beige, blau, grün, anthrazit, natur, … (30+ Begriffe)",
+          "Material: Holz, Massivholz, Metall, Stoff, Leder, Glas, Eiche, Kiefer, MDF, Rattan, … (30+ Begriffe)",
+          "Maße: strenges Format '200x90 cm' / '200 x 90 x 180 cm' / 'Höhe 80 cm' (Maßeinheit zwingend)",
+          "Zusatzinfos: Ausstattungs- und Funktionsbegriffe (inkl., Set, rollbar, klappbar, höhenverstellbar, …)",
+          "Lesbarkeit: ≥ 3 Wörter, keine '|'-Trenner, wenig '/'-Separatoren, keine Vollversalien",
+          "Encoding: Mojibake-Hinweis (kaputte Umlaute) wird erkannt und geloggt",
+        ],
+        thresholds: [
+          "20 P: ≥ 70% der Titel erfüllen Marke + Name + Kategorie + Lesbarkeit UND zusätzlich ≥ 50% bringen Farbe + Material + Maße + Zusatzinfos",
+          "10 P: ≥ 60% erfüllen Marke + Name + Kategorie und sind lesbar",
+          "0 P: Unterhalb dieser Schwellen oder Titelspalte fehlt",
+        ],
+      },
+      beschreibung: {
+        what: "Prüft, ob die Beschreibung konkrete Produktinfos enthält (Maße, Eigenschaften, Highlights) – nicht nur Marken- oder Unternehmenstexte. Satz- oder Bullet-Struktur wird akzeptiert. Fill-Rate ist nicht relevant.",
+        sources: ["Spalten: description, beschreibung, desc (HTML wird geparst)"],
+        signals: [
+          "Maße in der Beschreibung: gleiche Regex wie im Titel ('200x90 cm', Labels wie 'Höhe 80 cm')",
+          "Eigenschaften/Highlights: Keywords wie 'Merkmal', 'Highlight', 'Eigenschaft', 'Funktion', plus HTML-Listen <ul>/<li>",
+          "Konkrete Werte: Vorkommen von Zahlen + Einheiten (cm, kg, l, …)",
+          "Marken-/Firmen-Text: viele 'wir / unser / unsere / Marke / Tradition' Phrasen und kaum Produktmerkmale → wird abgewertet",
+          "Satzstruktur: ≥ 40 Zeichen Plain-Text mit Satzzeichen (./!/?)",
+          "Encoding: Mojibake-Warnung",
+        ],
+        thresholds: [
+          "10 P: ≥ 60% der Beschreibungen bringen Eigenschaften + Highlights/Bullets + Maße oder konkrete Werte",
+          "5 P: ≥ 60% erreichen die Mindestanforderung (Eigenschaften ODER Maße)",
+          "0 P: Darunter oder Spalte fehlt; reine Marken-/Unternehmenstexte",
+        ],
+      },
+      abmessungen: {
+        what: "Maße werden in mehreren Quellen gesucht. Bewertet werden nur Zeilen, bei denen überhaupt Maß-Informationen vorhanden sind.",
+        sources: ["Spalten: abmessungen, size, dimensions – zusätzlich: Titel und Beschreibung"],
+        signals: [
+          "Strenges 2-Maß-Format: '200x90 cm' (Leerzeichen optional, Einheit cm/mm/m zwingend)",
+          "Strenges 3-Maß-Format: '200 x 90 x 180 cm' (mit Leerzeichen um x, Einheit zwingend)",
+          "Labeled-Format: 'Höhe 80 cm', 'Breite 120 cm', 'Tiefe 45 cm', 'Durchmesser 60 cm', 'Sitzhöhe 45 cm'",
+          "Zahl x Zahl ohne Einheit wird als 'lose' gewertet (abgewertet)",
+          "Leere Zeilen werden bei der Anteilsberechnung ignoriert",
+        ],
+        thresholds: [
+          "10 P: ≥ 60% der Zeilen mit Maß-Daten nutzen ein strenges Format mit Einheit",
+          "5 P: Maße erkennbar, aber nur ≥ 30% im strengen Format (Rest lose / uneinheitlich)",
+          "0 P: Darunter oder Maße gar nicht auffindbar",
+        ],
+      },
+      lieferumfang: {
+        what: "Der Lieferumfang soll in der Form '1x <Produkt im Singular>' angegeben werden. Gesucht wird in der Lieferumfang-Spalte und zusätzlich im entsprechenden Abschnitt der Beschreibung.",
+        sources: ["Spalten: lieferumfang, delivery_includes – zusätzlich: Beschreibung (Abschnitt 'Lieferumfang')"],
+        signals: [
+          "Format-Regel: '^\\d+\\s*[xX×]\\s+<Substantiv>' (auch mit '•' oder '-' als Prefix)",
+          "Plural-Erkennung für Einzelanzahl '1x': Endungen wie '-stühle', '-tische', '-regale', '-sessel', '-sofas', '-betten', '-matratzen', '-kissen' → Fehler",
+          "Fallback: Stichwort 'Lieferumfang' in der Beschreibung wird als teilweise vorhanden gewertet",
+        ],
+        thresholds: [
+          "20 P: ≥ 70% der gefüllten Zeilen im 'Nx Produkt'-Format und bei '1x' kein Plural",
+          "10 P: Format teilweise korrekt (≥ 40%) oder vereinzelt Plural bei '1x'",
+          "0 P: Format selten vorhanden oder Spalte fehlt ganz",
+        ],
+      },
+      material: {
+        what: "Materialangaben werden in Spalte, Titel und Beschreibung gesucht. Farbwörter im Materialfeld werden als Fehler gewertet.",
+        sources: ["Spalten: material, materials – zusätzlich: Titel und Beschreibung"],
+        signals: [
+          "Material-Wortliste: Holz, Massivholz, Metall, Stoff, Leder, Kunstleder, Kunststoff, Glas, Eiche, Kiefer, Buche, Akazie, Teak, Nussbaum, MDF, Aluminium, Stahl, Polyester, Baumwolle, Samt, Velour, Rattan, Bambus, Marmor, Keramik, Beton, Porzellan, Microfaser (30+ Begriffe)",
+          "Farbe im Materialfeld: Wörter wie 'schwarz', 'weiß' in der Material-Spalte → Abwertung",
+          "Grammatik/Plausibilität: nur einzelne Zahlen oder Farben ohne Material → 0",
+        ],
+        thresholds: [
+          "10 P: ≥ 60% der Zeilen haben eindeutiges Material (ohne Farbvermischung)",
+          "5 P: ≥ 30% haben Material, Rest uneinheitlich / mit Farbe vermischt",
+          "0 P: Material kaum erkennbar oder Material-Spalte enthält nur Farben",
+        ],
+      },
+      farbe: {
+        what: "Farbangaben werden in Spalte, Titel und Beschreibung gesucht. Material im Farbfeld und Kombinationen 'Material+Farbe' werden als Fehler gewertet.",
+        sources: ["Spalten: color, farbe – zusätzlich: Titel und Beschreibung"],
+        signals: [
+          "Farb-Wortliste: schwarz, weiß, grau, braun, beige, blau, grün, rot, gelb, orange, natur, anthrazit, silber, gold, cognac, creme, olive, lila, pink, türkis, petrol, bordeaux, mint, sand, taupe, terracotta, nussbaum (30+ Begriffe)",
+          "Material im Farbfeld: Wörter wie 'Eiche', 'Holz' im Farbwert → Abwertung",
+          "Blacklist: leere Werte, 'mehrfarbig', 'verschiedene', 'bunt' zählen als unklar",
+        ],
+        thresholds: [
+          "10 P: ≥ 60% mit eindeutiger Farbe ohne Materialvermischung",
+          "5 P: ≥ 30% mit Farbe, Rest uneinheitlich / mit Material vermischt",
+          "0 P: Farben fehlen oder sind mit Material vermischt",
+        ],
+      },
+      shoptexte: {
+        what: "Bewertet, ob shopbezogene Werbe-/Marketingtexte im Feed enthalten sind. Templated Texte (gleicher Aufbau pro Produkt) werden weniger streng bewertet, da sie von der QS gefiltert werden können.",
+        sources: ["Spalten: shopbezogene texte, shop_text, marketing_text, promo_text"],
+        signals: [
+          "Template-Ähnlichkeit: Normalisierter Text (Zahlen → #, Sonderzeichen entfernt) – ≥ 70% identisch über alle Zeilen = 'templated'",
+          "Fill-Rate der Shoptext-Spalte",
+          "Länge/Anteil an individuellem Text",
+          "Cross-Selling-Phrasen ('passend zu', 'im Set mit', 'ebenfalls erhältlich', …) – werden separat in der APA-Tabelle gewertet",
+        ],
+        thresholds: [
+          "10 P: Keine separate Shoptext-Spalte oder < 10% gefüllt",
+          "5 P: Spalte vorhanden, aber ≥ 70% Template-Ähnlichkeit → QS kann filtern",
+          "0 P: Individuelle Werbetexte je Produkt (niedrige Template-Ähnlichkeit)",
+        ],
+      },
+    };
+
     return base.map((item) => ({
       ...item,
       criteria: criteria[item.id] || [],
+      criteriaDetails: details[item.id] || null,
     }));
   }, [scores, brandCol, titleCol, descCol, dimCol, deliveryCol, materialCol, colorCol, shopCol, scoreReasons]);
 
@@ -2996,9 +3118,66 @@ function QsPage({ headers, rows }) {
       ],
     };
 
+    const details = {
+      bildmatch: {
+        what: "Prüft, ob alle Produkte unterschiedliche Erstbilder haben. Gleiche Erstbilder deuten auf fehlerhaftes Mapping oder Platzhalter hin.",
+        sources: ["Spalten: image_url, image_url_1, image, img_url, bild… (automatisch erkannt)"],
+        signals: [
+          "Pro Produkt wird das erste Bild extrahiert",
+          "Alle Erstbilder werden über ihren Pfad gehasht",
+          "Anteil Produkte mit nicht-einzigartigem Erstbild = Doppelten-Rate",
+        ],
+        thresholds: [
+          "20 P: Doppelten-Rate < 15%",
+          "0 P: Doppelten-Rate ≥ 15%",
+        ],
+      },
+      freisteller: {
+        what: "Prüft anhand einer Bildstichprobe, ob das erste Produktbild freigestellt ist (neutraler / weißer Hintergrund).",
+        sources: ["Bild-Spalten (siehe Bildmatch) – Stichprobe bis zu 40 Produkte"],
+        signals: [
+          "Rand-Pixel-Analyse: Helligkeit und Sättigung in den vier Randbereichen des Bildes",
+          "Ab einer Helligkeit > 92% und Sättigung < 10% gilt ein Bild als Freisteller",
+          "Auswertung nur für Produkte, bei denen Bilder erfolgreich geladen werden konnten",
+        ],
+        thresholds: [
+          "10 P: ≥ 70% der geprüften Erstbilder sind Freisteller",
+          "5 P: ≥ 30%",
+          "0 P: < 30%",
+        ],
+      },
+      millieu: {
+        what: "Prüft, ob mindestens ein zusätzliches Milieu-Bild (Produkt im Raum / Umgebung) vorhanden ist. Erkennung über nicht-weiße, farbige Bildränder in Bild 2+.",
+        sources: ["Bild-Spalten ab Bild 2 der Stichprobe"],
+        signals: [
+          "Wie bei Freisteller, aber als Milieu gewertet wenn Sättigung > 15% oder Helligkeit < 88%",
+          "Mindestens eines der Bilder 2+ eines Produkts muss Milieu-Kriterien erfüllen",
+        ],
+        thresholds: [
+          "10 P: ≥ 60% der Produkte mit Milieu-Bildern",
+          "5 P: ≥ 25%",
+          "0 P: < 25%",
+        ],
+      },
+      anzahlbilder: {
+        what: "Misst die durchschnittliche Anzahl gefüllter Bild-Spalten pro Produkt.",
+        sources: ["Alle image_url* / img_url* / bild*-Spalten"],
+        signals: [
+          "Pro Zeile werden alle nicht-leeren Bild-Spalten gezählt",
+          "Durchschnitt über alle Produkte",
+        ],
+        thresholds: [
+          "10 P: Ø ≥ 5 Bilder pro Produkt",
+          "5 P: Ø ≥ 2 Bilder pro Produkt",
+          "0 P: Ø < 2",
+        ],
+      },
+    };
+
     return base.map((item) => ({
       ...item,
       criteria: crit[item.id] || [],
+      criteriaDetails: details[item.id] || null,
     }));
   }, [scores, scoreReasons]);
 
@@ -3320,22 +3499,57 @@ function QsPage({ headers, rows }) {
                 {item.criteria && item.criteria.length ? (
                   <>
                     {expandedCriteria[item.id] ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                        {item.criteria.map((line, idx) => {
-                          const pts = line.match(/^(\d+)\s*P/);
-                          const isActive = pts && Number(pts[1]) === item.value;
-                          return (
-                            <div key={idx} style={{
-                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                              background: isActive ? toneBg : "#F3F4F6",
-                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                              color: isActive ? toneColor : "#6B7280",
-                              fontWeight: isActive ? 600 : 400,
-                            }}>
-                              {line}
-                            </div>
-                          );
-                        })}
+                      <div style={{ marginTop: 4, padding: "8px 10px", borderRadius: 8, background: "#F9FAFB", border: "1px solid #E5E7EB", display: "flex", flexDirection: "column", gap: 8 }}>
+                        {item.criteriaDetails && item.criteriaDetails.what ? (
+                          <div>
+                            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Was wird geprüft</div>
+                            <div style={{ fontSize: 11, color: "#374151", lineHeight: "16px", marginTop: 2 }}>{item.criteriaDetails.what}</div>
+                          </div>
+                        ) : null}
+                        {item.criteriaDetails && item.criteriaDetails.sources && item.criteriaDetails.sources.length ? (
+                          <div>
+                            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Quellen im Feed</div>
+                            <ul style={{ margin: "2px 0 0 16px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
+                              {item.criteriaDetails.sources.map((s, i) => (
+                                <li key={i}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {item.criteriaDetails && item.criteriaDetails.signals && item.criteriaDetails.signals.length ? (
+                          <div>
+                            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Erkannte Signale</div>
+                            <ul style={{ margin: "2px 0 0 16px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
+                              {item.criteriaDetails.signals.map((s, i) => (
+                                <li key={i}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Punkte-Schwellen</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                            {(item.criteriaDetails && item.criteriaDetails.thresholds && item.criteriaDetails.thresholds.length
+                              ? item.criteriaDetails.thresholds
+                              : item.criteria
+                            ).map((line, idx) => {
+                              const pts = line.match(/^(\d+)\s*P/);
+                              const isActive = pts && Number(pts[1]) === item.value;
+                              return (
+                                <div key={idx} style={{
+                                  fontSize: 10, lineHeight: "14px", padding: "4px 8px", borderRadius: 6,
+                                  background: isActive ? toneBg : "#FFFFFF",
+                                  border: isActive ? `1px solid ${toneColor}88` : "1px solid #E5E7EB",
+                                  color: isActive ? toneColor : "#374151",
+                                  fontWeight: isActive ? 700 : 500,
+                                  maxWidth: "100%",
+                                }}>
+                                  {line}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                     <button
@@ -3401,22 +3615,57 @@ function QsPage({ headers, rows }) {
                 {item.criteria && item.criteria.length ? (
                   <>
                     {expandedCriteria[item.id] ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                        {item.criteria.map((line, idx) => {
-                          const pts = line.match(/^(\d+)\s*P/);
-                          const isActive = pts && Number(pts[1]) === item.value;
-                          return (
-                            <div key={idx} style={{
-                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                              background: isActive ? toneBg : "#F3F4F6",
-                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                              color: isActive ? toneColor : "#6B7280",
-                              fontWeight: isActive ? 600 : 400,
-                            }}>
-                              {line}
-                            </div>
-                          );
-                        })}
+                      <div style={{ marginTop: 4, padding: "8px 10px", borderRadius: 8, background: "#F9FAFB", border: "1px solid #E5E7EB", display: "flex", flexDirection: "column", gap: 8 }}>
+                        {item.criteriaDetails && item.criteriaDetails.what ? (
+                          <div>
+                            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Was wird geprüft</div>
+                            <div style={{ fontSize: 11, color: "#374151", lineHeight: "16px", marginTop: 2 }}>{item.criteriaDetails.what}</div>
+                          </div>
+                        ) : null}
+                        {item.criteriaDetails && item.criteriaDetails.sources && item.criteriaDetails.sources.length ? (
+                          <div>
+                            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Quellen im Feed</div>
+                            <ul style={{ margin: "2px 0 0 16px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
+                              {item.criteriaDetails.sources.map((s, i) => (
+                                <li key={i}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {item.criteriaDetails && item.criteriaDetails.signals && item.criteriaDetails.signals.length ? (
+                          <div>
+                            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Erkannte Signale</div>
+                            <ul style={{ margin: "2px 0 0 16px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "16px" }}>
+                              {item.criteriaDetails.signals.map((s, i) => (
+                                <li key={i}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        <div>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, color: "#6B7280", fontWeight: 700 }}>Punkte-Schwellen</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                            {(item.criteriaDetails && item.criteriaDetails.thresholds && item.criteriaDetails.thresholds.length
+                              ? item.criteriaDetails.thresholds
+                              : item.criteria
+                            ).map((line, idx) => {
+                              const pts = line.match(/^(\d+)\s*P/);
+                              const isActive = pts && Number(pts[1]) === item.value;
+                              return (
+                                <div key={idx} style={{
+                                  fontSize: 10, lineHeight: "14px", padding: "4px 8px", borderRadius: 6,
+                                  background: isActive ? toneBg : "#FFFFFF",
+                                  border: isActive ? `1px solid ${toneColor}88` : "1px solid #E5E7EB",
+                                  color: isActive ? toneColor : "#374151",
+                                  fontWeight: isActive ? 700 : 500,
+                                  maxWidth: "100%",
+                                }}>
+                                  {line}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                     <button
