@@ -3844,7 +3844,6 @@ function McAngebotsfeed() {
               background: stufe1Passed ? "#F0FDF4" : "#FEF2F2",
               display: "flex", gap: 10, alignItems: "flex-start",
             }}>
-              <div style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1, borderRadius: 3, border: `1.5px solid ${stufe1Passed ? "#16A34A" : "#DC2626"}`, display: "flex", alignItems: "center", justifyContent: "center", background: stufe1Passed ? "#16A34A" : "transparent", color: "#FFF", fontSize: 11, fontWeight: 800 }}>{stufe1Passed ? "✓" : ""}</div>
               <div style={{ fontSize: 12, color: "#111827", lineHeight: "1.5" }}>
                 <strong style={{ color: stufe1Passed ? "#166534" : "#991B1B" }}>
                   {stufe1Passed ? "Partner freigeschaltet." : "Partner nicht freigeschaltet."}
@@ -3934,10 +3933,9 @@ function McAngebotsfeed() {
 
           {/* ── CSV DOWNLOAD (highlighted primary action) ── */}
           <div style={{ padding: "14px 16px", borderRadius: 10, border: `2px solid ${MC_BLUE}`, background: "#EEF4FF", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 2px 8px rgba(21, 83, 182, 0.12)" }}>
-            <div style={{ width: 18, height: 18, flexShrink: 0, border: "1.5px solid #9CA3AF", borderRadius: 3, background: "#FFF" }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerbericht exportieren</div>
-              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>Ihre hochgeladene Datei mit zwei zusätzlichen Spalten am Anfang: <strong>Fehler Pflichtfelder</strong> und <strong>Fehler Optionale Felder</strong> – dort steht, was in welcher Zeile korrigiert werden muss.</div>
+              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>Ihre hochgeladene Datei mit zwei zusätzlichen Spalten am Anfang: <strong>Fehler Pflichtfelder</strong> und <strong>Fehler Optionale Felder</strong>.</div>
             </div>
             <button
               type="button"
@@ -3972,17 +3970,6 @@ function McAngebotsfeed() {
           {/* ── STUFE 2 – FEED-QUALITÄTSSCORE (Soft Score) ── */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden", position: "relative" }}>
 
-            {/* Warnung oben, wenn Stufe 1 nicht bestanden */}
-            {!stufe1Passed && (
-              <div style={{ margin: "12px 18px 0", padding: "10px 14px", borderRadius: 6, background: "#FFFBEB", border: "1px solid #FCD34D", display: "flex", gap: 10, alignItems: "flex-start" }}>
-                <div style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1, borderRadius: 3, border: "1.5px solid #D97706", background: "#FFF" }} />
-                <div style={{ fontSize: 11, color: "#111827", lineHeight: "1.5" }}>
-                  <strong style={{ color: "#92400E" }}>Score wird aktiv, sobald die technische Prüfung bestanden ist.</strong><br />
-                  <span style={{ color: "#78350F" }}>Beheben Sie die {issues.blockiertCount.toLocaleString("de-DE")} Fehler in Stufe 1, um den Score freizuschalten und für Kampagnen berechtigt zu werden.</span>
-                </div>
-              </div>
-            )}
-
             <div style={{ opacity: stufe1Passed ? 1 : 0.55 }}>
 
               {/* Sektion-Label */}
@@ -3991,9 +3978,11 @@ function McAngebotsfeed() {
                   <span>STUFE 2 — FEED-QUALITÄTSSCORE</span>
                   <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: campaignEligible ? "#16A34A" : "#9CA3AF" }}>
-                  {campaignEligible ? "✓ Kampagnen-berechtigt" : "Noch nicht kampagnen-berechtigt"}
-                </span>
+                {campaignEligible && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#16A34A" }}>
+                    ✓ Kampagnen-berechtigt
+                  </span>
+                )}
               </div>
 
               {/* Titel + Score */}
