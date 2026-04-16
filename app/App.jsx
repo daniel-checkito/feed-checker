@@ -1681,6 +1681,161 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
   );
 }
 
+// ─── Content-detection helpers used by QsPage ────────────────────────────────
+// These are intentionally heuristic. They are designed to recognise "most cases"
+// in German furniture feeds without false-positives that would unfairly punish
+// shops that already maintain their data well.
+
+const COLOR_WORDS_RE =
+  /\b(schwarz|wei(?:ß|ss)|grau|braun|beige|blau|gr(?:ü|ue)n|rot|gelb|orange|natur|naturfarben|anthrazit|silber|gold|cognac|creme|cr[èe]me|olive|lila|pink|t[üu]rkis|petrol|bordeaux|mint|sand|taupe|terracotta|nussbaum|eichefarben|kupfer|messing|chrom)\b/i;
+
+const MATERIAL_WORDS_RE =
+  /\b(holz|massivholz|metall|stoff|leder|kunstleder|kunststoff|glas|eiche|kiefer|buche|akazie|teak|nussbaum|mango|mdf|aluminium|stahl|eisen|polyester|baumwolle|samt|velour|cord|chenille|webstoff|massiv|spanplatte|rattan|bambus|marmor|keramik|beton|porzellan|sherpa|microfaser|mikrofaser)\b/i;
+
+const CATEGORY_WORDS_RE =
+  /\b(regal|tisch|esstisch|couchtisch|beistelltisch|stuhl|sessel|hocker|bank|sofa|couch|ecksofa|bett|boxspringbett|matratze|schrank|kleiderschrank|kommode|sideboard|highboard|lowboard|nachttisch|nachtkonsole|lampe|leuchte|stehlampe|tischlampe|deckenleuchte|teppich|spiegel|garderobe|vitrine|b[üu]ro(?:stuhl|tisch)?|gartenm[öo]bel|gartenstuhl|gartentisch|liege|chaiselongue|kindersessel)\b/i;
+
+// Strict dimension formats per the new rules.
+//   2-Maß:  "200x90 cm" / "200×90 cm" (with or without spaces, unit required)
+//   3-Maß:  "200 x 90 x 180 cm" (spaces around x, unit required)
+const STRICT_DIM_2_RE = /\b\d+(?:[.,]\d+)?\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:mm|cm|m)\b/i;
+const STRICT_DIM_3_RE = /\b\d+(?:[.,]\d+)?\s+[x×]\s+\d+(?:[.,]\d+)?\s+[x×]\s+\d+(?:[.,]\d+)?\s*(?:mm|cm|m)\b/i;
+// Loose detection: any kind of "NxN" with optional unit – used to spot
+// dimensions that should have been formatted properly but weren't.
+const LOOSE_DIM_RE = /\b\d+(?:[.,]\d+)?\s*[x×]\s*\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+(?:[.,]\d+)?)?\s*(?:mm|cm|m)?\b/i;
+// Single-axis dimensions like "Höhe 15 cm".
+const LABELED_DIM_RE =
+  /\b(?:h[öo]he|breite|tiefe|l[äa]nge|durchmesser|sitzh[öo]he|liegefl[äa]che)\s*[:\-]?\s*\d+(?:[.,]\d+)?\s*(?:mm|cm|m)\b/i;
+
+// Lieferumfang format: "1x Produkt", "2x Stuhl"...
+// We consider it well-formed when it starts with "Nx <Substantiv>".
+const DELIVERY_FORMAT_RE = /(^|[\s•\-])(\d+)\s*[xX×]\s*[A-Za-zÄÖÜäöüß][^,;\n]*/;
+
+// Common German plural endings used to flag "1x Stühle" instead of "1x Stuhl".
+// Heuristic only — we match plural forms commonly found in furniture feeds.
+const PLURAL_SUFFIX_RE = /(stühle|tische|regale|hocker|sessel|sofas|couches|betten|matratzen|schränke|kommoden|lampen|leuchten|teppiche|spiegel|kissen|polster|st[üu]hlchen|sets)\b/i;
+
+// Mojibake (UTF-8 read as Windows-1252) leaves these tell-tale sequences.
+const MOJIBAKE_RE = /Ã[¤¶¼„–œŸ\u008e\u009c\u009f]|Â[\u0080-\u009f]/;
+
+// "Cross-Selling" phrasing in descriptions ("die passende Schutzhülle für unseren Tisch").
+const CROSSSELL_RE =
+  /\b(passend(?:e|er|es|en)?|passend\s+zu|kombinier(?:bar|t)\s+mit|erg[äa]nz(?:t|en)|als\s+set\s+mit|für\s+(?:unsere|unseren|unser|den|die|das)\s+\S+|im\s+set\s+mit|unsere\s+(?:weitere[ns]?|anderen)\s+produkte|dazu\s+passt|dazu\s+passend|ebenfalls\s+erh[äa]ltlich)\b/i;
+
+// B-Ware / refurbished / damaged-stock indicators.
+const BWARE_RE =
+  /\b(b[\s-]?ware|2\.\s?wahl|zweite\s+wahl|retoure|gebraucht|refurbished|aufgearbeitet|ausstellungsst[üu]ck|vorf[üu]hrer|defekt|besch[äa]digt|werksbeschmutzung|sale\s*outlet|outlet)\b/i;
+
+// Parent / Stamm indicators (column names or values like "parent", "stamm", "variantengruppe").
+const PARENT_FLAG_RE = /\b(stamm|parent|master|variantengruppe|hauptartikel|gruppen?artikel)\b/i;
+
+function containsMojibake(s) {
+  return MOJIBAKE_RE.test(String(s ?? ""));
+}
+
+function plainText(s) {
+  // Strip simple HTML so detection works for HTML descriptions too.
+  return String(s ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function hasHtml(s) {
+  return /<\w+[^>]*>/.test(String(s ?? ""));
+}
+
+function detectColor(s) {
+  const m = String(s ?? "").match(COLOR_WORDS_RE);
+  return m ? m[0] : "";
+}
+
+function detectMaterial(s) {
+  const m = String(s ?? "").match(MATERIAL_WORDS_RE);
+  return m ? m[0] : "";
+}
+
+function detectCategory(s) {
+  const m = String(s ?? "").match(CATEGORY_WORDS_RE);
+  return m ? m[0] : "";
+}
+
+function hasStrictDimensions(s) {
+  const txt = String(s ?? "");
+  return STRICT_DIM_2_RE.test(txt) || STRICT_DIM_3_RE.test(txt) || LABELED_DIM_RE.test(txt);
+}
+
+function hasAnyDimensions(s) {
+  const txt = String(s ?? "");
+  return LOOSE_DIM_RE.test(txt) || LABELED_DIM_RE.test(txt);
+}
+
+function looksLikeReadableTitle(s) {
+  // Title must have a few real words separated by spaces or commas.
+  // Reject if it looks like keyword-stuffed (lots of pipes, slashes, very long
+  // ALLCAPS runs, or no spaces at all between the first 30 chars).
+  const t = String(s ?? "").trim();
+  if (!t) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 3) return false;
+  if (/[|]{1,}/.test(t)) return false;
+  // Too many separator chars relative to words → probably keyword stuffing.
+  const sepRatio = (t.match(/[\/]/g) || []).length / Math.max(1, words.length);
+  if (sepRatio > 0.5) return false;
+  // An "ALL-CAPS-only" title is hard to read.
+  const lettered = t.replace(/[^A-Za-zÄÖÜäöüß]/g, "");
+  const upperLettered = lettered.replace(/[^A-ZÄÖÜ]/g, "");
+  if (lettered.length > 12 && upperLettered.length / lettered.length > 0.85) return false;
+  return true;
+}
+
+function isCrossSellingText(s) {
+  const t = plainText(s);
+  if (!t) return false;
+  return CROSSSELL_RE.test(t);
+}
+
+function isBWareText(s) {
+  return BWARE_RE.test(plainText(s));
+}
+
+function isProbablyBrandOnlyDescription(s) {
+  // Generic "über uns / unsere Marke" descriptions that contain almost no
+  // product-specific content. Heuristic: very few digits and no category
+  // / dimension / material / color reference.
+  const t = plainText(s).toLowerCase();
+  if (!t) return true;
+  if (t.length < 60) return false; // handled by length thresholds elsewhere
+  const digits = (t.match(/\d/g) || []).length;
+  const hasProductSignal =
+    detectCategory(t) ||
+    detectMaterial(t) ||
+    detectColor(t) ||
+    hasAnyDimensions(t) ||
+    /\b(merkmal|highlight|eigenschaft|funktion|maße|maß|größe|gr[öo]ße)\b/.test(t);
+  if (hasProductSignal) return false;
+  // Lots of "wir / unser / unsere / firma / marke" phrases without digits → brand text.
+  const brandWords = (t.match(/\b(wir|unser|unsere|unseren|firma|marke|seit\s+\d{4}|tradition|qualit[äa]t|kunden|service)\b/g) || []).length;
+  return brandWords >= 3 && digits < 3;
+}
+
+// Collapse a string for similarity comparison (used to detect templated shop texts).
+function templateKey(s) {
+  return plainText(s)
+    .toLowerCase()
+    .replace(/\d+/g, "#")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function evaluatePluralIssue(deliveryValue) {
+  // "1x Stuhl" is correct, "1x Stühle" is not.
+  // We only flag rows that:
+  //   - start with "1x" (singular count) AND
+  //   - the noun afterwards is in plural.
+  const m = String(deliveryValue ?? "").match(/^\s*1\s*[xX×]\s+([A-Za-zÄÖÜäöüß][^,;\n]*)/);
+  if (!m) return false;
+  return PLURAL_SUFFIX_RE.test(m[1]);
+}
+
 function QsPage({ headers, rows }) {
   const total = rows.length;
 
@@ -1702,6 +1857,9 @@ function QsPage({ headers, rows }) {
   const materialCol = colByName(["material", "materials"]);
   const colorCol = colByName(["color", "farbe"]);
   const shopCol = colByName(["shopbezogene texte", "shop_text", "marketing_text", "promo_text"]);
+  const coreIdCol = colByName(["core_id", "coreid", "core id", "core-id"]);
+  const sellerOfferCol = colByName(["seller_offer_id", "seller offer id", "offer_id", "offer id", "sku", "merchant_sku", "eindeutige_id", "eindeutige id", "unique_id"]);
+  const coreStatusCol = colByName(["core_status", "core status", "status", "verfuegbarkeit", "verfügbarkeit", "availability"]);
 
   const safeStr = (v) => (v === null || v === undefined ? "" : String(v));
 
@@ -1883,112 +2041,313 @@ function QsPage({ headers, rows }) {
 
     const n = rows.length || 1;
 
+    // Herstellerfeed: 0 / 5 (binary). We auto-suggest based on the brand fill
+    // rate; final value is still set manually by the QS person.
     const herstRate = filledRate(brandCol);
-    const herstellerfeed = herstRate >= 0.8 ? 20 : 0;
+    const herstellerfeed = herstRate >= 0.8 ? 5 : 0;
 
+    // Helper: collect all "title-like" text per row across title + description.
+    // Many shops put dimensions/material/color into the title and skip the
+    // standalone attribute columns – we want to catch that too.
+    const titleBlob = (r) => {
+      const t = titleCol ? safeStr(r[titleCol]) : "";
+      return t.trim();
+    };
+    const titleAndDescBlob = (r) => {
+      const t = titleCol ? safeStr(r[titleCol]) : "";
+      const d = descCol ? safeStr(r[descCol]) : "";
+      return `${t} ${plainText(d)}`.trim();
+    };
+
+    // ── Titel ───────────────────────────────────────────────────────────────
+    // Fill-rate is intentionally not part of the score (per QS feedback).
+    // 10 P  → titles consistently contain brand + product name + category
+    // 20 P  → titles additionally contain colour, material, dimensions and
+    //         further useful info, and read like a sentence (not keyword soup).
     let titel = 0;
     if (titleCol) {
-      const vals = rows.map((r) => safeStr(r[titleCol]).trim().toLowerCase());
-      const filled = vals.filter((v) => v).length;
-      const fillRate = filled / n;
-      const uniq = new Set(vals.filter(Boolean));
-      const dupRate = filled ? 1 - uniq.size / filled : 0;
-      const avg = avgLen(titleCol);
-      if (fillRate >= 0.9 && avg >= 40 && dupRate <= 0.08) titel = 20;
-      else if (fillRate >= 0.8 && avg >= 25) titel = 10;
-      else titel = 0;
+      const vals = rows.map((r) => titleBlob(r)).filter(Boolean);
+      if (vals.length) {
+        let withCategory = 0;
+        let withBrandHint = 0;
+        let withReadable = 0;
+        let withColor = 0;
+        let withMaterial = 0;
+        let withDimensions = 0;
+        let withExtras = 0;
+        let withMojibake = 0;
+        const sample = vals.slice(0, Math.min(vals.length, 200));
+
+        // Brand reference: either the brand column value appears in the title
+        // OR the title is at least 3 words (a name without brand still counts
+        // toward "name+category" but not "brand").
+        const brands = brandCol
+          ? rows
+              .map((r) => safeStr(r[brandCol]).trim().toLowerCase())
+              .filter(Boolean)
+          : [];
+        const brandSet = new Set(brands);
+
+        sample.forEach((t, i) => {
+          const lower = t.toLowerCase();
+          if (detectCategory(lower)) withCategory += 1;
+          if (detectColor(lower)) withColor += 1;
+          if (detectMaterial(lower)) withMaterial += 1;
+          if (hasStrictDimensions(t)) withDimensions += 1;
+          if (looksLikeReadableTitle(t)) withReadable += 1;
+          if (containsMojibake(t)) withMojibake += 1;
+          // "Extras" = a comma-separated section, or "Modell"/"Serie"/"Set"
+          // markers, or a third comma-separated chunk.
+          const commaParts = t.split(",").map((s) => s.trim()).filter(Boolean);
+          if (commaParts.length >= 3 || /\b(modell|serie|set|kollektion|design|stil)\b/i.test(lower)) {
+            withExtras += 1;
+          }
+          // Brand reference
+          const rowBrand = brandCol ? safeStr(rows[i]?.[brandCol]).trim().toLowerCase() : "";
+          if (rowBrand && lower.includes(rowBrand)) withBrandHint += 1;
+          else if (Array.from(brandSet).some((b) => b && lower.includes(b))) withBrandHint += 1;
+        });
+
+        const N = sample.length;
+        const ratio = (x) => (N ? x / N : 0);
+
+        const categoryRate = ratio(withCategory);
+        const brandRate = ratio(withBrandHint);
+        const readableRate = ratio(withReadable);
+        const colorRate = ratio(withColor);
+        const materialRate = ratio(withMaterial);
+        const dimensionRate = ratio(withDimensions);
+        const extrasRate = ratio(withExtras);
+        const mojiRate = ratio(withMojibake);
+
+        const has20 =
+          categoryRate >= 0.6 &&
+          brandRate >= 0.4 &&
+          readableRate >= 0.7 &&
+          mojiRate < 0.05 &&
+          colorRate >= 0.5 &&
+          materialRate >= 0.5 &&
+          dimensionRate >= 0.5 &&
+          extrasRate >= 0.4;
+
+        const has10 =
+          categoryRate >= 0.4 &&
+          brandRate >= 0.3 &&
+          readableRate >= 0.5 &&
+          mojiRate < 0.2;
+
+        if (has20) titel = 20;
+        else if (has10) titel = 10;
+        else titel = 0;
+      }
     }
 
+    // ── Beschreibung ────────────────────────────────────────────────────────
+    // Fill-rate explicitly de-emphasised. Score by content quality:
+    //   5 P  → "Mindestanforderung": product properties + dimensions present.
+    //  10 P  → property list + highlights + significantly more info,
+    //          structured (sentences or bullet points), not brand-only.
     let beschreibung = 0;
     if (descCol) {
-      const fillRate = filledRate(descCol);
-      const avg = avgLen(descCol);
-      if (fillRate >= 0.85 && avg >= 80) beschreibung = 10;
-      else if (fillRate >= 0.75 && avg >= 40) beschreibung = 5;
-      else beschreibung = 0;
+      const vals = rows.map((r) => safeStr(r[descCol])).filter((v) => v.trim());
+      if (vals.length) {
+        let withDims = 0;
+        let withProps = 0;
+        let withHighlights = 0;
+        let withRichInfo = 0;
+        let brandOnly = 0;
+        let withMoji = 0;
+        const sample = vals.slice(0, Math.min(vals.length, 200));
+
+        sample.forEach((raw) => {
+          const txt = plainText(raw);
+          const lower = txt.toLowerCase();
+
+          if (containsMojibake(raw)) withMoji += 1;
+          if (hasAnyDimensions(txt)) withDims += 1;
+          if (detectMaterial(lower) || detectColor(lower) || detectCategory(lower)) withProps += 1;
+
+          // "Highlights" / structured content: bullets, numbered lists, the
+          // word "Highlights"/"Eigenschaften", or HTML <li>.
+          if (
+            /(^|\n)\s*[•\-*]\s+/.test(txt) ||
+            /<li[^>]*>/i.test(raw) ||
+            /\b(highlights?|eigenschaften|merkmale|funktionen|features)\b/i.test(lower)
+          ) {
+            withHighlights += 1;
+          }
+
+          // "Rich info" = at least ~2 sentences and 80+ chars and contains digits
+          // (concrete values like sizes, weights, capacities).
+          const sentenceCount = (txt.match(/[.!?]\s/g) || []).length + 1;
+          const digits = (txt.match(/\d/g) || []).length;
+          if (txt.length >= 120 && sentenceCount >= 2 && digits >= 2) withRichInfo += 1;
+
+          if (isProbablyBrandOnlyDescription(raw)) brandOnly += 1;
+        });
+
+        const N = sample.length;
+        const ratio = (x) => (N ? x / N : 0);
+
+        const dimRate = ratio(withDims);
+        const propRate = ratio(withProps);
+        const highRate = ratio(withHighlights);
+        const richRate = ratio(withRichInfo);
+        const brandOnlyRate = ratio(brandOnly);
+        const mojiRate = ratio(withMoji);
+
+        const has10 =
+          propRate >= 0.6 &&
+          highRate >= 0.5 &&
+          richRate >= 0.5 &&
+          dimRate >= 0.4 &&
+          brandOnlyRate < 0.2 &&
+          mojiRate < 0.05;
+
+        const has5 =
+          propRate >= 0.4 &&
+          dimRate >= 0.3 &&
+          brandOnlyRate < 0.5 &&
+          mojiRate < 0.2;
+
+        if (has10) beschreibung = 10;
+        else if (has5) beschreibung = 5;
+        else beschreibung = 0;
+      }
     }
 
-    const dimCandidates = [dimCol, titleCol, descCol].filter(Boolean);
+    // ── Abmessungen ────────────────────────────────────────────────────────
+    // Look in the dedicated dimension column AND in the title/description.
+    // Per QS feedback: only evaluate rows that have any data, and require the
+    // proper format ("200x90 cm" or "200 x 90 x 180 cm" with a unit).
+    const dimSourceCols = [dimCol, titleCol, descCol].filter(Boolean);
     let abmessungen = 0;
-    if (dimCandidates.length) {
-      const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
-      let hits = 0;
-      let meaningful = 0;
+    if (dimSourceCols.length) {
+      let evaluated = 0;
+      let strictHits = 0;
+      let looseHits = 0;
       for (const r of rows) {
-        const blob = dimCandidates.map((c) => safeStr(r[c])).join(" ");
-        const s = blob.trim();
-        if (!s) continue;
-        meaningful += 1;
-        if (DIM_RE.test(s)) hits += 1;
+        const blob = dimSourceCols.map((c) => safeStr(r[c])).join(" ").trim();
+        if (!blob) continue;
+        evaluated += 1;
+        if (hasStrictDimensions(blob)) strictHits += 1;
+        else if (hasAnyDimensions(blob)) looseHits += 1;
       }
-      const rate = meaningful ? hits / meaningful : 0;
-      if (rate >= 0.6) abmessungen = 10;
-      else if (rate >= 0.3) abmessungen = 5;
+      const strictRate = evaluated ? strictHits / evaluated : 0;
+      const presenceRate = evaluated ? (strictHits + looseHits) / evaluated : 0;
+      if (strictRate >= 0.6) abmessungen = 10;
+      else if (strictRate >= 0.3 || presenceRate >= 0.5) abmessungen = 5;
       else abmessungen = 0;
     }
 
+    // ── Lieferumfang ───────────────────────────────────────────────────────
+    // Read from the delivery column AND fall back to the description (per QS
+    // feedback). Format expectation: "1x Stuhl" – count + singular noun.
     let lieferumfang = 0;
-    if (deliveryCol) {
-      const DELIVERY_RE = /^\s*(\d+)\s*[xX]\s+.+/;
-      let nonEmpty = 0;
+    {
+      let evaluated = 0;
       let formatOk = 0;
+      let pluralIssues = 0;
       for (const r of rows) {
-        const v = safeStr(r[deliveryCol]).trim();
-        if (!v) continue;
-        nonEmpty += 1;
-        if (DELIVERY_RE.test(v)) formatOk += 1;
+        const dv = deliveryCol ? safeStr(r[deliveryCol]).trim() : "";
+        const desc = descCol ? plainText(safeStr(r[descCol])) : "";
+        // Pull a "1x …" snippet out of either source.
+        let m = dv.match(DELIVERY_FORMAT_RE);
+        let snippet = m ? m[0] : "";
+        if (!snippet && desc) {
+          // Look for an explicit "Lieferumfang"-section in the description.
+          const idx = desc.toLowerCase().indexOf("lieferumfang");
+          if (idx >= 0) {
+            const after = desc.slice(idx, idx + 200);
+            m = after.match(DELIVERY_FORMAT_RE);
+            if (m) snippet = m[0];
+          }
+        }
+        if (!dv && !snippet) continue;
+        evaluated += 1;
+        if (snippet) {
+          formatOk += 1;
+          if (evaluatePluralIssue(snippet.replace(/^[^\d]*/, ""))) pluralIssues += 1;
+        }
       }
-      const filled = nonEmpty / n;
-      const fmt = nonEmpty ? formatOk / nonEmpty : 0;
-      if (filled >= 0.7 && fmt >= 0.7) lieferumfang = 20;
-      else if (filled >= 0.4 && fmt >= 0.35) lieferumfang = 10;
+      const formatRate = evaluated ? formatOk / evaluated : 0;
+      const pluralRate = evaluated ? pluralIssues / Math.max(1, formatOk) : 0;
+      if (formatRate >= 0.7 && pluralRate < 0.15) lieferumfang = 20;
+      else if (formatRate >= 0.4 && pluralRate < 0.4) lieferumfang = 10;
       else lieferumfang = 0;
     }
 
+    // ── Material ───────────────────────────────────────────────────────────
+    // Look in material col + title + description. Reject rows where the value
+    // is only a colour word (per QS feedback). Bonus for "clear, single value".
     let material = 0;
-    if (materialCol) {
-      const rate = filledRate(materialCol);
-      if (rate >= 0.9) {
-        material = 10;
-      } else if (rate > 0) {
-        material = 5;
-      } else {
-        material = 0;
-      }
-    }
-
-    let farbe = 0;
-    if (colorCol) {
-      let nonEmpty = 0;
+    {
+      let evaluated = 0;
       let valid = 0;
+      let polluted = 0; // contains colour or grammar issues
       for (const r of rows) {
-        const raw = safeStr(r[colorCol]).trim();
-        if (!raw) continue;
-        nonEmpty += 1;
-        const val = raw.toLowerCase();
-        const isBlacklist =
-          val === "-" ||
-          val === "na" ||
-          val === "n/a" ||
-          val === "none" ||
-          val === "kein" ||
-          val === "keine" ||
-          val === "k.a." ||
-          val === "ka";
-        const isTooLong = raw.length > 50;
-        if (!isBlacklist && !isTooLong) {
+        const mat = materialCol ? safeStr(r[materialCol]).trim() : "";
+        const title = titleCol ? safeStr(r[titleCol]) : "";
+        const desc = descCol ? plainText(safeStr(r[descCol])) : "";
+        const candidate = mat || `${title} ${desc}`.trim();
+        if (!candidate) continue;
+        evaluated += 1;
+        const lower = candidate.toLowerCase();
+        const matFound = detectMaterial(lower);
+        const colFound = detectColor(lower);
+        if (matFound) {
           valid += 1;
+          // If the dedicated material col is filled with a colour, that's a
+          // grammar / data-quality issue.
+          if (mat && colFound && !detectMaterial(mat.toLowerCase())) polluted += 1;
+          if (mat && /[,;\/]/.test(mat) && mat.length < 4) polluted += 1; // weird short separators
         }
       }
-      const filledRateColor = rows.length ? nonEmpty / rows.length : 0;
-      const validRate = nonEmpty ? valid / nonEmpty : 0;
-      if (filledRateColor >= 0.9 && validRate >= 0.9) {
-        farbe = 10;
-      } else if (filledRateColor >= 0.6 && validRate >= 0.6) {
-        farbe = 5;
-      } else {
-        farbe = 0;
+      const rate = evaluated ? valid / evaluated : 0;
+      const pollutionRate = valid ? polluted / valid : 0;
+      if (rate >= 0.85 && pollutionRate < 0.1) material = 10;
+      else if (rate >= 0.5 && pollutionRate < 0.3) material = 5;
+      else material = 0;
+    }
+
+    // ── Farbe ──────────────────────────────────────────────────────────────
+    // Look in colour col + title + description. Reject rows that put a
+    // material into the colour column or list multiple colours alongside a
+    // material ("Eiche braun" → ok as colour, "Eiche / Stoff" → not ok).
+    let farbe = 0;
+    {
+      let evaluated = 0;
+      let valid = 0;
+      let polluted = 0;
+      for (const r of rows) {
+        const col = colorCol ? safeStr(r[colorCol]).trim() : "";
+        const title = titleCol ? safeStr(r[titleCol]) : "";
+        const desc = descCol ? plainText(safeStr(r[descCol])) : "";
+        const candidate = col || `${title} ${desc}`.trim();
+        if (!candidate) continue;
+        evaluated += 1;
+        const lower = candidate.toLowerCase();
+        const colorFound = detectColor(lower);
+        const matFound = detectMaterial(lower);
+        if (colorFound) {
+          valid += 1;
+          // Pollution: dedicated colour col contains a material word and the
+          // colour word is dominated/equal in length → likely "Eiche / Stoff".
+          if (col) {
+            const isBlacklist = /^(?:-|na|n\/a|none|kein(?:e)?|k\.?a\.?)$/i.test(col);
+            if (isBlacklist || col.length > 50) polluted += 1;
+            else if (matFound && !detectColor(col.toLowerCase().replace(MATERIAL_WORDS_RE, ""))) {
+              // Material listed but colour disappears once material is removed → pure material value.
+              polluted += 1;
+            }
+          }
+        }
       }
+      const rate = evaluated ? valid / evaluated : 0;
+      const pollutionRate = valid ? polluted / valid : 0;
+      if (rate >= 0.85 && pollutionRate < 0.1) farbe = 10;
+      else if (rate >= 0.5 && pollutionRate < 0.3) farbe = 5;
+      else farbe = 0;
     }
 
     let anzahlbilder = 0;
@@ -2017,11 +2376,30 @@ function QsPage({ headers, rows }) {
       }
     }
 
+    // ── Shopbezogene Texte ────────────────────────────────────────────────
+    // 10 P  → no shop-specific text in the feed at all.
+    //  5 P  → shop text present BUT obviously templated (same/very similar
+    //         text on every product). The QS team can filter these out, so
+    //         we don't want to punish them as harshly as varied shop content.
+    //  0 P  → shop text present and varied / individual per product.
     let shoptexte = 10;
     if (shopCol) {
-      const fill = filledRate(shopCol);
+      const vals = rows
+        .map((r) => safeStr(r[shopCol]).trim())
+        .filter(Boolean);
+      const fill = rows.length ? vals.length / rows.length : 0;
       if (fill > 0) {
-        shoptexte = 0;
+        const sample = vals.slice(0, Math.min(vals.length, 200));
+        const counts = new Map();
+        for (const v of sample) {
+          const key = templateKey(v);
+          if (!key) continue;
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        const max = counts.size ? Math.max(...counts.values()) : 0;
+        const dominantShare = sample.length ? max / sample.length : 0;
+        if (dominantShare >= 0.7) shoptexte = 5; // templated → tolerable
+        else shoptexte = 0; // varied marketing copy
       }
     }
 
@@ -2106,15 +2484,19 @@ function QsPage({ headers, rows }) {
     scores.millieu +
     scores.anzahlbilder;
 
-  const attributeScore = scores.titel === 0 ? 0 : Math.round((attributeRaw / 95) * 90);
-  const imageScore = scores.bildmatch === 0 ? 0 : Math.ceil((imageRaw / 50) * 90);
+  // Max raw attribute points after Herstellerfeed was reduced to 5:
+  //   5 + 20 + 10 + 10 + 20 + 10 + 10 + 10 = 95
+  const ATTRIBUTE_MAX_RAW = 95;
+  const IMAGE_MAX_RAW = 50;
+  const attributeScore = scores.titel === 0 ? 0 : Math.round((attributeRaw / ATTRIBUTE_MAX_RAW) * 90);
+  const imageScore = scores.bildmatch === 0 ? 0 : Math.ceil((imageRaw / IMAGE_MAX_RAW) * 90);
   const total180 = attributeScore + imageScore;
   const totalPercent = (total180 / 180) * 100;
 
   const apaEligible =
     attributeScore >= 70 &&
     imageScore >= 60 &&
-    scores.herstellerfeed === 20 &&
+    scores.herstellerfeed === 5 &&
     scores.titel >= 10 &&
     scores.beschreibung >= 5 &&
     scores.abmessungen >= 5 &&
@@ -2153,120 +2535,196 @@ function QsPage({ headers, rows }) {
   const scoreReasons = useMemo(() => {
     const reasons = {};
 
-    reasons.herstellerfeed = `Herstellerfeed manuell bewertet: ${scores.herstellerfeed} Punkte (Ja = 20, Nein = 0).`;
+    reasons.herstellerfeed = `Herstellerfeed manuell bewertet: ${scores.herstellerfeed} Punkte (Ja = 5, Nein = 0).`;
 
     if (!titleCol) {
       reasons.titel = "Keine Titel-Spalte erkannt – 0 Punkte.";
     } else {
-      const vals = rows.map((r) => safeStr(r[titleCol]).trim().toLowerCase());
-      const filled = vals.filter((v) => v).length;
-      const fillRate = (rows.length ? filled / rows.length : 0) || 0;
-      const uniq = new Set(vals.filter(Boolean));
-      const dupRate = filled ? 1 - uniq.size / filled : 0;
-      const avg = avgLen(titleCol);
+      // Recompute the most important coverage rates so the description message
+      // reflects what the auto-detection actually saw.
+      const sample = rows
+        .map((r) => safeStr(r[titleCol]).trim())
+        .filter(Boolean)
+        .slice(0, 200);
+      let cat = 0, col = 0, mat = 0, dim = 0, read = 0, moji = 0;
+      sample.forEach((t) => {
+        const l = t.toLowerCase();
+        if (detectCategory(l)) cat += 1;
+        if (detectColor(l)) col += 1;
+        if (detectMaterial(l)) mat += 1;
+        if (hasStrictDimensions(t)) dim += 1;
+        if (looksLikeReadableTitle(t)) read += 1;
+        if (containsMojibake(t)) moji += 1;
+      });
+      const N = sample.length || 1;
+      const fmt = (x) => fmtPct(x / N);
+      const mojiHint = moji > 0 ? ` Achtung: ${moji} Titel mit kaputten Umlauten.` : "";
       if (scores.titel === 20) {
-        reasons.titel = `Titel fast immer vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(avg)} Zeichen, wenige Dubletten – 20 Punkte.`;
+        reasons.titel = `Titel enthalten zuverlässig Marke/Name/Kategorie (${fmt(cat)}), Farbe (${fmt(col)}), Material (${fmt(mat)}) und korrekte Maße (${fmt(dim)}). Lesbar in ${fmt(read)} der Fälle – 20 Punkte.${mojiHint}`;
       } else if (scores.titel === 10) {
-        reasons.titel = `Titel oft vorhanden (${fmtPct(fillRate)}), Ø ca. ${Math.round(avg)} Zeichen, aber teils unvollständig oder häufigere Dubletten – 10 Punkte.`;
+        reasons.titel = `Titel mit Marke + Name + Kategorie erkennbar (Kategorie ${fmt(cat)}, lesbar ${fmt(read)}) – aber Farbe/Material/Maße fehlen oft – 10 Punkte.${mojiHint}`;
       } else {
-        reasons.titel = `Titel selten oder sehr kurz (${fmtPct(fillRate)}, Ø ca. ${Math.round(avg)} Zeichen) – 0 Punkte.`;
+        reasons.titel = `Titel zu generisch oder nur Schlagwörter (Kategorie ${fmt(cat)}, lesbar ${fmt(read)}, Maße ${fmt(dim)}) – 0 Punkte.${mojiHint}`;
       }
     }
 
     if (!descCol) {
       reasons.beschreibung = "Keine Beschreibungs-Spalte erkannt – 0 Punkte.";
     } else {
-      const fillRate = filledRate(descCol);
-      const avg = avgLen(descCol);
+      const sample = rows
+        .map((r) => safeStr(r[descCol]))
+        .filter((v) => v.trim())
+        .slice(0, 200);
+      let dim = 0, prop = 0, high = 0, rich = 0, brandOnly = 0;
+      sample.forEach((raw) => {
+        const t = plainText(raw);
+        const l = t.toLowerCase();
+        if (hasAnyDimensions(t)) dim += 1;
+        if (detectMaterial(l) || detectColor(l) || detectCategory(l)) prop += 1;
+        if (
+          /(^|\n)\s*[•\-*]\s+/.test(t) ||
+          /<li[^>]*>/i.test(raw) ||
+          /\b(highlights?|eigenschaften|merkmale|funktionen|features)\b/i.test(l)
+        ) high += 1;
+        const sentenceCount = (t.match(/[.!?]\s/g) || []).length + 1;
+        const digits = (t.match(/\d/g) || []).length;
+        if (t.length >= 120 && sentenceCount >= 2 && digits >= 2) rich += 1;
+        if (isProbablyBrandOnlyDescription(raw)) brandOnly += 1;
+      });
+      const N = sample.length || 1;
+      const fmt = (x) => fmtPct(x / N);
+      const brandHint = brandOnly > 0 ? ` Achtung: ${brandOnly} Beschreibungen wirken wie reiner Marken-/Unternehmenstext.` : "";
       if (scores.beschreibung === 10) {
-        reasons.beschreibung = `Beschreibungen für ca. ${fmtPct(fillRate)} der Produkte, Ø ca. ${Math.round(avg)} Zeichen – 10 Punkte.`;
+        reasons.beschreibung = `Beschreibungen mit Eigenschaften (${fmt(prop)}), Highlights/Bullets (${fmt(high)}), vielen relevanten Infos (${fmt(rich)}) und Maßen (${fmt(dim)}) – 10 Punkte.${brandHint}`;
       } else if (scores.beschreibung === 5) {
-        reasons.beschreibung = `Beschreibungen teils vorhanden (${fmtPct(fillRate)}), aber eher kurz (Ø ca. ${Math.round(avg)} Zeichen) – 5 Punkte.`;
+        reasons.beschreibung = `Beschreibungen liefern Mindestinfos (Eigenschaften ${fmt(prop)}, Maße ${fmt(dim)}), aber wenig Struktur/Highlights – 5 Punkte.${brandHint}`;
       } else {
-        reasons.beschreibung = `Beschreibungen oft fehlend oder sehr kurz (${fmtPct(fillRate)}, Ø ca. ${Math.round(avg)} Zeichen) – 0 Punkte.`;
+        reasons.beschreibung = `Beschreibungen liefern zu wenig Produktinhalt (Eigenschaften ${fmt(prop)}, Maße ${fmt(dim)}) – 0 Punkte.${brandHint}`;
       }
     }
 
-    const dimCandidates = [dimCol, titleCol, descCol].filter(Boolean);
-    if (!dimCandidates.length) {
+    const dimSourceCols = [dimCol, titleCol, descCol].filter(Boolean);
+    if (!dimSourceCols.length) {
       reasons.abmessungen = "Keine erkennbaren Abmessungs-Angaben – 0 Punkte.";
     } else {
-      const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
-      let hits = 0;
-      let meaningful = 0;
+      let evaluated = 0, strict = 0, loose = 0;
       for (const r of rows) {
-        const blob = dimCandidates.map((c) => safeStr(r[c])).join(" ");
-        const s = blob.trim();
-        if (!s) continue;
-        meaningful += 1;
-        if (DIM_RE.test(s)) hits += 1;
+        const blob = dimSourceCols.map((c) => safeStr(r[c])).join(" ").trim();
+        if (!blob) continue;
+        evaluated += 1;
+        if (hasStrictDimensions(blob)) strict += 1;
+        else if (hasAnyDimensions(blob)) loose += 1;
       }
-      const rate = meaningful ? hits / meaningful : 0;
+      const fmt = (x) => fmtPct(evaluated ? x / evaluated : 0);
       if (scores.abmessungen === 10) {
-        reasons.abmessungen = `Verständliche Maße in vielen Produkten (${fmtPct(rate)}) – 10 Punkte.`;
+        reasons.abmessungen = `Maße korrekt formatiert in ${fmt(strict)} der gefüllten Zeilen (z.B. "200x90 cm" oder "200 x 90 x 180 cm") – 10 Punkte.`;
       } else if (scores.abmessungen === 5) {
-        reasons.abmessungen = `Maße nur teilweise vorhanden (${fmtPct(rate)}) – 5 Punkte.`;
+        reasons.abmessungen = `Maße erkennbar (${fmt(strict + loose)}), Format aber oft uneinheitlich oder ohne Einheit – 5 Punkte.`;
       } else {
-        reasons.abmessungen = `Abmessungen kaum erkennbar (${fmtPct(rate)}) – 0 Punkte.`;
+        reasons.abmessungen = `Maße kaum erkennbar (korrekt ${fmt(strict)}, irgendwie ${fmt(strict + loose)}) – 0 Punkte.`;
       }
     }
 
-    if (!deliveryCol) {
-      reasons.lieferumfang = "Keine Lieferumfang-Spalte erkannt – 0 Punkte.";
+    if (!deliveryCol && !descCol) {
+      reasons.lieferumfang = "Keine Lieferumfang- oder Beschreibungsspalte erkannt – 0 Punkte.";
     } else {
-      const DELIVERY_RE = /^\s*(\d+)\s*[xX]\s+.+/;
-      let nonEmpty = 0;
-      let formatOk = 0;
+      let evaluated = 0, formatOk = 0, plural = 0;
       for (const r of rows) {
-        const v = safeStr(r[deliveryCol]).trim();
-        if (!v) continue;
-        nonEmpty += 1;
-        if (DELIVERY_RE.test(v)) formatOk += 1;
+        const dv = deliveryCol ? safeStr(r[deliveryCol]).trim() : "";
+        const desc = descCol ? plainText(safeStr(r[descCol])) : "";
+        let m = dv.match(DELIVERY_FORMAT_RE);
+        let snippet = m ? m[0] : "";
+        if (!snippet && desc) {
+          const idx = desc.toLowerCase().indexOf("lieferumfang");
+          if (idx >= 0) {
+            m = desc.slice(idx, idx + 200).match(DELIVERY_FORMAT_RE);
+            if (m) snippet = m[0];
+          }
+        }
+        if (!dv && !snippet) continue;
+        evaluated += 1;
+        if (snippet) {
+          formatOk += 1;
+          if (evaluatePluralIssue(snippet.replace(/^[^\d]*/, ""))) plural += 1;
+        }
       }
-      const filled = rows.length ? nonEmpty / rows.length : 0;
-      const fmt = nonEmpty ? formatOk / nonEmpty : 0;
+      const fmt = (x) => fmtPct(evaluated ? x / evaluated : 0);
+      const pluralHint = plural > 0 ? ` Hinweis: ${plural} Treffer mit Plural ("1x Stühle" statt "1x Stuhl").` : "";
       if (scores.lieferumfang === 20) {
-        reasons.lieferumfang = `Lieferumfang fast immer gepflegt (${fmtPct(filled)}) und meist im Format "Anzahl x Produkt" (${fmtPct(fmt)}) – 20 Punkte.`;
+        reasons.lieferumfang = `Lieferumfang in ${fmt(formatOk)} der gefüllten Zeilen sauber im Format "1x Produkt" (Spalte oder Beschreibung) – 20 Punkte.${pluralHint}`;
       } else if (scores.lieferumfang === 10) {
-        reasons.lieferumfang = `Lieferumfang teils gepflegt (${fmtPct(filled)}) und häufig im gewünschten Format (${fmtPct(fmt)}) – 10 Punkte.`;
+        reasons.lieferumfang = `Lieferumfang teils im Format "Nx Produkt" (${fmt(formatOk)}) – 10 Punkte.${pluralHint}`;
       } else {
-        reasons.lieferumfang = `Lieferumfang selten gepflegt (${fmtPct(filled)}) oder kaum im gewünschten Format (${fmtPct(fmt)}) – 0 Punkte.`;
+        reasons.lieferumfang = `Lieferumfang selten erkennbar (${fmt(formatOk)}) – 0 Punkte.${pluralHint}`;
       }
     }
 
-    if (!materialCol) {
-      reasons.material = "Keine Material-Spalte erkannt – 0 Punkte.";
+    if (!materialCol && !descCol && !titleCol) {
+      reasons.material = "Kein Material-, Titel- oder Beschreibungsfeld erkannt – 0 Punkte.";
     } else {
-      const rate = filledRate(materialCol);
+      let evaluated = 0, valid = 0, polluted = 0;
+      for (const r of rows) {
+        const mat = materialCol ? safeStr(r[materialCol]).trim() : "";
+        const title = titleCol ? safeStr(r[titleCol]) : "";
+        const desc = descCol ? plainText(safeStr(r[descCol])) : "";
+        const candidate = mat || `${title} ${desc}`.trim();
+        if (!candidate) continue;
+        evaluated += 1;
+        const l = candidate.toLowerCase();
+        if (detectMaterial(l)) {
+          valid += 1;
+          if (mat && detectColor(l) && !detectMaterial(mat.toLowerCase())) polluted += 1;
+        }
+      }
+      const fmt = (x) => fmtPct(evaluated ? x / evaluated : 0);
+      const pollutionHint = polluted > 0 ? ` ${polluted} Zeilen enthalten Farben statt Material.` : "";
       if (scores.material === 10) {
-        reasons.material = `Material für ca. ${fmtPct(rate)} der Produkte sinnvoll gepflegt – 10 Punkte.`;
+        reasons.material = `Material in ${fmt(valid)} der Zeilen eindeutig (auch aus Titel/Beschreibung gelesen) – 10 Punkte.${pollutionHint}`;
       } else if (scores.material === 5) {
-        reasons.material = `Material nur teilweise gepflegt (ca. ${fmtPct(rate)}) oder uneinheitlich – 5 Punkte.`;
+        reasons.material = `Material teilweise erkennbar (${fmt(valid)}), aber uneinheitlich – 5 Punkte.${pollutionHint}`;
       } else {
-        reasons.material = `Material kaum oder gar nicht gepflegt (ca. ${fmtPct(rate)}) – 0 Punkte.`;
+        reasons.material = `Material kaum oder unsauber gepflegt (${fmt(valid)}) – 0 Punkte.${pollutionHint}`;
       }
     }
 
-    if (scores.farbe === 10) {
-      reasons.farbe = "Farbwerte meist vorhanden und sauber benannt – 10 Punkte.";
-    } else if (scores.farbe === 5) {
-      reasons.farbe = "Farben nur teilweise vorhanden oder uneinheitlich – 5 Punkte.";
+    if (!colorCol && !descCol && !titleCol) {
+      reasons.farbe = "Kein Farb-, Titel- oder Beschreibungsfeld erkannt – 0 Punkte.";
     } else {
-      if (!colorCol) {
-        reasons.farbe = "Keine Farb-Spalte erkannt – 0 Punkte.";
-      } else if (!rows.length) {
-        reasons.farbe = "Keine sinnvollen Farb-Beispiele im Feed gefunden – 0 Punkte.";
+      let evaluated = 0, valid = 0, polluted = 0;
+      for (const r of rows) {
+        const col = colorCol ? safeStr(r[colorCol]).trim() : "";
+        const title = titleCol ? safeStr(r[titleCol]) : "";
+        const desc = descCol ? plainText(safeStr(r[descCol])) : "";
+        const candidate = col || `${title} ${desc}`.trim();
+        if (!candidate) continue;
+        evaluated += 1;
+        const l = candidate.toLowerCase();
+        if (detectColor(l)) {
+          valid += 1;
+          if (col) {
+            const isBlacklist = /^(?:-|na|n\/a|none|kein(?:e)?|k\.?a\.?)$/i.test(col);
+            if (isBlacklist || col.length > 50) polluted += 1;
+            else if (detectMaterial(l) && !detectColor(col.toLowerCase().replace(MATERIAL_WORDS_RE, ""))) polluted += 1;
+          }
+        }
+      }
+      const fmt = (x) => fmtPct(evaluated ? x / evaluated : 0);
+      const pollutionHint = polluted > 0 ? ` ${polluted} Farb-Werte enthalten Material oder Platzhalter.` : "";
+      if (scores.farbe === 10) {
+        reasons.farbe = `Farbwerte in ${fmt(valid)} der Zeilen eindeutig (ohne Material vermischt) – 10 Punkte.${pollutionHint}`;
+      } else if (scores.farbe === 5) {
+        reasons.farbe = `Farbwerte teilweise gut, teils unsauber (${fmt(valid)}) – 5 Punkte.${pollutionHint}`;
       } else {
-        reasons.farbe = "Kaum verwertbare Farbinformationen im Feed – 0 Punkte.";
+        reasons.farbe = `Kaum verwertbare Farbinformationen (${fmt(valid)}) – 0 Punkte.${pollutionHint}`;
       }
     }
 
     if (scores.shoptexte === 10) {
-      reasons.shoptexte = "Keine oder praktisch keine separaten shopbezogenen Texte im Feed – 10 Punkte.";
+      reasons.shoptexte = "Keine separaten shopbezogenen Texte im Feed – 10 Punkte.";
     } else if (scores.shoptexte === 5) {
-      reasons.shoptexte = "Nur vereinzelt shopbezogene Texte vorhanden – 5 Punkte (manuell vergeben).";
+      reasons.shoptexte = "Shopbezogene Texte sind sehr ähnlich pro Produkt (Template) – können in der Aufbereitung herausgefiltert werden – 5 Punkte.";
     } else {
-      reasons.shoptexte = "Shopbezogene Texte im Feed gefunden (z.B. Marketing-/Shop-Inhalte) – 0 Punkte.";
+      reasons.shoptexte = "Individuelle shopbezogene Marketing-/Werbetexte je Produkt erkannt – 0 Punkte.";
     }
 
     // Bildmatch reasons
@@ -2340,10 +2798,10 @@ function QsPage({ headers, rows }) {
       {
         id: "herstellerfeed",
         label: "Herstellerfeed",
-        status: scores.herstellerfeed === 0 ? "bad" : scores.herstellerfeed < 20 ? "warn" : "ok",
+        status: scores.herstellerfeed === 0 ? "bad" : "ok",
         columnLabel: "",
         editable: true,
-        options: [0, 20],
+        options: [0, 5],
         value: scores.herstellerfeed,
         onChange: (v) => setScores((s) => ({ ...s, herstellerfeed: v })),
         description: scoreReasons.herstellerfeed,
@@ -2428,14 +2886,42 @@ function QsPage({ headers, rows }) {
     ];
 
     const criteria = {
-      herstellerfeed: ["20 P: Brand-Spalte Fill-Rate >= 80%", "0 P: Fill-Rate < 80%"],
-      titel: ["20 P: Fill-Rate >= 90%, Durchschn. Laenge >= 40 Zeichen, Duplikat-Rate <= 8%", "10 P: Fill-Rate >= 80%, Durchschn. Laenge >= 25 Zeichen", "0 P: Schwellenwerte nicht erreicht"],
-      beschreibung: ["10 P: Fill-Rate >= 85%, Durchschn. Laenge >= 80 Zeichen", "5 P: Fill-Rate >= 75%, Durchschn. Laenge >= 40 Zeichen", "0 P: Schwellenwerte nicht erreicht"],
-      abmessungen: ["10 P: Masse-Erkennung (z.B. 90x200 cm) in >= 60% der Zeilen", "5 P: Masse-Erkennung in >= 30% der Zeilen", "0 P: Masse-Erkennung < 30%"],
-      lieferumfang: ["20 P: Fill-Rate >= 70% und Format 'Nx Produkt' in >= 70% der Zeilen", "10 P: Fill-Rate >= 40% und Format-Rate >= 35%", "0 P: Schwellenwerte nicht erreicht"],
-      material: ["10 P: Fill-Rate >= 90%", "5 P: Fill-Rate > 0%", "0 P: Spalte leer oder nicht vorhanden"],
-      farbe: ["10 P: Fill-Rate >= 90%, davon >= 90% gueltige Werte (keine Platzhalter)", "5 P: Fill-Rate >= 60%, davon >= 60% gueltig", "0 P: Schwellenwerte nicht erreicht"],
-      shoptexte: ["10 P: Keine shopbezogenen Texte im Feed (Spalte leer/nicht vorhanden)", "0 P: Shopbezogene Texte vorhanden (wird als negativ gewertet)"],
+      herstellerfeed: ["5 P: Herstellerfeed vorhanden (manuell, ggf. Brand-Spalte Fill-Rate >= 80%)", "0 P: Kein Herstellerfeed"],
+      titel: [
+        "20 P: Marke + Name + Kategorie + Farbe + Material + Maße + Zusatzinfos, gut lesbar (kein Schlagwort-Mix)",
+        "10 P: Marke + Name + Kategorie erkennbar; lesbarer Aufbau",
+        "0 P: Titel zu generisch / nur Schlagwörter / Maße & Attribute fehlen",
+      ],
+      beschreibung: [
+        "10 P: Eigenschaften, Highlights/Bullets und viele relevante Infos (Maße, konkrete Werte) – nicht nur Marken-/Unternehmenstext",
+        "5 P: Mindestanforderung: grundlegende Eigenschaften und Maße sichtbar",
+        "0 P: Beschreibung fehlt, ist zu generisch oder reiner Marken-/Unternehmenstext",
+      ],
+      abmessungen: [
+        "10 P: Korrektes Format ('200x90 cm' oder '200 x 90 x 180 cm', mit Maßeinheit) in ≥ 60% der gefüllten Zeilen – Quelle: Spalte, Titel oder Beschreibung",
+        "5 P: Maße erkennbar, aber Format/Maßeinheit oft uneinheitlich",
+        "0 P: Maße kaum erkennbar",
+      ],
+      lieferumfang: [
+        "20 P: '1x Produkt' (Einzahl) in ≥ 70% der gefüllten Zeilen – Spalte oder Beschreibung",
+        "10 P: 'Nx Produkt'-Format teils vorhanden, vereinzelt Plural",
+        "0 P: Lieferumfang selten oder unklar formatiert",
+      ],
+      material: [
+        "10 P: Eindeutige Materialangabe (Spalte, Titel oder Beschreibung) – ohne Farbe vermischt, klare Grammatik",
+        "5 P: Material teilweise vorhanden / uneinheitlich",
+        "0 P: Material kaum erkennbar oder nur Farben im Materialfeld",
+      ],
+      farbe: [
+        "10 P: Eindeutige Farbangabe ohne Material vermischt; klare Begriffe",
+        "5 P: Farbe teilweise vorhanden / vereinzelt mit Material kombiniert",
+        "0 P: Farben fehlen oder sind mit Material vermischt",
+      ],
+      shoptexte: [
+        "10 P: Keine separaten shopbezogenen Texte im Feed",
+        "5 P: Shopbezogener Text vorhanden, aber stark templated (gleicher Aufbau pro Produkt → kann herausgefiltert werden)",
+        "0 P: Individuelle Werbe-/Shoptexte je Produkt vorhanden",
+      ],
     };
 
     return base.map((item) => ({
@@ -2573,6 +3059,160 @@ function QsPage({ headers, rows }) {
   const [materialExampleLimit, setMaterialExampleLimit] = useState(5);
   const [colorExampleLimit, setColorExampleLimit] = useState(5);
   const [shopExampleLimit, setShopExampleLimit] = useState(3);
+  const [qsTableLimit, setQsTableLimit] = useState(50);
+
+  // ─── Encoding / mojibake check ─────────────────────────────────────────────
+  const encodingIssues = useMemo(() => {
+    const cols = [titleCol, descCol, materialCol, colorCol, deliveryCol, shopCol, brandCol, dimCol].filter(Boolean);
+    if (!cols.length || !rows.length) return { count: 0, samples: [], rowIndices: [] };
+    const samples = [];
+    const rowIndices = [];
+    for (let i = 0; i < rows.length; i += 1) {
+      const r = rows[i];
+      let hit = "";
+      let col = "";
+      for (const c of cols) {
+        const v = safeStr(r[c]);
+        if (v && containsMojibake(v)) { hit = v; col = c; break; }
+      }
+      if (hit) {
+        rowIndices.push(i);
+        if (samples.length < 5) {
+          const id = eanCol && safeStr(r[eanCol]).trim()
+            ? safeStr(r[eanCol]).trim()
+            : `Zeile ${i + 1}`;
+          samples.push({ id, col, snippet: hit.slice(0, 120) });
+        }
+      }
+    }
+    return { count: rowIndices.length, samples, rowIndices };
+  }, [rows, titleCol, descCol, materialCol, colorCol, deliveryCol, shopCol, brandCol, dimCol, eanCol]);
+
+  // ─── QS Excel table ────────────────────────────────────────────────────────
+  // Per-row checks intended to be copy/pasted into the QS team's Excel sheet.
+  const qsTableRows = useMemo(() => {
+    if (!rows.length) return [];
+
+    // EAN duplicate map – computed once.
+    const eanCounts = {};
+    if (eanCol) {
+      for (const r of rows) {
+        const v = safeStr(r[eanCol]).trim();
+        if (v) eanCounts[v] = (eanCounts[v] || 0) + 1;
+      }
+    }
+
+    return rows.map((r, idx) => {
+      const ean = eanCol ? safeStr(r[eanCol]).trim() : "";
+      const coreId = coreIdCol ? safeStr(r[coreIdCol]).trim() : "";
+      const sellerKey = sellerOfferCol ? safeStr(r[sellerOfferCol]).trim() : "";
+      const coreStatus = coreStatusCol ? safeStr(r[coreStatusCol]).trim() : "";
+      const title = titleCol ? safeStr(r[titleCol]) : "";
+      const descRaw = descCol ? safeStr(r[descCol]) : "";
+      const descPlain = plainText(descRaw);
+      const matVal = materialCol ? safeStr(r[materialCol]).trim() : "";
+      const colVal = colorCol ? safeStr(r[colorCol]).trim() : "";
+      const delivVal = deliveryCol ? safeStr(r[deliveryCol]).trim() : "";
+      const dimVal = dimCol ? safeStr(r[dimCol]).trim() : "";
+      const brandVal = brandCol ? safeStr(r[brandCol]).trim() : "";
+      const shopVal = shopCol ? safeStr(r[shopCol]).trim() : "";
+
+      let imgCount = 0;
+      for (const c of imageColumns) {
+        imgCount += extractImageUrlsFromCell(r?.[c]).length;
+      }
+
+      const blob = `${title} ${descPlain}`;
+      const dimBlob = `${dimVal} ${title} ${descPlain}`;
+      const allText = `${title} ${descRaw} ${matVal} ${colVal} ${delivVal} ${brandVal} ${dimVal} ${shopVal}`;
+
+      const checks = {
+        hasEan: !!ean && /^[0-9]{8,14}$/.test(ean.replace(/\s+/g, "")),
+        readableTitle: looksLikeReadableTitle(title),
+        descSentence: descPlain.length >= 40 && /[.!?]/.test(descPlain),
+        noShopText: !shopVal,
+        noCrossSell: !isCrossSellingText(descRaw),
+        descHtml: hasHtml(descRaw),
+        hasDim: !!dimVal || hasStrictDimensions(dimBlob) || hasAnyDimensions(dimBlob),
+        hasMaterial: !!matVal || !!detectMaterial(blob),
+        hasColor: !!colVal || !!detectColor(blob),
+        hasDelivery: !!delivVal || /lieferumfang/i.test(descPlain),
+        enoughImages: imgCount >= 2,
+        notDuplicate: ean ? eanCounts[ean] === 1 : true,
+        notParent: !PARENT_FLAG_RE.test(`${coreStatus} ${sellerKey} ${title} ${descPlain} ${brandVal}`),
+        goodEncoding: !containsMojibake(allText),
+        notBware: !isBWareText(`${title} ${descPlain}`),
+      };
+
+      // Per-row APA pass: must satisfy all the hard QS checks.
+      const apaPass =
+        checks.hasEan &&
+        checks.readableTitle &&
+        checks.descSentence &&
+        checks.noCrossSell &&
+        checks.notDuplicate &&
+        checks.notParent &&
+        checks.goodEncoding &&
+        checks.notBware &&
+        checks.enoughImages &&
+        (checks.hasDim || checks.hasMaterial || checks.hasColor);
+
+      return {
+        idx,
+        coreId,
+        sellerKey,
+        coreStatus,
+        ean,
+        title,
+        imgCount,
+        checks,
+        apaPass,
+      };
+    });
+  }, [rows, eanCol, coreIdCol, sellerOfferCol, coreStatusCol, titleCol, descCol, materialCol, colorCol, deliveryCol, dimCol, brandCol, shopCol, imageColumns]);
+
+  const qsTableColumns = useMemo(() => {
+    const yn = (b) => (b ? "Ja" : "Nein");
+    const ny = (b) => (b ? "Nein" : "Ja"); // for negative checks ("Encoding falsch", "B-Ware")
+    return [
+      ["Core ID", (r) => r.coreId],
+      ["Seller Key", (r) => r.sellerKey],
+      ["Core Status", (r) => r.coreStatus],
+      ["APA-Freigabe", (r) => (r.apaPass ? "Ja" : "Prüfen")],
+      ["Attribute Score", () => String(attributeScore)],
+      ["Quality Score", () => String(attributeScore + imageScore)],
+      ["jedes Angebot hat eine GTIN/EAN", (r) => yn(r.checks.hasEan)],
+      ["Aussagekräftige Titel", (r) => yn(r.checks.readableTitle)],
+      ["Beschreibung mind. 1 Satz", (r) => yn(r.checks.descSentence)],
+      ["keine shopbezogenen Texte", (r) => yn(r.checks.noShopText)],
+      ["kein Cross-Selling in Beschreibung", (r) => yn(r.checks.noCrossSell)],
+      ["Beschreibung in HTML", (r) => yn(r.checks.descHtml)],
+      ["Maße in Titel oder Beschreibung / als Attribut", (r) => yn(r.checks.hasDim)],
+      ["Material in Beschreibung / als Attribut", (r) => yn(r.checks.hasMaterial)],
+      ["Farbe in Beschreibung / als Attribut", (r) => yn(r.checks.hasColor)],
+      ["Lieferumfang in Beschreibung / als Attribut", (r) => yn(r.checks.hasDelivery)],
+      ["1. Bild und Offer passen zusammen", () => "manuell"],
+      ["Kein Mangel an Produktbildern", (r) => yn(r.checks.enoughImages)],
+      ["Doppelte Offer Prüfung", (r) => yn(r.checks.notDuplicate)],
+      ["keine Stamm- / Parentartikel", (r) => yn(r.checks.notParent)],
+      ["Encoding falsch / Feed zerschossen", (r) => ny(r.checks.goodEncoding)],
+      ["B-Ware", (r) => ny(r.checks.notBware)],
+      ["TO DO", () => ""],
+      ["Mail an Partner", () => ""],
+      ["Datum", () => ""],
+      ["Name", () => ""],
+      ["Kommentar", () => ""],
+    ];
+  }, [attributeScore, imageScore]);
+
+  const copyQsTableTsv = () => {
+    if (!qsTableRows.length) return;
+    const head = qsTableColumns.map((c) => c[0]).join("\t");
+    const body = qsTableRows
+      .map((r) => qsTableColumns.map(([, fn]) => String(fn(r) ?? "").replace(/\t/g, " ").replace(/\r?\n/g, " ")).join("\t"))
+      .join("\n");
+    if (navigator.clipboard) navigator.clipboard.writeText(`${head}\n${body}`).catch(() => {});
+  };
 
   if (!headers.length) {
     return (
@@ -2656,8 +3296,8 @@ function QsPage({ headers, rows }) {
                   <div style={{ flexShrink: 0 }}>
                     {item.id === "herstellerfeed" ? (
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button type="button" onClick={() => item.onChange(20)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: item.value === 20 ? "1px solid #16A34A" : "1px solid #D1D5DB", background: item.value === 20 ? "#DCFCE7" : "#FFF", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        <button type="button" onClick={() => item.onChange(5)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: item.value === 5 ? "1px solid #16A34A" : "1px solid #D1D5DB", background: item.value === 5 ? "#DCFCE7" : "#FFF", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                           Ja
                         </button>
                         <button type="button" onClick={() => item.onChange(0)}
@@ -2861,6 +3501,103 @@ function QsPage({ headers, rows }) {
           </div>
         ) : null}
       </div>
+
+      {/* ─── Encoding / Mojibake warning ──────────────────────────────────── */}
+      {encodingIssues.count > 0 && (
+        <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 12, border: "1px solid #FCD34D", background: "#FFFBEB" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#92400E" }}>
+                ⚠️ Encoding-Problem (Umlaute kaputt) in {encodingIssues.count} von {rows.length} Zeilen
+              </div>
+              <div style={{ fontSize: 12, color: "#92400E", marginTop: 2 }}>
+                Sieht nach falschem Encoding aus (UTF-8 als Windows-1252 gelesen). Bitte den Feed mit korrektem Encoding neu erzeugen.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!navigator.clipboard) return;
+                const list = encodingIssues.samples.map((s) => `${s.id} (${s.col}): ${s.snippet}`).join("\n");
+                navigator.clipboard.writeText(list).catch(() => {});
+              }}
+              style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #D97706", background: "#FFF", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0, color: "#92400E" }}
+            >Beispiele kopieren</button>
+          </div>
+          {encodingIssues.samples.length > 0 && (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+              {encodingIssues.samples.map((s, i) => (
+                <div key={`${s.id}_${i}`} style={{ fontSize: 11, color: "#78350F", lineHeight: "16px" }}>
+                  <span style={{ fontWeight: 700 }}>{s.id}</span> <span style={{ color: "#A16207" }}>[{s.col}]</span>: {s.snippet}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── QS Excel Tabelle ─────────────────────────────────────────────── */}
+      {qsTableRows.length > 0 && (
+        <div style={{ marginTop: 12, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>QS Excel Tabelle</div>
+              <SmallText>
+                Pro Produktzeile berechnete Prüfwerte zum direkten Übernehmen ins QS-Sheet. {qsTableRows.length} Zeilen –
+                Anzeige der ersten {Math.min(qsTableLimit, qsTableRows.length)}. „Tabelle kopieren&ldquo; exportiert alle Zeilen
+                als TSV (Excel-kompatibel).
+              </SmallText>
+            </div>
+            <button
+              type="button"
+              onClick={copyQsTableTsv}
+              style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid #2563EB", background: "#EFF6FF", color: "#1D4ED8", cursor: "pointer", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}
+            >Tabelle kopieren (TSV)</button>
+          </div>
+
+          <div style={{ marginTop: 10, overflowX: "auto", border: "1px solid #E5E7EB", borderRadius: 8 }}>
+            <table style={{ borderCollapse: "collapse", fontSize: 11, color: "#111827", whiteSpace: "nowrap", width: "max-content" }}>
+              <thead>
+                <tr style={{ background: "#F9FAFB" }}>
+                  {qsTableColumns.map(([label]) => (
+                    <th key={label} style={{ padding: "6px 8px", borderBottom: "1px solid #E5E7EB", borderRight: "1px solid #F3F4F6", fontWeight: 700, color: "#374151", textAlign: "left", position: "sticky", top: 0, background: "#F9FAFB" }}>
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {qsTableRows.slice(0, qsTableLimit).map((row) => (
+                  <tr key={row.idx} style={{ background: row.idx % 2 ? "#FFFFFF" : "#FAFBFC" }}>
+                    {qsTableColumns.map(([label, fn]) => {
+                      const val = String(fn(row) ?? "");
+                      const isNo = val === "Nein" && !/Encoding|B-Ware/i.test(label);
+                      const isBad = (val === "Ja" && /Encoding|B-Ware/i.test(label)) || val === "Prüfen";
+                      const color = isBad ? "#B91C1C" : isNo ? "#B45309" : val === "Ja" ? "#047857" : "#111827";
+                      return (
+                        <td key={label} style={{ padding: "5px 8px", borderBottom: "1px solid #F3F4F6", borderRight: "1px solid #F3F4F6", color, fontWeight: (isBad || isNo) ? 700 : 400, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {val}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {qsTableLimit < qsTableRows.length && (
+            <button
+              type="button"
+              onClick={() => setQsTableLimit((n) => Math.min(qsTableRows.length, n + 50))}
+              style={{ marginTop: 10, padding: "8px 14px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#FFF", cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+            >
+              Weitere 50 Zeilen anzeigen
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{ height: 60 }} />
     </div>
   );
