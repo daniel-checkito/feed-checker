@@ -117,7 +117,7 @@ function detectFieldByContent(unmappedFields, headers, rows, sampleSize = 10) {
       const nonEmpty = values.filter((v) => String(v ?? "").trim());
       if (nonEmpty.length < 2) return false;
       return (
-        nonEmpty.filter((v) => /\d+\s*(werktage?|arbeitstage?|wochen?|wk\.?|wt\.?)/i.test(String(v ?? ""))).length /
+        nonEmpty.filter((v) => /\d+\s*(tage?|werktage?|arbeitstage?|wochen?|wk\.?|wt\.?|days?)/i.test(String(v ?? ""))).length /
           nonEmpty.length >
         0.5
       );
@@ -239,12 +239,13 @@ function extractImageUrlsFromCell(cellValue) {
   const raw = String(cellValue ?? "").trim();
   if (!raw) return [];
 
-  // Split on separators, but don't split commas inside URLs (http/https)
-  // First try semicolon/pipe/newline (safe separators), fall back to comma only if no URLs with commas
+  // If the cell contains http(s) URLs, extract each URL directly. URLs can't
+  // contain whitespace or common separators like , ; | < > " ', so we grab
+  // each full URL via regex. This correctly handles comma-separated lists of
+  // URLs (e.g., "https://a/1.jpg, https://a/2.jpg, https://a/3.jpg").
   let tokens;
-  if (/https?:\/\//.test(raw) && raw.includes(",")) {
-    // Has URLs — split on semicolon, pipe, newline only (not comma, which may be in URLs)
-    tokens = raw.split(/[;\n\r|]+/).map((t) => t.trim()).filter(Boolean);
+  if (/https?:\/\//i.test(raw)) {
+    tokens = (raw.match(/https?:\/\/[^\s,;|<>"']+/gi) || []).map((t) => t.trim()).filter(Boolean);
   } else {
     tokens = raw.split(/[;\n\r|,]+/).map((t) => t.trim()).filter(Boolean);
   }
@@ -528,6 +529,7 @@ function ResizableTable({
   getRowTargetKey,
   targetRowKey,
   highlightedRowKey,
+  highlightedColumnKey,
   onTargetHandled,
 }) {
   const isNameColumn = (key) => {
@@ -683,6 +685,7 @@ function ResizableTable({
             </th>
             {columns.map((c) => {
               const w = widths[c.key] ?? 90;
+              const isHighlightedCol = highlightedColumnKey && c.key === highlightedColumnKey;
               return (
                 <th
                   key={c.key}
@@ -693,10 +696,11 @@ function ResizableTable({
                     zIndex: 2,
                     textAlign: "left",
                     padding: "6px 8px",
-                    border: "1px solid #E5E7EB",
-                    color: "#111827",
+                    border: isHighlightedCol ? "1px solid #F59E0B" : "1px solid #E5E7EB",
+                    color: isHighlightedCol ? "#92400E" : "#111827",
+                    fontWeight: isHighlightedCol ? 700 : undefined,
                     whiteSpace: "normal",
-                    background: "#F9FAFB",
+                    background: isHighlightedCol ? "#FEF3C7" : "#F9FAFB",
                     width: w,
                     maxWidth: w,
                     minWidth: w,
@@ -821,13 +825,17 @@ function ResizableTable({
                 const rawValue = String(r?.[c.key] ?? "");
                 const displayValue = normalizePreviewText(rawValue);
                 const tooltip = isCritical && rowIssueText ? rowIssueText : "";
+                const isHighlightedCol = highlightedColumnKey && c.key === highlightedColumnKey;
+                const cellBg = isCritical
+                  ? (isHighlightedCol ? "#FED7AA" : "#FEE2E2")
+                  : (isHighlightedCol ? "#FEF3C7" : zebra);
                 return (
                   <td
                     key={c.key}
                     title={tooltip}
                     style={{
                       padding: "0 8px",
-                      border: "1px solid #E5E7EB",
+                      border: isHighlightedCol ? "1px solid #F59E0B" : "1px solid #E5E7EB",
                       color: "#111827",
                       whiteSpace: "normal",
                       width: w,
@@ -838,7 +846,7 @@ function ResizableTable({
                       overflow: "hidden",
                       lineHeight: "14px",
                       wordBreak: "break-word",
-                      background: isCritical ? "#FEE2E2" : zebra,
+                      background: cellBg,
                       cursor: longText && rawValue ? "pointer" : "default",
                     }}
                     onClick={() => {
@@ -4762,8 +4770,8 @@ export default function App() {
       category_path: ["category_path", "category", "kategorie", "kategoriepfad"],
       description: ["description", "beschreibung", "desc"],
       stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit", "verfuegbarkeit"],
-      shipping_mode: ["shipping_mode", "shipping", "versandart", "shipping type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
-      delivery_time: ["delivery_time", "lieferzeit", "lead_time", "lead time"],
+      shipping_mode: ["shipping_mode", "versandart", "shipping_type", "shipping type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
+      delivery_time: ["delivery_time", "lieferzeit", "lead_time", "lead time", "shippingtime", "shipping_time", "shipping time"],
       price: ["price", "preis", "amount"],
       brand: ["brand", "marke"],
       material: ["material", "materials"],
@@ -4777,7 +4785,7 @@ export default function App() {
         "size_diameter", "diameter", "durchmesser",
       ],
       washable_cover: ["washable_cover", "waschbarer bezug", "waschbarer_bezug"],
-      mounting_side: ["mounting_side", "montageseite", "einbau", "links_rechts"],
+      mounting_side: ["mounting_side", "montageseite", "montage_seite", "montageseitig"],
       hs_code: ["hs_code", "hs-code", "hs code", "zolltarifnummer", "warennummer"],
       manufacturer_name: ["manufacturer_name", "hersteller", "herstellername", "manufacturer"],
       manufacturer_country: ["manufacturer_country", "hersteller_land", "herstellerland", "country_of_origin", "ursprungsland"],
@@ -5090,9 +5098,23 @@ export default function App() {
       try { deliveryRe = new RegExp(String(rules?.delivery_includes_pattern ?? DEFAULT_RULES.delivery_includes_pattern), "i"); } catch (e) { deliveryRe = null; }
       deliveryAllowList = (rules?.delivery_includes_allowlist || DEFAULT_RULES.delivery_includes_allowlist || []).map((x) => String(x).trim());
     }
-    const dtReUnit = /^\s*\d+(?:\s*-\s*\d+)?\s*(werktage?|arbeitstage?|wochen?|woche|wk\.?|wt\.?)\s*$/i;
+    const dtReUnit = /^\s*\d+(?:\s*-\s*\d+)?\s*(tage?|werktage?|arbeitstage?|wochen?|woche|wk\.?|wt\.?|d|days?)\s*$/i;
     const dtReNum = /^\s*\d+(?:\s*-\s*\d+)?\s*$/;
     const shippingAllowed = mapping.shipping_mode ? (rules?.allowed_shipping_mode || DEFAULT_RULES.allowed_shipping_mode).map((x) => String(x).toLowerCase()) : [];
+    const shippingModeAliases = { package: "paket", pakete: "paket", parcel: "paket", pkg: "paket", karton: "paket", shipment: "spedition", spedition_ware: "spedition", speditionsware: "spedition", freight: "spedition", forwarding: "spedition" };
+    // Safety: only validate mounting_side if the mapped column actually contains
+    // mounting-side-like values (links/rechts/beidseitig). Avoids false positives
+    // from auto-detected columns that aren't really mounting side.
+    const mountingRe = /^(links|rechts|beidseitig|beide|left|right|both)$/i;
+    let validateMountingSide = false;
+    if (mapping.mounting_side) {
+      let mountingHits = 0;
+      for (let i = 0; i < Math.min(rows.length, 50); i++) {
+        const v = String(rows[i]?.[mapping.mounting_side] ?? "").trim();
+        if (v && mountingRe.test(v)) { mountingHits++; if (mountingHits >= 2) break; }
+      }
+      validateMountingSide = mountingHits >= 2;
+    }
     const matAllowedBase = mapping.material ? (rules?.allowed_material || DEFAULT_RULES.allowed_material).map((x) => String(x).toLowerCase().trim()) : [];
     const matBlacklist = ["keine angabe"];
     const matAllowed = matAllowedBase.filter((t) => t && !matBlacklist.includes(t));
@@ -5139,8 +5161,8 @@ export default function App() {
       }
       // Washable cover
       if (mapping.washable_cover) { const v = String(r[mapping.washable_cover] ?? "").trim().toLowerCase(); if (v && v !== "ja" && v !== "nein") invalidWashableCover.push({ ean, value: v }); }
-      // Mounting side
-      if (mapping.mounting_side) { const v = String(r[mapping.mounting_side] ?? "").trim().toLowerCase(); if (v && v !== "links" && v !== "rechts" && v !== "beidseitig") invalidMountingSide.push({ ean, value: v }); }
+      // Mounting side – only when the mapped column truly looks like mounting-side data
+      if (validateMountingSide) { const v = String(r[mapping.mounting_side] ?? "").trim().toLowerCase(); if (v && v !== "links" && v !== "rechts" && v !== "beidseitig") invalidMountingSide.push({ ean, value: v }); }
       // Delivery time
       if (mapping.delivery_time) { const v = String(r[mapping.delivery_time] ?? "").trim(); if (!v || (!dtReUnit.test(v) && !dtReNum.test(v))) invalidDeliveryTime.push({ ean, value: v }); }
       // Stock amount – must be a non-negative integer
@@ -5150,8 +5172,8 @@ export default function App() {
       if (imgCount === 0) imageZero.push(ean);
       if (imgCount === 1) imageOne.push(ean);
       if (imgCount < imageMin) imageLow.push(ean);
-      // Shipping
-      if (mapping.shipping_mode) { const v = String(r[mapping.shipping_mode] ?? "").trim(); if (!v) missingShipping.push(ean); else if (!shippingAllowed.includes(v.toLowerCase())) invalidShipping.push({ ean, value: v }); }
+      // Shipping (accept aliases like "Package" → "Paket")
+      if (mapping.shipping_mode) { const v = String(r[mapping.shipping_mode] ?? "").trim(); if (!v) missingShipping.push(ean); else { const vl = v.toLowerCase(); const canon = shippingModeAliases[vl] || vl; if (!shippingAllowed.includes(canon)) invalidShipping.push({ ean, value: v }); } }
       // Material
       if (matAllowed.length && mapping.material) { const v = String(r[mapping.material] ?? "").trim(); if (v) { const vl = v.toLowerCase(); if (!matAllowed.some((t) => vl.includes(t)) || matBlacklist.some((b) => vl.includes(b))) invalidMaterial.push({ ean, value: v }); } }
       // Color
@@ -5400,6 +5422,37 @@ export default function App() {
       addTip("Bitte prüfen Sie die Spaltennamen oder liefern Sie die fehlenden Pflichtfelder nach.");
     }
 
+    // Category path missing – critical, because without it we cannot filter out
+    // irrelevant products (e.g., goods that don't fit the CHECK24 furniture range).
+    if (!mapping.category_path) {
+      addIssue("Kategoriepfad fehlt. Ohne Kategoriepfad können nicht zum Sortiment passende Artikel nicht herausgefiltert werden.");
+      addTip("Bitte liefern Sie eine Spalte mit dem Kategoriepfad (z. B. \"Kategorie\", \"category\" oder \"category_path\"), idealerweise mit Ebenen, die mit \" > \" getrennt sind.");
+    }
+
+    // Encoding check: detect mojibake (typical Windows-1252 → UTF-8 double-encoding
+    // artifacts like "Ã¤" instead of "ä") and the Unicode replacement character.
+    (() => {
+      const textCols = ["name", "description", "color", "material", "delivery_includes", "category_path"]
+        .map((f) => mapping[f])
+        .filter(Boolean);
+      if (!textCols.length || !rows.length) return;
+      const mojibakeRe = /(Ã[¤¶¼Ÿ©¨]|â€œ|â€�|â€“|â€”|Â |\uFFFD)/;
+      const badRows = new Set();
+      for (let i = 0; i < rows.length; i++) {
+        for (const c of textCols) {
+          if (mojibakeRe.test(String(rows[i]?.[c] ?? ""))) { badRows.add(i); break; }
+        }
+      }
+      if (badRows.size > 0) {
+        badRows.forEach((idx) => criticalRowIdx.add(idx));
+        addIssue(
+          `Zeichencodierung fehlerhaft in ${badRows.size} Artikeln (z. B. "Ã¤" statt "ä").`,
+          { rowIndices: Array.from(badRows).sort((a, b) => a - b), rowIndex: Math.min(...badRows) }
+        );
+        addTip("Die Datei bitte als UTF-8 speichern und erneut hochladen. Aktuell sieht es so aus, als wäre Windows-1252-Text fälschlich als UTF-8 gelesen (oder umgekehrt) worden.");
+      }
+    })();
+
     // Language check: flag feeds whose content is in English rather than German.
     // Scan name/description/color/material/delivery_includes text across a sample of rows
     // and compare German vs English function-word hits. A clear English majority
@@ -5465,10 +5518,18 @@ export default function App() {
     }
 
     if (titleColumn && duplicates.titleDup.size > 0) {
-      duplicates.titleDup.forEach((idx) => criticalRowIdx.add(idx));
       const titleDupIndices = Array.from(duplicates.titleDup).sort((a, b) => a - b);
       const titleDupEans = titleDupIndices.map((idx) => eanColumn ? String(rows[idx]?.[eanColumn] ?? "").trim() : "").filter(Boolean);
-      addIssue(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`, { rowIndices: titleDupIndices, rowIndex: titleDupIndices[0], eans: [...new Set(titleDupEans)], ean: titleDupEans[0] || null });
+      const titleDupTarget = { rowIndices: titleDupIndices, rowIndex: titleDupIndices[0], eans: [...new Set(titleDupEans)], ean: titleDupEans[0] || null, column: titleColumn };
+      if (mapping.category_path) {
+        // With a category path we can filter out irrelevant products anyway,
+        // so duplicate titles are just a warning.
+        duplicates.titleDup.forEach((idx) => warningRowIdx.add(idx));
+        addTip(`Doppelte Produkttitel in ${duplicates.titleDup.size} Zeilen. Bei vorhandenem Kategoriepfad werden unpassende Produkte ohnehin herausgefiltert.`, titleDupTarget);
+      } else {
+        duplicates.titleDup.forEach((idx) => criticalRowIdx.add(idx));
+        addIssue(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`, titleDupTarget);
+      }
     }
 
     if (sellerColumn && duplicates.sellerDup.size > 0) {
@@ -5640,6 +5701,41 @@ export default function App() {
         );
       }
     }
+    // Grammar heuristic on German descriptions – flags rows with likely
+    // grammatical/typographic issues (repeated words, missing space after
+    // punctuation, lowercase sentence starts, doubled punctuation).
+    if (mapping.description) {
+      const badRows = new Set();
+      const examples = [];
+      const repeatedWordRe = /\b(\w{2,})\s+\1\b/i;
+      const missingSpaceRe = /[a-zäöüß][.!?][A-ZÄÖÜ]/;
+      const doubledPunctRe = /[.!?]{3,}|,{2,}/;
+      const lowercaseSentenceRe = /[.!?]\s+[a-zäöüß]/;
+      const noSpaceCommaRe = /[a-zäöüß],[a-zäöüß]/i;
+      for (let i = 0; i < rows.length; i++) {
+        const v = String(rows[i]?.[mapping.description] ?? "");
+        if (v.length < 40) continue;
+        let hits = 0;
+        if (repeatedWordRe.test(v)) hits++;
+        if (missingSpaceRe.test(v)) hits++;
+        if (doubledPunctRe.test(v)) hits++;
+        if (lowercaseSentenceRe.test(v)) hits++;
+        if (noSpaceCommaRe.test(v)) hits++;
+        if (hits >= 2) {
+          badRows.add(i);
+          if (examples.length < 3) examples.push(v.slice(0, 80));
+        }
+      }
+      if (badRows.size > 0 && badRows.size / Math.max(1, rows.length) > 0.05) {
+        badRows.forEach((idx) => warningRowIdx.add(idx));
+        addTip(
+          `Mögliche grammatikalische oder typografische Auffälligkeiten in ${badRows.size} Beschreibungen (z. B. doppelte Wörter, fehlendes Leerzeichen nach Satzzeichen, kleingeschriebene Satzanfänge). Bitte Beschreibungen prüfen.`,
+          { rowIndices: Array.from(badRows).sort((a, b) => a - b), rowIndex: Math.min(...badRows), column: mapping.description }
+        );
+        score -= 3;
+      }
+    }
+
     if (mapping.description && optionalFindings.descriptionIssues.externalLinks.length > 0) {
       addRowsByEans(optionalFindings.descriptionIssues.externalLinks, criticalRowIdx);
       addRowsByEans(optionalFindings.descriptionIssues.externalLinks, warningRowIdx);
@@ -5655,6 +5751,56 @@ export default function App() {
       addTip(
         "Bitte Maße (z. B. Höhe/Breite/Tiefe) je Produkt klar angeben – idealerweise in separaten Spalten oder im Titel/Beschreibung."
       );
+    }
+
+    // Category-based recommended attributes and irrelevant-category hints.
+    if (mapping.category_path && rows.length) {
+      const catCol = mapping.category_path;
+      const catCounts = new Map();
+      for (let i = 0; i < rows.length; i++) {
+        const v = String(rows[i]?.[catCol] ?? "").trim();
+        if (!v) continue;
+        catCounts.set(v, (catCounts.get(v) || 0) + 1);
+      }
+      const allCatText = Array.from(catCounts.keys()).join(" | ").toLowerCase();
+
+      // #18 – recommended attributes per furniture sub-category
+      const categoryRecs = [
+        { match: /matratz/i, label: "Matratzen", attrs: ["Härtegrad", "Liegefläche", "Matratzenhöhe"] },
+        { match: /\bbett\b|betten|boxspring/i, label: "Betten", attrs: ["Liegefläche", "Lattenrost inklusive", "Matratze inklusive"] },
+        { match: /sofa|couch|ecksofa|wohnlandschaft/i, label: "Sofas", attrs: ["Sitzhöhe", "Sitztiefe", "Bezug abnehmbar"] },
+        { match: /lampe|leuchte|licht|beleuchtung/i, label: "Leuchten", attrs: ["Lichtfarbe", "Leuchtmittel inklusive", "Energieeffizienzklasse"] },
+        { match: /stuhl|stühle|sessel|hocker/i, label: "Stühle", attrs: ["Sitzhöhe", "Belastbarkeit", "Stil"] },
+        { match: /schrank|kleiderschrank|regal/i, label: "Schränke/Regale", attrs: ["Anzahl Türen", "Anzahl Fächer", "Belastbarkeit pro Fach"] },
+        { match: /tisch|esstisch|couchtisch|schreibtisch/i, label: "Tische", attrs: ["Belastbarkeit", "Ausziehbar", "Tischhöhe"] },
+      ];
+      for (const rec of categoryRecs) {
+        if (rec.match.test(allCatText)) {
+          const missingAttrs = rec.attrs.filter((attr) => {
+            const k = attr.toLowerCase();
+            return !headers.some((h) => String(h || "").toLowerCase().includes(k.split(" ")[0]));
+          });
+          if (missingAttrs.length) {
+            addTip(
+              `Da Sie ${rec.label} anbieten und Kunden häufig ${missingAttrs.join(", ")} prüfen, empfehlen wir, diese Attribute zu ergänzen.`
+            );
+          }
+        }
+      }
+
+      // #21 – suggest categories that likely don't fit the CHECK24 furniture range
+      const nonFurnitureRe = /(auto|kfz|motorrad|reifen|fahrrad|e-bike|spielzeug|baby(?!bett)|lebensmittel|getränk|elektronik|smartphone|handy|laptop|tablet|kamera|fernseher|kleidung|textil|mode|schuhe|schmuck|uhren|buch|dvd|cd|software|werkzeug|baumarkt|garten(?:möbel)?s|pflanze|dünger|samen|haustier|tierfutter|kosmetik|parfum|drogerie|medikament|apotheke|sport(?:geräte|bekleidung)?|fitness|outdoor(?:bekleidung)?|camping|angeln|jagd)/i;
+      const irrelevant = [];
+      for (const [cat, count] of catCounts.entries()) {
+        if (nonFurnitureRe.test(cat)) irrelevant.push({ cat, count });
+      }
+      irrelevant.sort((a, b) => b.count - a.count);
+      if (irrelevant.length) {
+        const top = irrelevant.slice(0, 5).map((x) => `"${x.cat}" (${x.count})`).join(", ");
+        addTip(
+          `Folgende Kategorien im Feed passen vermutlich nicht zum CHECK24-Möbelsortiment und sollten im Kategoriefilter angegeben werden: ${top}${irrelevant.length > 5 ? ` und ${irrelevant.length - 5} weitere` : ""}.`
+        );
+      }
     }
 
     score = Math.max(0, score);
@@ -5885,6 +6031,7 @@ export default function App() {
   const previewTableRef = useRef(null);
   const [pendingJumpRowKey, setPendingJumpRowKey] = useState(null);
   const [highlightedJumpRowKey, setHighlightedJumpRowKey] = useState(null);
+  const [highlightedColumnKey, setHighlightedColumnKey] = useState(null);
 
   const filteredPreviewRows = useMemo(() => {
     const hasSearch = eanSearchTerms.length > 0;
@@ -5907,6 +6054,12 @@ export default function App() {
     const t = window.setTimeout(() => setHighlightedJumpRowKey(null), 2500);
     return () => window.clearTimeout(t);
   }, [highlightedJumpRowKey]);
+
+  useEffect(() => {
+    if (highlightedColumnKey == null) return;
+    const t = window.setTimeout(() => setHighlightedColumnKey(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [highlightedColumnKey]);
 
   const jumpToIssueTarget = (target) => {
     if (!target) return;
@@ -5937,10 +6090,13 @@ export default function App() {
       const cols = [eanColumn, titleColumn, target.column].filter(Boolean);
       const unique = [...new Set(cols)];
       setVisibleColumns(unique);
+      setHighlightedColumnKey(target.column);
       setTimeout(() => {
         const th = previewTableRef.current?.querySelector(`th[data-col="${CSS.escape(target.column)}"]`);
         if (th) th.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
       }, 300);
+    } else {
+      setHighlightedColumnKey(null);
     }
   };
 
@@ -6176,6 +6332,7 @@ export default function App() {
         getRowTargetKey={(r) => r.__rowIndex}
         targetRowKey={pendingJumpRowKey}
         highlightedRowKey={highlightedJumpRowKey}
+        highlightedColumnKey={highlightedColumnKey}
         onTargetHandled={() => setPendingJumpRowKey(null)}
       />
       <div style={{ marginTop: 8 }}>
@@ -7274,6 +7431,7 @@ export default function App() {
               getRowTargetKey={(r) => r.__rowIndex}
               targetRowKey={pendingJumpRowKey}
               highlightedRowKey={highlightedJumpRowKey}
+              highlightedColumnKey={highlightedColumnKey}
               onTargetHandled={() => setPendingJumpRowKey(null)}
               />
             </div>
