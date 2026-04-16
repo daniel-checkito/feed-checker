@@ -3838,10 +3838,12 @@ function McAngebotsfeed() {
 
           {/* ── STUFE 1 – TECHNISCHE PRÜFUNG ── */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
-            {/* Partner-Status-Banner (oben im Stufe-1-Block) */}
+            {/* Partner-Status-Banner (eigener innerer Kasten) */}
             <div style={{
-              padding: "10px 14px",
-              borderBottom: `1px solid ${stufe1Passed ? "#BBF7D0" : "#FECACA"}`,
+              margin: "12px 18px 0",
+              padding: "8px 12px",
+              borderRadius: 6,
+              border: `1px solid ${stufe1Passed ? "#BBF7D0" : "#FECACA"}`,
               background: stufe1Passed ? "#F0FDF4" : "#FEF2F2",
               display: "flex", gap: 10, alignItems: "flex-start",
             }}>
@@ -4072,16 +4074,19 @@ function McAngebotsfeed() {
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Kampagnen-Teilnahme</div>
                 </div>
-                <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
-                  Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein:
-                </div>
-                <ul style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "1.6" }}>
-                  <li>Stornoquote ≤ 2,5 %</li>
-                  <li>Liefertermintreue ≥ 94 %</li>
-                  <li>Trackingquote ≥ 92 %</li>
-                  <li>Preisparität ≥ 95 %</li>
-                </ul>
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                <details style={{ marginTop: 6 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>Alle Kampagnen-Kriterien anzeigen</summary>
+                  <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
+                    Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein:
+                  </div>
+                  <ul style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "1.6" }}>
+                    <li>Stornoquote ≤ 2,5 %</li>
+                    <li>Liefertermintreue ≥ 94 %</li>
+                    <li>Trackingquote ≥ 92 %</li>
+                    <li>Preisparität ≥ 95 %</li>
+                  </ul>
+                </details>
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-start" }}>
                   <a
                     href={campaignEligible ? "http://mc.moebel.check24.de/campaigns" : undefined}
                     target={campaignEligible ? "_blank" : undefined}
@@ -4109,7 +4114,7 @@ function McAngebotsfeed() {
                 <div style={{ fontSize: 11, color: stufe1Passed ? "#166534" : "#991B1B", fontWeight: 600, marginTop: 4 }}>
                   {stufe1Passed ? "Ihre Artikel werden automatisch innerhalb von 2–3 Tagen angelegt." : "Ohne APA werden Artikel manuell angelegt. Das kann 1–3 Wochen dauern."}
                 </div>
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-start" }}>
                   <a
                     href={stufe1Passed ? ("mailto:partnerbetreuung@check24.de?subject=" + encodeURIComponent("APA-Freischaltung anfordern") + "&body=" + encodeURIComponent("Hallo CHECK24-Team,\n\nwir möchten die automatische Produktanlage (APA) für unseren Shop aktivieren. Unsere aktuelle Fehlerquote liegt bei " + errorRate.toFixed(1).replace(".", ",") + "% und damit innerhalb des Grenzwerts von 5%.\n\nBitte schalten Sie uns für APA frei.\n\nVielen Dank\nIhr Partner")) : undefined}
                     onClick={(e) => { if (!stufe1Passed) e.preventDefault(); }}
@@ -5449,6 +5454,13 @@ export default function App() {
       const titleDupIndices = Array.from(duplicates.titleDup).sort((a, b) => a - b);
       const titleDupEans = titleDupIndices.map((idx) => eanColumn ? String(rows[idx]?.[eanColumn] ?? "").trim() : "").filter(Boolean);
       addIssue(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`, { rowIndices: titleDupIndices, rowIndex: titleDupIndices[0], eans: [...new Set(titleDupEans)], ean: titleDupEans[0] || null });
+    }
+
+    if (sellerColumn && duplicates.sellerDup.size > 0) {
+      duplicates.sellerDup.forEach((idx) => criticalRowIdx.add(idx));
+      const sellerDupIndices = Array.from(duplicates.sellerDup).sort((a, b) => a - b);
+      const sellerDupEans = sellerDupIndices.map((idx) => eanColumn ? String(rows[idx]?.[eanColumn] ?? "").trim() : "").filter(Boolean);
+      addIssue(`Doppelte Seller_Offer_ID erkannt in ${duplicates.sellerDup.size} Zeilen.`, { rowIndices: sellerDupIndices, rowIndex: sellerDupIndices[0], eans: [...new Set(sellerDupEans)], ean: sellerDupEans[0] || null });
     }
 
     const optionalMissingCount =
