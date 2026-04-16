@@ -3772,23 +3772,22 @@ function McAngebotsfeed() {
             </div>
           </div>
 
-          {/* ── STUFE 1 – TECHNISCHE PRÜFUNG (Hard Gate) ── */}
+          {/* ── STUFE 1 – TECHNISCHE PRÜFUNG ── */}
           <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden" }}>
-            {/* Sektion-Label + HARD GATE Badge */}
+            {/* Sektion-Label + Status-Pille */}
             <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
                 <span>STUFE 1 — TECHNISCHE PRÜFUNG</span>
                 <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
               </div>
-              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#FEE2E2", color: "#B91C1C", letterSpacing: "0.04em" }}>HARD GATE</span>
+              {stufe1Passed
+                ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A" }}>✓ Bestanden</span>
+                : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626" }}>✗ Nicht bestanden</span>}
             </div>
 
-            {/* Titel + Bestanden-Pille */}
-            <div style={{ padding: "0 18px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {/* Titel */}
+            <div style={{ padding: "0 18px 14px" }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>Datenvalidierung</div>
-              {stufe1Passed
-                ? <span style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 6, background: "#DCFCE7", color: "#16A34A" }}>✓ Bestanden</span>
-                : <span style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 6, background: "#FEE2E2", color: "#DC2626" }}>✗ Nicht bestanden</span>}
             </div>
 
             {/* Pflichtattribute-Block */}
@@ -3816,30 +3815,113 @@ function McAngebotsfeed() {
                 </div>
               )}
 
-              {/* Inline-Liste aller 25 Pflichtfelder, · getrennt */}
-              <div style={{ fontSize: 10, color: "#9CA3AF", lineHeight: "1.6" }}>
-                {MC_PFLICHT_COLS.map((f, i) => (
-                  <React.Fragment key={f}>
-                    {i > 0 && <span style={{ margin: "0 4px" }}>·</span>}
-                    {FL[f]}
-                  </React.Fragment>
-                ))}
-              </div>
+              {/* Pflichtattribute-Dropdown mit allen 25 Feldnamen */}
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>▸ Pflichtattribute anzeigen</summary>
+                <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF", lineHeight: "1.6" }}>
+                  {MC_PFLICHT_COLS.map((f, i) => (
+                    <React.Fragment key={f}>
+                      {i > 0 && <span style={{ margin: "0 4px" }}>·</span>}
+                      {FL[f]}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </details>
             </div>
 
-            {/* Stats: Vollständig | Unvollständig | Gesamt */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "0 18px 16px" }}>
+            {/* Stats: Vollständig | Unvollständig | Gesamt (kompakt, mit Tooltips) */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 18px 12px" }}>
               {[
-                { val: issues.pflichtOkCount, label: "Vollständig", color: "#16A34A" },
-                { val: issues.blockiertCount, label: "Unvollständig", color: "#DC2626" },
-                { val: issues.totalRows, label: "Gesamt", color: "#2563EB" },
-              ].map(({ val, label, color }) => (
-                <div key={label} style={{ padding: "10px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
-                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{label}</div>
+                {
+                  val: issues.pflichtOkCount, label: "Vollständig", color: "#16A34A",
+                  tip: "Artikel, bei denen alle 25 Pflichtattribute befüllt und gültig sind. Diese Artikel werden bei CHECK24 angelegt.",
+                },
+                {
+                  val: issues.blockiertCount, label: "Unvollständig", color: "#DC2626",
+                  tip: "Artikel mit mindestens einem fehlenden oder ungültigen Pflichtattribut. Diese Artikel werden nicht gelistet, bis die Fehler behoben sind.",
+                },
+                {
+                  val: issues.totalRows, label: "Gesamt", color: "#2563EB",
+                  tip: "Gesamtzahl der Artikel in Ihrem hochgeladenen Feed.",
+                },
+              ].map(({ val, label, color, tip }) => (
+                <div key={label} title={tip} style={{ padding: "6px 6px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
+                  <div style={{ fontSize: 9, color: "#6B7280", marginTop: 1 }}>{label}</div>
                 </div>
               ))}
             </div>
+
+            {/* ── Spalten-Zuordnung (innerhalb Stufe 1, unter den Stats) ── */}
+            {(() => {
+              const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
+              const optFL = {
+                deeplink: "Deeplink", model: "Modellbezeichnung",
+                size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe",
+                ausrichtung: "Ausrichtung", style: "Stil", temper: "Härtegrad",
+                weight: "Gewicht", weight_capacity: "Belastbarkeit",
+                youtube_link: "Youtube-Video", bild_3d_glb: "3D-Ansicht (GLB)", bild_3d_usdz: "3D-Ansicht (USDZ)",
+                assembly_instructions: "Montageanleitung",
+                illuminant_included: "Leuchtmittel inklusive", incl_mattress: "Matratze inklusive",
+                incl_slatted_frame: "Lattenrost inklusive", led_verbaut: "LED verbaut",
+                lighting_included: "Beleuchtung inklusive", set_includes: "Set-Inhalt", socket: "Steckdose/Anschluss",
+                care_instructions: "Pflegehinweise", filling: "Füllung",
+                removable_cover: "Bezug abnehmbar", suitable_for_allergic: "Allergikergeeignet",
+                energy_efficiency_category: "Energieeffizienzklasse", product_data_sheet: "Produktdatenblatt",
+                manufacturer_phone_number: "Herstellertelefonnummer",
+              };
+              const allFL = { ...FL, ...optFL };
+              const totalFields = allMcFields.length + 1;
+              const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
+              const hasMissing = issues.missingPflichtCols.length > 0;
+              return (
+                <details
+                  style={{ borderTop: "1px solid #F3F4F6", background: hasMissing ? "#FFFBEB" : "#FFF" }}
+                  open={mappingExpanded}
+                  onToggle={(e) => setMappingExpanded(e.currentTarget.open)}
+                >
+                  <summary style={{ padding: "10px 18px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: hasMissing ? "#92400E" : "#374151", display: "flex", justifyContent: "space-between", alignItems: "center", listStyle: "none" }}>
+                    <span>▸ Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span></span>
+                    {hasMissing && <span style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>{issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
+                  </summary>
+                  <div style={{ padding: "0 18px 14px", display: "grid", gap: 4 }}>
+                    {/* Hauptbild-Zuordnung (separat, nicht konfigurierbar – kommt aus Spaltenerkennung) */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>Hauptbild (+ Zusatzb.)</span>
+                      <div style={{ flex: 1, fontSize: 10, padding: "4px 8px", borderRadius: 5, border: `1px solid ${mcImageColumns.length > 0 ? "#D1D5DB" : "#FCA5A5"}`, background: "#F9FAFB", color: mcImageColumns.length > 0 ? "#166534" : "#DC2626", fontWeight: 600 }}>
+                        {mcImageColumns.length > 0 ? mcImageColumns.join(", ") : "–"}
+                      </div>
+                    </div>
+                    {allMcFields.map((f) => {
+                      const isManual = f in manualMapping;
+                      const col = mcMapping[f];
+                      const isPflicht = MC_PFLICHT_COLS.includes(f);
+                      const missing = !col && isPflicht;
+                      return (
+                        <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>{allFL[f] || f}{isPflicht && <span style={{ color: "#DC2626", marginLeft: 2 }}>*</span>}</span>
+                          <select
+                            value={col || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
+                            }}
+                            style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                          >
+                            <option value="">-- Nicht zugeordnet --</option>
+                            {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                          {isManual && (
+                            <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                              style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              );
+            })()}
           </div>
 
           {/* ── CSV DOWNLOAD (highlighted primary action) ── */}
@@ -3847,7 +3929,7 @@ function McAngebotsfeed() {
             <div style={{ width: 18, height: 18, flexShrink: 0, border: "1.5px solid #9CA3AF", borderRadius: 3, background: "#FFF" }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerbericht exportieren</div>
-              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>Detaillierter Bericht aller Fehler und Hinweise als CSV-Datei</div>
+              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 2 }}>Ihre hochgeladene Datei mit zwei zusätzlichen Spalten am Anfang: <strong>Fehler Pflichtfelder</strong> und <strong>Fehler Optionale Felder</strong> – dort steht, was in welcher Zeile korrigiert werden muss.</div>
             </div>
             <button
               type="button"
@@ -3857,12 +3939,12 @@ function McAngebotsfeed() {
                 issues.optionalHints.forEach((e) => { if (!optionalByRow[e.row]) optionalByRow[e.row] = []; optionalByRow[e.row].push(e.field + " fehlt"); });
                 const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
                 const sep = ";";
-                const headerRow = [...headers, "Fehler Pflichtfelder", "Fehler Optionale Felder"].map(esc).join(sep);
+                const headerRow = ["Fehler Pflichtfelder", "Fehler Optionale Felder", ...headers].map(esc).join(sep);
                 const lines = rows.map((r, i) => {
                   const rn = i + 1;
                   const p = pflichtByRow[rn] ? [...new Set(pflichtByRow[rn])].join("; ") : "";
                   const o = optionalByRow[rn] ? [...new Set(optionalByRow[rn])].join("; ") : "";
-                  return [...headers.map((h) => esc(r[h])), esc(p), esc(o)].join(sep);
+                  return [esc(p), esc(o), ...headers.map((h) => esc(r[h]))].join(sep);
                 });
                 const csv = [headerRow, ...lines].join("\n");
                 const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
@@ -3895,13 +3977,15 @@ function McAngebotsfeed() {
 
             <div style={{ opacity: stufe1Passed ? 1 : 0.55 }}>
 
-              {/* Sektion-Label + SOFT SCORE Badge */}
+              {/* Sektion-Label */}
               <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
                   <span>STUFE 2 — FEED-QUALITÄTSSCORE</span>
                   <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
                 </div>
-                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#F3F4F6", color: "#6B7280", letterSpacing: "0.04em" }}>SOFT SCORE</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: campaignEligible ? "#16A34A" : "#9CA3AF" }}>
+                  {campaignEligible ? "✓ Kampagnen-berechtigt" : "Noch nicht kampagnen-berechtigt"}
+                </span>
               </div>
 
               {/* Titel + Score */}
@@ -3914,16 +3998,29 @@ function McAngebotsfeed() {
                 </div>
               </div>
 
-              {/* Fortschrittsbalken + Kampagnen-Status */}
+              {/* Fortschrittsbalken mit 70-Marker */}
               <div style={{ padding: "0 18px 4px" }}>
-                <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${score}%`, background: campaignEligible ? "#16A34A" : score >= 50 ? "#D97706" : "#DC2626", transition: "width 0.4s" }} />
+                <div style={{ position: "relative", paddingTop: 16 }}>
+                  {/* 70-Marker Pille */}
+                  <div style={{ position: "absolute", top: 0, left: "70%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ fontSize: 8, fontWeight: 700, color: campaignEligible ? "#166534" : "#4B5563", whiteSpace: "nowrap", padding: "1px 5px", borderRadius: 3, background: campaignEligible ? "#DCFCE7" : "#F3F4F6", border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}` }}>Kampagnen</div>
+                    <div style={{ width: 1, height: 3, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
+                  </div>
+                  {/* Balken */}
+                  <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${score}%`, background: campaignEligible ? "#16A34A" : score >= 50 ? "#D97706" : "#DC2626", transition: "width 0.4s" }} />
+                  </div>
+                  {/* Notch an 70% */}
+                  <div style={{ position: "absolute", top: 16, left: "70%", transform: "translateX(-50%)", width: 2, height: 6, background: campaignEligible ? "#16A34A" : "#6B7280", pointerEvents: "none" }} />
+                  <div style={{ display: "flex", fontSize: 9, color: "#9CA3AF", marginTop: 3, position: "relative" }}>
+                    <span>0</span>
+                    <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>50</span>
+                    <span style={{ position: "absolute", left: "70%", transform: "translateX(-50%)", color: campaignEligible ? "#16A34A" : "#4B5563", fontWeight: 700 }}>70</span>
+                    <span style={{ marginLeft: "auto" }}>100</span>
+                  </div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, fontSize: 10 }}>
-                  <span style={{ color: "#9CA3AF" }}>Mindestens 70/100 für Kampagnen</span>
-                  <span style={{ color: campaignEligible ? "#16A34A" : "#DC2626", fontWeight: 700 }}>
-                    {campaignEligible ? "✓ Kampagnen-berechtigt" : "✗ Nicht kampagnen-berechtigt"}
-                  </span>
+                <div style={{ marginTop: 8, fontSize: 10, color: "#6B7280", lineHeight: "1.5" }}>
+                  Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein: <strong>Stornoquote ≤ 2,5 %</strong>, <strong>Liefertermintreue ≥ 94 %</strong>, <strong>Trackingquote ≥ 92 %</strong> und <strong>Preisparität ≥ 95 %</strong>.
                 </div>
               </div>
 
@@ -3972,22 +4069,25 @@ function McAngebotsfeed() {
                 </div>
               </details>
 
-              {/* Stats: Artikel | Fehler | Hinweise */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "10px 18px 12px" }}>
-                {[
-                  { val: issues.totalRows, label: "Artikel", color: "#374151" },
-                  { val: issues.blockiertCount, label: "Fehler", color: "#DC2626" },
-                  { val: issues.optionalHints.length, label: "Hinweise", color: "#F59E0B" },
-                ].map(({ val, label, color }) => (
-                  <div key={label} style={{ padding: "10px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 800, color }}>{val.toLocaleString("de-DE")}</div>
-                    <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{label}</div>
+              {/* Kampagnen-Aktions-Karte (wenn Kampagnen-berechtigt) */}
+              {campaignEligible && (
+                <div style={{ margin: "10px 18px 0", borderRadius: 8, border: "1px solid #86EFAC", background: "#F0FDF4", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Kampagnen freigeschaltet</div>
+                    <div style={{ fontSize: 10, color: "#15803D", marginTop: 2 }}>Laden Sie jetzt Ihre Deals und Aktionen hoch.</div>
                   </div>
-                ))}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => window.open("http://mc.moebel.check24.de/campaigns", "_blank", "noopener,noreferrer")}
+                    style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
+                    Zum Deal-Tool →
+                  </button>
+                </div>
+              )}
 
               {/* APA-Karte */}
-              <div style={{ margin: "0 18px 14px", borderRadius: 8, border: `1px solid ${stufe1Passed ? "#86EFAC" : "#FECACA"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
+              <div style={{ margin: "10px 18px 14px", borderRadius: 8, border: `1px solid ${stufe1Passed ? "#86EFAC" : "#FECACA"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                   <div style={{ width: 20, height: 20, borderRadius: "50%", background: stufe1Passed ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
                     {stufe1Passed ? "✓" : "!"}
@@ -4000,111 +4100,20 @@ function McAngebotsfeed() {
                 <div style={{ fontSize: 11, color: stufe1Passed ? "#166534" : "#991B1B", fontWeight: 600, marginTop: 4 }}>
                   {stufe1Passed ? "Ihre Artikel werden automatisch innerhalb von 2–3 Tagen angelegt." : "Ohne APA werden Artikel manuell angelegt. Das kann 1–3 Wochen dauern."}
                 </div>
+                {stufe1Passed && (
+                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                    <a
+                      href={"mailto:partnerbetreuung@check24.de?subject=" + encodeURIComponent("APA-Freischaltung anfordern") + "&body=" + encodeURIComponent("Hallo CHECK24-Team,\n\nwir möchten die automatische Produktanlage (APA) für unseren Shop aktivieren. Unsere aktuelle Fehlerquote liegt bei " + errorRate.toFixed(1).replace(".", ",") + "% und damit innerhalb des Grenzwerts von 5%.\n\nBitte schalten Sie uns für APA frei.\n\nVielen Dank\nIhr Partner")}
+                      style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none" }}
+                    >
+                      APA-Zugang per E-Mail anfordern
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* ── Spalten-Zuordnung (Dropdown, standardmäßig geschlossen) ── */}
-          {(() => {
-            const allMcFields = [...MC_PFLICHT_COLS.filter((f) => f !== "image_url"), ...MC_OPTIONAL_COLS];
-            const optFL = {
-              deeplink: "Deeplink", model: "Modellbezeichnung",
-              size_lying_surface: "Liegefläche", size_seat_height: "Sitzhöhe",
-              ausrichtung: "Ausrichtung", style: "Stil", temper: "Härtegrad",
-              weight: "Gewicht", weight_capacity: "Belastbarkeit",
-              youtube_link: "Youtube-Video", bild_3d_glb: "3D-Ansicht (GLB)", bild_3d_usdz: "3D-Ansicht (USDZ)",
-              assembly_instructions: "Montageanleitung",
-              illuminant_included: "Leuchtmittel inklusive", incl_mattress: "Matratze inklusive",
-              incl_slatted_frame: "Lattenrost inklusive", led_verbaut: "LED verbaut",
-              lighting_included: "Beleuchtung inklusive", set_includes: "Set-Inhalt", socket: "Steckdose/Anschluss",
-              care_instructions: "Pflegehinweise", filling: "Füllung",
-              removable_cover: "Bezug abnehmbar", suitable_for_allergic: "Allergikergeeignet",
-              energy_efficiency_category: "Energieeffizienzklasse", product_data_sheet: "Produktdatenblatt",
-              manufacturer_phone_number: "Herstellertelefonnummer",
-            };
-            const allFL = { ...FL, ...optFL };
-            const totalFields = allMcFields.length + 1;
-            const foundFields = allMcFields.filter((f) => mcMapping[f]).length + (mcImageColumns.length > 0 ? 1 : 0);
-            const hasMissing = issues.missingPflichtCols.length > 0;
-            return (
-              <details
-                style={{ background: "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8 }}
-                open={mappingExpanded}
-                onToggle={(e) => setMappingExpanded(e.currentTarget.open)}
-              >
-                <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: hasMissing ? "#92400E" : "#111827", display: "flex", justifyContent: "space-between", alignItems: "center", listStyle: "none" }}>
-                  <span>▸ Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span></span>
-                  {hasMissing && <span style={{ fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>{issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
-                </summary>
-                <div style={{ padding: "0 16px 16px" }}>
-                  {/* Kompakte Zwei-Spalten-Übersicht */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 12px", marginBottom: 10 }}>
-                    {allMcFields.map((f) => {
-                      const col = mcMapping[f];
-                      const isManual = f in manualMapping;
-                      const isContent = !mcAutoMapping[f] && !!mcContentMapping[f] && !isManual;
-                      const isPflicht = MC_PFLICHT_COLS.includes(f);
-                      const missing = !col && isPflicht;
-                      return (
-                        <div key={f} style={{ display: "flex", alignItems: "baseline", gap: 4, fontSize: 10, lineHeight: "18px", overflow: "hidden" }}>
-                          <span style={{ color: "#6B7280", flexShrink: 0 }}>{allFL[f] || f}</span>
-                          <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
-                          <span
-                            style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: missing ? "#DC2626" : isManual ? "#7C3AED" : isContent ? "#1D4ED8" : col ? "#166534" : "#9CA3AF" }}
-                            title={col || "nicht gefunden"}
-                          >
-                            {col || "–"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 4, fontSize: 10, lineHeight: "18px", overflow: "hidden" }}>
-                      <span style={{ color: "#6B7280", flexShrink: 0 }}>Hauptbild (+ Zusatzbilder)</span>
-                      <span style={{ color: "#D1D5DB", flexShrink: 0 }}>→</span>
-                      <span style={{ fontWeight: 600, color: mcImageColumns.length > 0 ? "#166534" : "#DC2626" }} title={mcImageColumns.join(", ") || "nicht gefunden"}>
-                        {mcImageColumns.length > 0 ? `${mcImageColumns.length} Spalte(n)` : "–"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Manuelle Anpassung */}
-                  <details>
-                    <summary style={{ fontSize: 11, color: MC_BLUE, cursor: "pointer", userSelect: "none", fontWeight: 600 }}>
-                      Spalten manuell anpassen…
-                    </summary>
-                    <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
-                      {allMcFields.map((f) => {
-                        const isManual = f in manualMapping;
-                        const col = mcMapping[f];
-                        const isPflicht = MC_PFLICHT_COLS.includes(f);
-                        const missing = !col && isPflicht;
-                        return (
-                          <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>{allFL[f] || f}</span>
-                            <select
-                              value={col || ""}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
-                              }}
-                              style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
-                            >
-                              <option value="">-- Nicht zugeordnet --</option>
-                              {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                            </select>
-                            {isManual && (
-                              <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
-                                style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </details>
-                </div>
-              </details>
-            );
-          })()}
         </div>
         );
       })()}
