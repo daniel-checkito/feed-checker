@@ -3869,10 +3869,10 @@ function McAngebotsfeed() {
           else if (["name", "brand", "category_path", "seller_offer_id", "ean"].includes(e.field)) rowsByGroup.ids.add(e.row);
         });
         const topGroups = [
-          { key: "desc", label: "Beschreibung", hint: "fehlt oder leer", count: rowsByGroup.desc.size },
+          { key: "desc", label: "Beschreibung", hint: "Fehlt oder leer", count: rowsByGroup.desc.size },
           { key: "size", label: "Maße / Höhe / Tiefe", hint: "Unvollständig", count: rowsByGroup.size.size },
           { key: "mfr", label: "Herstellerangaben", hint: "Name, Adresse oder E-Mail fehlt", count: rowsByGroup.mfr.size },
-          { key: "img", label: "Hauptbild", hint: "fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
+          { key: "img", label: "Hauptbild", hint: "Fehlt oder nicht erreichbar", count: rowsByGroup.img.size },
           { key: "price", label: "Preis & Verfügbarkeit", hint: "Unvollständig", count: rowsByGroup.price.size },
           { key: "ids", label: "Identifikation", hint: "Name, Marke oder EAN fehlen", count: rowsByGroup.ids.size },
         ].filter((g) => g.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
@@ -3943,7 +3943,7 @@ function McAngebotsfeed() {
               {/* Pflichtattribute-Dropdown mit allen 25 Feldnamen */}
               <details style={{ marginTop: 4 }}>
                 <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>Pflichtattribute anzeigen</summary>
-                <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF", lineHeight: "1.6" }}>
+                <div style={{ marginTop: 6, fontSize: 10, color: "#9CA3AF", lineHeight: "1.6", overflowWrap: "anywhere", wordBreak: "break-word" }}>
                   {MC_PFLICHT_COLS.map((f, i) => (
                     <React.Fragment key={f}>
                       {i > 0 && <span style={{ margin: "0 4px" }}>·</span>}
@@ -4126,11 +4126,11 @@ function McAngebotsfeed() {
                   <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
                     Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein:
                   </div>
-                  <ul style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 11, color: "#374151", lineHeight: "1.6" }}>
-                    <li>Stornoquote ≤ 2,5 %</li>
-                    <li>Liefertermintreue ≥ 94 %</li>
-                    <li>Trackingquote ≥ 92 %</li>
-                    <li>Preisparität ≥ 95 %</li>
+                  <ul style={{ margin: "4px 0 0 0", paddingLeft: 18, fontSize: 11, color: "#374151", lineHeight: "1.6", listStyleType: "disc", listStylePosition: "outside" }}>
+                    <li style={{ display: "list-item" }}>Stornoquote ≤ 2,5 %</li>
+                    <li style={{ display: "list-item" }}>Liefertermintreue ≥ 94 %</li>
+                    <li style={{ display: "list-item" }}>Trackingquote ≥ 92 %</li>
+                    <li style={{ display: "list-item" }}>Preisparität ≥ 95 %</li>
                   </ul>
                 </details>
                 <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-start" }}>
