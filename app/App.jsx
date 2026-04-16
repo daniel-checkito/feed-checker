@@ -3902,14 +3902,14 @@ function McAngebotsfeed() {
             </div>
 
             {/* Sektion-Label + Status-Pille */}
-            <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
-                <span>STUFE 1 — TECHNISCHE PRÜFUNG</span>
-                <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
+            <div style={{ padding: "14px 18px 8px", display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                <span style={{ whiteSpace: "nowrap" }}>STUFE 1 — TECHNISCHE PRÜFUNG</span>
+                <span style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
               </div>
               {stufe1Passed
-                ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A" }}>✓ Bestanden</span>
-                : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626" }}>✗ Nicht bestanden</span>}
+                ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A", whiteSpace: "nowrap" }}>✓ Bestanden</span>
+                : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626", whiteSpace: "nowrap" }}>✗ Nicht bestanden</span>}
             </div>
 
             {/* Titel */}
@@ -3966,13 +3966,16 @@ function McAngebotsfeed() {
                   tip: "Artikel mit mindestens einem fehlenden oder ungültigen Pflichtattribut. Diese Artikel werden nicht gelistet, bis die Fehler behoben sind.",
                 },
                 {
-                  val: issues.totalRows, label: "Gesamt", color: "#2563EB",
+                  val: issues.totalRows, label: "Gesamt", color: "#111827",
                   tip: "Gesamtzahl der Artikel in Ihrem hochgeladenen Feed.",
                 },
               ].map(({ val, label, color, tip }) => (
-                <div key={label} title={tip} style={{ padding: "3px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color }}>{val.toLocaleString("de-DE")}</div>
-                  <div style={{ fontSize: 9, color: "#6B7280", marginTop: 0 }}>{label}</div>
+                <div key={label} title={tip} style={{ padding: "6px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color }}>{val.toLocaleString("de-DE")}</div>
+                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    {label}
+                    <span aria-hidden="true" style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700 }}>ⓘ</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -4025,14 +4028,14 @@ function McAngebotsfeed() {
             <div style={{ opacity: stufe1Passed ? 1 : 0.55 }}>
 
               {/* Sektion-Label */}
-              <div style={{ padding: "14px 18px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10 }}>
-                  <span>STUFE 2 — FEED-QUALITÄTSSCORE</span>
-                  <span style={{ width: 40, height: 1, background: "#E5E7EB" }} />
+              <div style={{ padding: "14px 18px 8px", display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: MC_BLUE, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                  <span style={{ whiteSpace: "nowrap" }}>STUFE 2 — FEED-QUALITÄTSSCORE</span>
+                  <span style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
                 </div>
                 {score >= 70
-                  ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A" }}>✓ Zielwert erreicht</span>
-                  : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626" }}>✗ Zielwert nicht erreicht</span>}
+                  ? <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#DCFCE7", color: "#16A34A", whiteSpace: "nowrap" }}>✓ Zielwert erreicht</span>
+                  : <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "#FEE2E2", color: "#DC2626", whiteSpace: "nowrap" }}>✗ Zielwert nicht erreicht</span>}
               </div>
 
               {/* Score */}
@@ -4067,7 +4070,7 @@ function McAngebotsfeed() {
 
               {/* Scoring-Logik – als Dropdown, geschlossen (direkt unter Progress-Bar) */}
               <details style={{ padding: "0 18px", marginTop: 8 }}>
-                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none", padding: "6px 0" }}>▾ Scoring-Logik anzeigen</summary>
+                <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none", padding: "6px 0" }}>Scoring-Logik anzeigen</summary>
 
                 <div style={{ marginTop: 4, padding: "7px 12px", borderRadius: 6, background: "#F9FAFB", border: "1px solid #E5E7EB", fontSize: 11, fontFamily: "monospace", color: "#374151", marginBottom: 10 }}>
                   Score = Pflichtfelder-Score + Empfohlene-Felder-Score
