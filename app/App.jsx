@@ -4130,63 +4130,59 @@ function McAngebotsfeed() {
                 </div>
               </details>
 
-              {/* Kampagnen-Karte (Kriterien, analog zur APA-Karte) */}
-              <div style={{ margin: "10px 18px 0", borderRadius: 8, border: `1px solid ${campaignEligible ? "#86EFAC" : "#FECACA"}`, background: campaignEligible ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: campaignEligible ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+              {/* Kampagnen-Karte */}
+              <div style={{ margin: "10px 18px 0", borderRadius: 8, border: `1px solid ${campaignEligible ? "#86EFAC" : "#FECACA"}`, background: campaignEligible ? "#F0FDF4" : "#FEF2F2", padding: "8px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", background: campaignEligible ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
                     {campaignEligible ? "✓" : "!"}
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Kampagnen-Teilnahme</div>
-                </div>
-                <details style={{ marginTop: 6 }}>
-                  <summary style={{ cursor: "pointer", fontSize: 11, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>Alle Kampagnen-Kriterien anzeigen</summary>
-                  <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
-                    Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein:
-                  </div>
-                  <ul style={{ margin: "4px 0 0 0", paddingLeft: 18, fontSize: 11, color: "#374151", lineHeight: "1.6", listStyleType: "disc", listStylePosition: "outside" }}>
-                    <li style={{ display: "list-item" }}>Stornoquote ≤ 2,5 %</li>
-                    <li style={{ display: "list-item" }}>Liefertermintreue ≥ 94 %</li>
-                    <li style={{ display: "list-item" }}>Trackingquote ≥ 92 %</li>
-                    <li style={{ display: "list-item" }}>Preisparität ≥ 95 %</li>
-                  </ul>
-                </details>
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", flex: 1 }}>Kampagnen-Teilnahme</div>
                   <a
                     href={campaignEligible ? "http://mc.moebel.check24.de/campaigns" : undefined}
                     target={campaignEligible ? "_blank" : undefined}
                     rel={campaignEligible ? "noopener noreferrer" : undefined}
                     onClick={(e) => { if (!campaignEligible) e.preventDefault(); }}
                     aria-disabled={!campaignEligible}
-                    style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: campaignEligible ? "#16A34A" : "#D1D5DB", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: campaignEligible ? "pointer" : "not-allowed", whiteSpace: "nowrap", textDecoration: "none", opacity: campaignEligible ? 1 : 0.7 }}
+                    style={{ padding: "4px 10px", borderRadius: 5, border: "none", background: campaignEligible ? "#16A34A" : "#D1D5DB", color: "#FFF", fontSize: 10, fontWeight: 700, cursor: campaignEligible ? "pointer" : "not-allowed", whiteSpace: "nowrap", textDecoration: "none", opacity: campaignEligible ? 1 : 0.7, flexShrink: 0 }}
                   >
                     Zum Deal-Tool →
                   </a>
                 </div>
+                <details style={{ marginTop: 5 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 10, color: "#4B5563", fontWeight: 600, userSelect: "none" }}>Alle Kampagnen-Kriterien anzeigen</summary>
+                  <div style={{ fontSize: 10, color: "#374151", marginTop: 4 }}>
+                    Ab <strong>70/100</strong> ist Ihr Feed für Kampagnen freigeschaltet. Zusätzlich müssen auch die weiteren Shop-KPIs erfüllt sein:
+                  </div>
+                  <ul style={{ margin: "3px 0 0 0", paddingLeft: 16, fontSize: 10, color: "#374151", lineHeight: "1.6", listStyleType: "disc", listStylePosition: "outside" }}>
+                    <li style={{ display: "list-item" }}>Stornoquote ≤ 2,5 %</li>
+                    <li style={{ display: "list-item" }}>Liefertermintreue ≥ 94 %</li>
+                    <li style={{ display: "list-item" }}>Trackingquote ≥ 92 %</li>
+                    <li style={{ display: "list-item" }}>Preisparität ≥ 95 %</li>
+                  </ul>
+                </details>
               </div>
 
               {/* APA-Karte */}
-              <div style={{ margin: "10px 18px 14px", borderRadius: 8, border: `1px solid ${stufe1Passed ? "#86EFAC" : "#FECACA"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "10px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: stufe1Passed ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+              <div style={{ margin: "10px 18px 14px", borderRadius: 8, border: `1px solid ${stufe1Passed ? "#86EFAC" : "#FECACA"}`, background: stufe1Passed ? "#F0FDF4" : "#FEF2F2", padding: "8px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", background: stufe1Passed ? "#16A34A" : "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
                     {stufe1Passed ? "✓" : "!"}
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>APA (Automatische Produktanlage)</div>
-                </div>
-                <div style={{ fontSize: 11, color: "#374151", marginTop: 6 }}>
-                  {stufe1Passed ? "✓" : "✗"} {stufe1Passed ? "Berechtigt für APA" : "Nicht berechtigt für APA"} · Fehlerquote: {errorRate.toFixed(1).replace(".", ",")}% (Max. 5%)
-                </div>
-                <div style={{ fontSize: 11, color: stufe1Passed ? "#166534" : "#991B1B", fontWeight: 600, marginTop: 4 }}>
-                  {stufe1Passed ? "Ihre Artikel werden automatisch innerhalb von 2–3 Tagen angelegt." : "Ohne APA werden Artikel manuell angelegt. Das kann 1–3 Wochen dauern."}
-                </div>
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", flex: 1 }}>APA (Automatische Produktanlage)</div>
                   <a
                     href={stufe1Passed ? ("mailto:partnerbetreuung@check24.de?subject=" + encodeURIComponent("APA-Freischaltung anfordern") + "&body=" + encodeURIComponent("Hallo CHECK24-Team,\n\nwir möchten die automatische Produktanlage (APA) für unseren Shop aktivieren. Unsere aktuelle Fehlerquote liegt bei " + errorRate.toFixed(1).replace(".", ",") + "% und damit innerhalb des Grenzwerts von 5%.\n\nBitte schalten Sie uns für APA frei.\n\nVielen Dank\nIhr Partner")) : undefined}
                     onClick={(e) => { if (!stufe1Passed) e.preventDefault(); }}
                     aria-disabled={!stufe1Passed}
-                    style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: stufe1Passed ? "#16A34A" : "#D1D5DB", color: "#FFF", fontSize: 11, fontWeight: 700, cursor: stufe1Passed ? "pointer" : "not-allowed", whiteSpace: "nowrap", textDecoration: "none", opacity: stufe1Passed ? 1 : 0.7 }}
+                    style={{ padding: "4px 10px", borderRadius: 5, border: "none", background: stufe1Passed ? "#16A34A" : "#D1D5DB", color: "#FFF", fontSize: 10, fontWeight: 700, cursor: stufe1Passed ? "pointer" : "not-allowed", whiteSpace: "nowrap", textDecoration: "none", opacity: stufe1Passed ? 1 : 0.7, flexShrink: 0 }}
                   >
                     APA-Zugang per E-Mail anfordern
                   </a>
+                </div>
+                <div style={{ fontSize: 10, color: "#374151", marginTop: 4 }}>
+                  {stufe1Passed ? "✓" : "✗"} {stufe1Passed ? "Berechtigt für APA" : "Nicht berechtigt für APA"} · Fehlerquote: {errorRate.toFixed(1).replace(".", ",")}% (Max. 5%)
+                </div>
+                <div style={{ fontSize: 10, color: stufe1Passed ? "#166534" : "#991B1B", fontWeight: 600, marginTop: 2 }}>
+                  {stufe1Passed ? "Ihre Artikel werden automatisch innerhalb von 2–3 Tagen angelegt." : "Ohne APA werden Artikel manuell angelegt. Das kann 1–3 Wochen dauern."}
                 </div>
               </div>
             </div>
