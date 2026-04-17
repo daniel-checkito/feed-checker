@@ -4055,7 +4055,7 @@ function McAngebotsfeed() {
               </div>
 
               {/* Score */}
-              <div style={{ padding: "0 18px 10px", display: "flex", justifyContent: "flex-end", alignItems: "flex-end" }}>
+              <div style={{ padding: "0 18px 10px", display: "flex", justifyContent: "flex-start", alignItems: "flex-end" }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: campaignEligible ? "#16A34A" : "#111827", lineHeight: 1 }}>
                   {score}<span style={{ fontWeight: 600, color: "#9CA3AF" }}>/100</span>
                 </div>
