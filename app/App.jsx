@@ -3893,7 +3893,7 @@ function McAngebotsfeed() {
             }}>
               <div style={{ fontSize: 12, color: "#111827", lineHeight: "1.5" }}>
                 <strong style={{ color: stufe1Passed ? "#166534" : "#991B1B" }}>
-                  {stufe1Passed ? "Partner freigeschaltet." : "Account nicht aktivierbar."}
+                  {stufe1Passed ? "Account freigeschaltet." : "Account nicht aktivierbar."}
                 </strong>{" "}
                 {stufe1Passed
                   ? "Die technische Prüfung wurde bestanden. Ihre Artikel werden angelegt."
