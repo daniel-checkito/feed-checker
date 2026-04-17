@@ -4147,7 +4147,7 @@ function McAngebotsfeed() {
                     <li style={{ display: "list-item" }}>Preisparität ≥ 95 %</li>
                   </ul>
                 </details>
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-start" }}>
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
                   <a
                     href={campaignEligible ? "http://mc.moebel.check24.de/campaigns" : undefined}
                     target={campaignEligible ? "_blank" : undefined}
@@ -4175,7 +4175,7 @@ function McAngebotsfeed() {
                 <div style={{ fontSize: 11, color: stufe1Passed ? "#166534" : "#991B1B", fontWeight: 600, marginTop: 4 }}>
                   {stufe1Passed ? "Ihre Artikel werden automatisch innerhalb von 2–3 Tagen angelegt." : "Ohne APA werden Artikel manuell angelegt. Das kann 1–3 Wochen dauern."}
                 </div>
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-start" }}>
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
                   <a
                     href={stufe1Passed ? ("mailto:partnerbetreuung@check24.de?subject=" + encodeURIComponent("APA-Freischaltung anfordern") + "&body=" + encodeURIComponent("Hallo CHECK24-Team,\n\nwir möchten die automatische Produktanlage (APA) für unseren Shop aktivieren. Unsere aktuelle Fehlerquote liegt bei " + errorRate.toFixed(1).replace(".", ",") + "% und damit innerhalb des Grenzwerts von 5%.\n\nBitte schalten Sie uns für APA frei.\n\nVielen Dank\nIhr Partner")) : undefined}
                     onClick={(e) => { if (!stufe1Passed) e.preventDefault(); }}
