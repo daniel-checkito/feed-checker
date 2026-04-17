@@ -3740,11 +3740,11 @@ function McAngebotsfeed() {
           const hasMissing = issues.missingPflichtCols.length > 0;
           return (
             <details
-              style={{ background: hasMissing ? "#FFFBEB" : "#FFF", border: `1px solid ${hasMissing ? "#FCD34D" : "#E5E7EB"}`, borderRadius: 8 }}
+              style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8 }}
               open={mappingExpanded}
               onToggle={(e) => setMappingExpanded(e.currentTarget.open)}
             >
-              <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: hasMissing ? "#92400E" : "#111827" }}>
+              <summary style={{ padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#111827" }}>
                 Spalten-Zuordnung <span style={{ color: "#6B7280", fontWeight: 400, fontSize: 11 }}>({foundFields}/{totalFields} erkannt)</span>
                 {hasMissing && <span style={{ marginLeft: 8, fontSize: 10, color: "#B91C1C", fontWeight: 700 }}>· {issues.missingPflichtCols.length} Pflichtspalten fehlen</span>}
               </summary>
