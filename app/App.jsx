@@ -3604,11 +3604,11 @@ function McAngebotsfeed() {
   const mcIsWrongFile = rows.length > 0 && Object.values(mcMapping).filter(Boolean).length === 0 && mcImageColumns.length === 0;
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1500, margin: "0 auto" }}>
+    <div style={{ maxWidth: 1500, margin: "0 auto" }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: "0 0 12px 0" }}>Ihr Angebotsfeed</h2>
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
       {/* ── LEFT: Upload & Settings ── */}
       <div style={{ flex: "0 1 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
-
         {/* Upload Method Toggle */}
         <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 10 }}>Wie möchten Sie Ihren Feed übermitteln?</div>
@@ -3840,7 +3840,7 @@ function McAngebotsfeed() {
 
       {/* ── RIGHT: Analysis Results ── */}
       {mcIsWrongFile && (
-        <div style={{ flex: "0 1 50%", minWidth: 0, alignSelf: "start", marginTop: 44, padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ flex: "0 1 50%", minWidth: 0, alignSelf: "start", padding: "16px 18px", borderRadius: 10, border: "1px solid #FECACA", background: "#FEF2F2", display: "flex", gap: 12, alignItems: "flex-start" }}>
           <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>Diese Datei sieht nicht wie ein gültiger Produkt-Feed aus.</div>
@@ -4064,18 +4064,18 @@ function McAngebotsfeed() {
 
               {/* Fortschrittsbalken mit 70-Marker */}
               <div style={{ padding: "0 18px 4px" }}>
-                <div style={{ position: "relative", paddingTop: 16 }}>
+                <div style={{ position: "relative", paddingTop: 30 }}>
                   {/* 70-Marker Pille */}
                   <div style={{ position: "absolute", top: 0, left: "70%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: campaignEligible ? "#166534" : "#4B5563", whiteSpace: "nowrap", padding: "1px 5px", borderRadius: 3, background: campaignEligible ? "#DCFCE7" : "#F3F4F6", border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}` }}>Kampagnen</div>
-                    <div style={{ width: 1, height: 3, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
+                    <div style={{ width: 1, height: 10, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
                   </div>
                   {/* Balken */}
-                  <div style={{ height: 6, borderRadius: 3, background: "#E5E7EB", overflow: "hidden" }}>
+                  <div style={{ height: 16, borderRadius: 8, background: "#E5E7EB", overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${score}%`, background: campaignEligible ? "#16A34A" : score >= 50 ? "#D97706" : "#DC2626", transition: "width 0.4s" }} />
                   </div>
                   {/* Notch an 70% */}
-                  <div style={{ position: "absolute", top: 16, left: "70%", transform: "translateX(-50%)", width: 2, height: 6, background: campaignEligible ? "#16A34A" : "#6B7280", pointerEvents: "none" }} />
+                  <div style={{ position: "absolute", top: 30, left: "70%", transform: "translateX(-50%)", width: 2, height: 16, background: campaignEligible ? "#16A34A" : "#6B7280", pointerEvents: "none" }} />
                   <div style={{ display: "flex", fontSize: 9, color: "#9CA3AF", marginTop: 3, position: "relative" }}>
                     <span>0</span>
                     <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>50</span>
@@ -4191,6 +4191,7 @@ function McAngebotsfeed() {
         </div>
         );
       })()}
+    </div>
     </div>
   );
 }
