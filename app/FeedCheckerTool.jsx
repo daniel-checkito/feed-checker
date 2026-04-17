@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
+import Tooltip from "./Tooltip";
 
 const MC_BLUE = "#1553B6";
 const BRAND_COLOR = "#1553B6";
@@ -616,9 +617,14 @@ export default function FeedCheckerTool() {
                 { val: issues.blockiertCount, label: "Unvollständig", color: "#DC2626", tip: "Artikel mit fehlenden Pflichtattributen." },
                 { val: issues.totalRows, label: "Gesamt", color: "#111827", tip: "Gesamtzahl der Artikel." },
               ].map(({ val, label, color, tip }) => (
-                <div key={label} title={tip} style={{ padding: "6px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
+                <div key={label} style={{ padding: "6px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center" }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color }}>{val.toLocaleString("de-DE")}</div>
-                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{label}</div>
+                  <Tooltip text={tip}>
+                    <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 3, cursor: "help" }}>
+                      {label}
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#9CA3AF" strokeWidth="1.5"><circle cx="8" cy="8" r="7"/><line x1="8" y1="5" x2="8" y2="8"/><circle cx="8" cy="11" r=".6" fill="#9CA3AF"/></svg>
+                    </div>
+                  </Tooltip>
                 </div>
               ))}
             </div>

@@ -15,6 +15,7 @@ function Spinner({ size = 16, color = "#1553B6" }) {
 }
 import ShopPerformance from "./shop-performance";
 import Onboarding from "./onboarding";
+import Tooltip from "./Tooltip";
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabaseClient";
    
 
@@ -3986,12 +3987,14 @@ function McAngebotsfeed() {
                   tip: "Gesamtzahl der Artikel in Ihrem hochgeladenen Feed.",
                 },
               ].map(({ val, label, color, tip }) => (
-                <div key={label} title={tip} style={{ padding: "6px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center", cursor: "help" }}>
+                <div key={label} style={{ padding: "6px 4px", borderRadius: 5, border: "1px solid #E5E7EB", background: "#FFF", textAlign: "center" }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color }}>{val.toLocaleString("de-DE")}</div>
-                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 3 }}>
-                    {label}
-                    <span aria-hidden="true" style={{ fontSize: 9, color: "#9CA3AF", fontWeight: 700 }}>ⓘ</span>
-                  </div>
+                  <Tooltip text={tip}>
+                    <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 3, cursor: "help" }}>
+                      {label}
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#9CA3AF" strokeWidth="1.5"><circle cx="8" cy="8" r="7"/><line x1="8" y1="5" x2="8" y2="8"/><circle cx="8" cy="11" r=".6" fill="#9CA3AF"/></svg>
+                    </div>
+                  </Tooltip>
                 </div>
               ))}
             </div>
@@ -4247,7 +4250,6 @@ function McDashboard() {
           {kpis.map((k) => (
             <div key={k.label}
               onClick={() => k.highlight ? setMcActiveNav("angebotsfeed") : null}
-              title={k.tooltip || ""}
               style={{
                 background: "#FFFFFF",
                 border: k.highlight ? "1.5px solid #FCD34D" : "1px solid #E5E7EB",
@@ -4262,7 +4264,9 @@ function McDashboard() {
                 {k.highlight ? (
                   <span style={{ fontSize: 10, background: "#FEF3C7", color: "#92400E", padding: "1px 6px", borderRadius: 999, fontWeight: 600 }}>NEU</span>
                 ) : (
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#9CA3AF" strokeWidth="1.5"><circle cx="8" cy="8" r="7"/><line x1="8" y1="5" x2="8" y2="8"/><circle cx="8" cy="11" r=".6" fill="#9CA3AF"/></svg>
+                  <Tooltip text={k.tooltip || ""}>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#9CA3AF" strokeWidth="1.5" style={{ cursor: "help", flexShrink: 0 }}><circle cx="8" cy="8" r="7"/><line x1="8" y1="5" x2="8" y2="8"/><circle cx="8" cy="11" r=".6" fill="#9CA3AF"/></svg>
+                  </Tooltip>
                 )}
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginTop: 4 }}>
