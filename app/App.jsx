@@ -4003,9 +4003,7 @@ function McAngebotsfeed() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerliste</div>
               <div style={{ fontSize: 11, color: "#4B5563", marginTop: 4, lineHeight: "1.6" }}>
-                Ihre hochgeladene Datei mit zwei zusätzlichen Spalten am Anfang:<br />
-                · <strong>Fehler Pflichtfelder</strong><br />
-                · <strong>Fehler Optionale Felder</strong>
+                Feed + Spalten <strong>Fehler Pflichtfelder</strong> &amp; <strong>Fehler Optionale Felder</strong>
               </div>
             </div>
             <button
