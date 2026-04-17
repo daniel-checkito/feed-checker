@@ -649,15 +649,15 @@ export default function FeedCheckerTool() {
               </div>
 
               <div style={{ padding: "0 18px 4px" }}>
-                <div style={{ position: "relative", paddingTop: 22 }}>
+                <div style={{ position: "relative", paddingTop: 34 }}>
                   <div style={{ position: "absolute", top: 0, left: "70%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
                     <div style={{ fontSize: 8, fontWeight: 700, color: campaignEligible ? "#166534" : "#4B5563", whiteSpace: "nowrap", padding: "1px 5px", borderRadius: 3, background: campaignEligible ? "#DCFCE7" : "#F3F4F6", border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}` }}>Kampagnen</div>
-                    <div style={{ width: 1, height: 4, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
+                    <div style={{ width: 1, height: 14, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
                   </div>
                   <div style={{ height: 12, borderRadius: 6, background: "#E5E7EB", overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${score}%`, background: campaignEligible ? "#16A34A" : score >= 50 ? "#D97706" : "#DC2626", transition: "width 0.4s" }} />
                   </div>
-                  <div style={{ position: "absolute", top: 22, left: "70%", transform: "translateX(-50%)", width: 2, height: 12, background: campaignEligible ? "#16A34A" : "#6B7280", pointerEvents: "none" }} />
+                  <div style={{ position: "absolute", top: 34, left: "70%", transform: "translateX(-50%)", width: 2, height: 12, background: campaignEligible ? "#16A34A" : "#6B7280", pointerEvents: "none" }} />
                   <div style={{ display: "flex", fontSize: 9, color: "#9CA3AF", marginTop: 3, position: "relative" }}>
                     <span>0</span>
                     <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>50</span>
