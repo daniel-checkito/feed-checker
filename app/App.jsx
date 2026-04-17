@@ -4004,10 +4004,7 @@ function McAngebotsfeed() {
           {/* ── CSV DOWNLOAD (highlighted primary action) ── */}
           <div style={{ padding: "14px 16px", borderRadius: 10, border: `2px solid ${MC_BLUE}`, background: "#EEF4FF", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 2px 8px rgba(21, 83, 182, 0.12)" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerliste</div>
-              <div style={{ fontSize: 11, color: "#4B5563", marginTop: 4, lineHeight: "1.6" }}>
-                Feed + Spalten <strong>Fehler Pflichtfelder</strong> &amp; <strong>Fehler Optionale Felder</strong>
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerbericht herunterladen</div>
             </div>
             <button
               type="button"
