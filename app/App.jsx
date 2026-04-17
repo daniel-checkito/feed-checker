@@ -4064,7 +4064,7 @@ function McAngebotsfeed() {
                 <div style={{ position: "relative", paddingTop: 34 }}>
                   {/* 70-Marker Pille */}
                   <div style={{ position: "absolute", top: 0, left: "70%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <div style={{ fontSize: 8, fontWeight: 700, color: campaignEligible ? "#166534" : "#4B5563", whiteSpace: "nowrap", padding: "1px 5px", borderRadius: 3, background: campaignEligible ? "#DCFCE7" : "#F3F4F6", border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}` }}>Kampagnen</div>
+                    <div style={{ fontSize: 8, fontWeight: 700, color: campaignEligible ? "#166534" : "#4B5563", whiteSpace: "nowrap", padding: "1px 5px", borderRadius: 3, background: campaignEligible ? "#DCFCE7" : "#F3F4F6", border: `1px solid ${campaignEligible ? "#86EFAC" : "#E5E7EB"}` }}>Zielwert erreicht</div>
                     <div style={{ width: 1, height: 14, background: campaignEligible ? "#16A34A" : "#9CA3AF" }} />
                   </div>
                   {/* Balken */}
