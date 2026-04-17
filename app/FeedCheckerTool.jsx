@@ -459,11 +459,11 @@ export default function FeedCheckerTool() {
   }
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "start", maxWidth: 1500, margin: "0 auto", padding: "20px" }}>
+    <div style={{ maxWidth: 1500, margin: "0 auto", padding: "20px" }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: "0 0 12px 0" }}>Ihr Angebotsfeed</h2>
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
       {/* ── LEFT: Upload & Settings ── */}
       <div style={{ flex: "0 1 50%", minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: 0 }}>Ihr Angebotsfeed</h2>
-
         {/* Upload Method Toggle */}
         <div style={{ background: "#FFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 10 }}>Wie möchten Sie Ihren Feed übermitteln?</div>
@@ -667,6 +667,7 @@ export default function FeedCheckerTool() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }
