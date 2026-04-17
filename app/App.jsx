@@ -3755,32 +3755,48 @@ function McAngebotsfeed() {
                     {mcImageColumns.length > 0 ? mcImageColumns.join(", ") : "–"}
                   </div>
                 </div>
-                {allMcFields.map((f) => {
-                  const isManual = f in manualMapping;
-                  const col = mcMapping[f];
-                  const isPflicht = MC_PFLICHT_COLS.includes(f);
-                  const missing = !col && isPflicht;
+                {(() => {
+                  const manufacturerPflichtEnd = allMcFields.indexOf("manufacturer_email");
+                  const displayFields = [
+                    ...allMcFields.slice(0, manufacturerPflichtEnd + 1),
+                    "manufacturer_phone_number",
+                    ...allMcFields.filter((f) => f !== "manufacturer_phone_number" && allMcFields.indexOf(f) > manufacturerPflichtEnd),
+                  ].filter((f) => mcMapping[f] || MC_PFLICHT_COLS.includes(f));
+                  const hiddenCount = allMcFields.filter((f) => !mcMapping[f] && !MC_PFLICHT_COLS.includes(f) && f !== "manufacturer_phone_number").length;
                   return (
-                    <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>{LEFT_FL[f] || f}{isPflicht && <span style={{ color: "#DC2626", marginLeft: 2 }}>*</span>}</span>
-                      <select
-                        value={col || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
-                        }}
-                        style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
-                      >
-                        <option value="">-- Nicht zugeordnet --</option>
-                        {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      {isManual && (
-                        <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
-                          style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
+                    <>
+                      {displayFields.map((f) => {
+                        const isManual = f in manualMapping;
+                        const col = mcMapping[f];
+                        const isPflicht = MC_PFLICHT_COLS.includes(f);
+                        const missing = !col && isPflicht;
+                        return (
+                          <div key={f} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 10, color: "#374151", width: 150, flexShrink: 0 }}>{LEFT_FL[f] || f}{isPflicht && <span style={{ color: "#DC2626", marginLeft: 2 }}>*</span>}</span>
+                            <select
+                              value={col || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setManualMapping((prev) => { const next = { ...prev }; if (val === "") delete next[f]; else next[f] = val; return next; });
+                              }}
+                              style={{ flex: 1, fontSize: 10, padding: "3px 6px", borderRadius: 5, border: `1px solid ${missing ? "#FCA5A5" : "#D1D5DB"}`, background: "#FFF", cursor: "pointer" }}
+                            >
+                              <option value="">-- Nicht zugeordnet --</option>
+                              {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            {isManual && (
+                              <button type="button" onClick={() => setManualMapping((prev) => { const next = { ...prev }; delete next[f]; return next; })}
+                                style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, border: "1px solid #C4B5FD", background: "#FFF", color: "#7C3AED", cursor: "pointer" }}>↩</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {hiddenCount > 0 && (
+                        <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>{hiddenCount} weitere optionale Felder nicht im Feed</div>
                       )}
-                    </div>
+                    </>
                   );
-                })}
+                })()}
               </div>
             </details>
           );
@@ -3809,14 +3825,14 @@ function McAngebotsfeed() {
         {/* Downloads */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button type="button" onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
-            style={{ padding: "10px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Feedvorlage</div>
-            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>Excel-Vorlage</div>
+            style={{ padding: "10px 12px", borderRadius: 6, border: "1px solid #A7F3D0", background: "#ECFDF5", cursor: "pointer", textAlign: "left" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#065F46" }}>Feedvorlage</div>
+            <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>Excel-Vorlage</div>
           </button>
           <button type="button" onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedleitfaden_2025.pdf", "_blank", "noopener,noreferrer")}
-            style={{ padding: "10px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#FFF", cursor: "pointer", textAlign: "left" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>Feedleitfaden</div>
-            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>PDF-Anleitung</div>
+            style={{ padding: "10px 12px", borderRadius: 6, border: "1px solid #BFDBFE", background: "#EFF6FF", cursor: "pointer", textAlign: "left" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#1E3A8A" }}>Feedleitfaden</div>
+            <div style={{ fontSize: 10, color: "#2563EB", marginTop: 2 }}>PDF-Anleitung</div>
           </button>
         </div>
       </div>
@@ -3893,7 +3909,7 @@ function McAngebotsfeed() {
             }}>
               <div style={{ fontSize: 12, color: "#111827", lineHeight: "1.5" }}>
                 <strong style={{ color: stufe1Passed ? "#166534" : "#991B1B" }}>
-                  {stufe1Passed ? "Partner freigeschaltet." : "Account nicht aktivierbar."}
+                  {stufe1Passed ? "Account freigeschaltet." : "Account nicht aktivierbar."}
                 </strong>{" "}
                 {stufe1Passed
                   ? "Die technische Prüfung wurde bestanden. Ihre Artikel werden angelegt."
@@ -3985,7 +4001,7 @@ function McAngebotsfeed() {
           {/* ── CSV DOWNLOAD (highlighted primary action) ── */}
           <div style={{ padding: "14px 16px", borderRadius: 10, border: `2px solid ${MC_BLUE}`, background: "#EEF4FF", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 2px 8px rgba(21, 83, 182, 0.12)" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerbericht exportieren</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Fehlerliste</div>
               <div style={{ fontSize: 11, color: "#4B5563", marginTop: 4, lineHeight: "1.6" }}>
                 Ihre hochgeladene Datei mit zwei zusätzlichen Spalten am Anfang:<br />
                 · <strong>Fehler Pflichtfelder</strong><br />
