@@ -17,6 +17,7 @@ import ShopPerformance from "./shop-performance";
 import Onboarding from "./onboarding";
 import Tooltip from "./Tooltip";
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabaseClient";
+import ResultsTable, { saveResultToStorage } from "./ResultsTable";
    
 
 const BRAND_COLOR = "#1553B6";
@@ -1746,6 +1747,16 @@ function QsPage({ headers, rows }) {
     anzahlbilder: 0,
   });
 
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveForm, setSaveForm] = useState({
+    coreId: "", sellerKey: "", name: "", kommentar: "",
+    coreStatus: 1,
+    crossSelling: "ok", beschreibungHtml: "ok",
+    duplikate: "ok", stammArtikel: "ok", encoding: "ok", bware: "ok",
+    todo: "APA-Freigabe", mailPartner: "Nein",
+  });
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   const [autoEnabled, setAutoEnabled] = useState(true);
 
   const [imageSampleLimit, setImageSampleLimit] = useState(5);
@@ -2623,6 +2634,222 @@ function QsPage({ headers, rows }) {
           </div>
         </div>
       ) : null}
+
+      {total > 0 ? (
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => {
+              const okIf = (s) => s > 0 ? "ok" : "Problem";
+              const eligible = apaEligible;
+              setSaveForm((f) => ({
+                ...f,
+                todo: eligible ? "APA-Freigabe" : "Nein",
+                mailPartner: eligible ? "Nein" : "Feedanpassung beim Partner anfragen",
+              }));
+              setSaveModalOpen(true);
+              setSaveSuccess(false);
+            }}
+            style={{
+              padding: "10px 20px", borderRadius: 8, border: `2px solid ${BRAND_COLOR}`,
+              background: BRAND_COLOR, color: "#FFF", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+            }}
+          >
+            + Zu Tabelle hinzufügen
+          </button>
+        </div>
+      ) : null}
+
+      {saveModalOpen && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 999,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setSaveModalOpen(false); }}
+        >
+          <div style={{
+            background: "#FFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 560,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto",
+          }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", marginBottom: 4 }}>Zu Ergebnistabelle hinzufügen</div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18 }}>
+              Scores werden automatisch übernommen. Bitte Pflichtfelder ergänzen.
+            </div>
+
+            {/* Auto-filled preview */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: "#F3F4F6", border: "1px solid #E5E7EB" }}>
+              {[
+                { label: "Attribute Score", value: attributeScore + " / 90" },
+                { label: "Image Score", value: imageScore + " / 90" },
+                { label: "APA Eignung", value: apaEligible ? "✅ Ja" : "❌ Nein" },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[
+                { key: "coreId", label: "Core ID *", placeholder: "z. B. 9CYE" },
+                { key: "sellerKey", label: "Seller Key", placeholder: "z. B. tempur" },
+                { key: "name", label: "Name (Bearbeiter)", placeholder: "z. B. Isa" },
+                { key: "kommentar", label: "Kommentar", placeholder: "Optional" },
+              ].map(({ key, label, placeholder }) => (
+                <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>{label}</span>
+                  <input
+                    type="text"
+                    value={saveForm[key]}
+                    placeholder={placeholder}
+                    onChange={(e) => setSaveForm((f) => ({ ...f, [key]: e.target.value }))}
+                    style={{
+                      padding: "8px 10px", borderRadius: 6, border: "1px solid #D1D5DB",
+                      fontSize: 13, color: "#111827", outline: "none",
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 8 }}>Manuelle APA-Felder</div>
+            <div style={{ display: "grid", gap: 6, marginBottom: 16 }}>
+              {[
+                { key: "crossSelling",     label: "kein Cross-Selling in Beschreibung" },
+                { key: "beschreibungHtml", label: "Beschreibung in HTML" },
+                { key: "duplikate",        label: "Doppelte Offer Prüfung" },
+                { key: "stammArtikel",     label: "keine Stamm-/Parentartikel" },
+                { key: "encoding",         label: "Encoding falsch/Feed zerschossen" },
+                { key: "bware",            label: "B-Ware" },
+              ].map(({ key, label }) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                  <span style={{ fontSize: 12, color: "#374151" }}>{label}</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["ok", "Problem"].map((opt) => (
+                      <button key={opt} type="button"
+                        onClick={() => setSaveForm((f) => ({ ...f, [key]: opt }))}
+                        style={{
+                          padding: "3px 10px", borderRadius: 5, border: "1px solid",
+                          borderColor: saveForm[key] === opt ? (opt === "ok" ? "#16A34A" : "#DC2626") : "#D1D5DB",
+                          background: saveForm[key] === opt ? (opt === "ok" ? "#DCFCE7" : "#FEE2E2") : "#FFF",
+                          color: saveForm[key] === opt ? (opt === "ok" ? "#166534" : "#991B1B") : "#6B7280",
+                          fontSize: 11, fontWeight: 600, cursor: "pointer",
+                        }}
+                      >{opt}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* TO DO */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <span style={{ fontSize: 12, color: "#374151" }}>TO DO</span>
+                <select
+                  value={saveForm.todo}
+                  onChange={(e) => setSaveForm((f) => ({ ...f, todo: e.target.value }))}
+                  style={{ padding: "4px 8px", borderRadius: 5, border: "1px solid #D1D5DB", fontSize: 12, background: "#FFF", cursor: "pointer" }}
+                >
+                  <option>APA-Freigabe</option>
+                  <option>Nein</option>
+                </select>
+              </div>
+
+              {/* Mail an Partner */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <span style={{ fontSize: 12, color: "#374151" }}>Mail an Partner</span>
+                <select
+                  value={saveForm.mailPartner}
+                  onChange={(e) => setSaveForm((f) => ({ ...f, mailPartner: e.target.value }))}
+                  style={{ padding: "4px 8px", borderRadius: 5, border: "1px solid #D1D5DB", fontSize: 12, background: "#FFF", cursor: "pointer" }}
+                >
+                  <option>Nein</option>
+                  <option>APA-Freigabe</option>
+                  <option>Feedanpassung beim Partner anfragen</option>
+                </select>
+              </div>
+            </div>
+
+            {saveSuccess && (
+              <div style={{ padding: "10px 14px", borderRadius: 8, background: "#DCFCE7", border: "1px solid #86EFAC", color: "#166534", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                ✓ Eintrag gespeichert! Gehe zu "Ergebnistabelle" um alle Einträge zu sehen.
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setSaveModalOpen(false)}
+                style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!saveForm.coreId.trim()) {
+                    alert("Bitte Core ID eingeben.");
+                    return;
+                  }
+                  const okIf = (s) => s > 0 ? "ok" : "Problem";
+                  const today = new Date();
+                  const datum = `${String(today.getDate()).padStart(2, "0")}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getFullYear()).slice(2)}`;
+                  const gtin = eanCol ? (rows.filter((r) => safeStr(r[eanCol]).trim()).length / rows.length > 0.9 ? "ok" : "Problem") : "Problem";
+                  saveResultToStorage({
+                    id: Date.now() + Math.random().toString(36).slice(2),
+                    coreId: saveForm.coreId.trim(),
+                    sellerKey: saveForm.sellerKey.trim(),
+                    name: saveForm.name.trim(),
+                    kommentar: saveForm.kommentar.trim(),
+                    datum,
+                    // QS scores
+                    herstellerfeed: scores.herstellerfeed,
+                    titel: scores.titel,
+                    beschreibung: scores.beschreibung,
+                    abmessungen: scores.abmessungen,
+                    lieferumfang: scores.lieferumfang,
+                    material: scores.material,
+                    farbe: scores.farbe,
+                    shoptexte: scores.shoptexte,
+                    bildmatch: scores.bildmatch,
+                    freisteller: scores.freisteller,
+                    millieu: scores.millieu,
+                    anzahlbilder: scores.anzahlbilder,
+                    attributeScore,
+                    imageScore,
+                    // APA fields
+                    coreStatus: saveForm.coreStatus,
+                    apaFreigabe: apaEligible ? 1 : 0,
+                    gtin,
+                    titel_apa: okIf(scores.titel),
+                    beschreibung_apa: okIf(scores.beschreibung),
+                    shoptext_apa: okIf(scores.shoptexte),
+                    crossSelling: saveForm.crossSelling,
+                    beschreibungHtml: saveForm.beschreibungHtml,
+                    masse: okIf(scores.abmessungen),
+                    material_apa: okIf(scores.material),
+                    farbe_apa: okIf(scores.farbe),
+                    lieferumfang_apa: okIf(scores.lieferumfang),
+                    bildMatch: okIf(scores.bildmatch),
+                    mangelBilder: okIf(scores.anzahlbilder),
+                    duplikate: saveForm.duplikate,
+                    stammArtikel: saveForm.stammArtikel,
+                    encoding: saveForm.encoding,
+                    bware: saveForm.bware,
+                    todo: saveForm.todo,
+                    mailPartner: saveForm.mailPartner,
+                  });
+                  setSaveSuccess(true);
+                  setSaveForm((f) => ({ ...f, coreId: "", sellerKey: "", name: "", kommentar: "" }));
+                }}
+                style={{ padding: "10px 20px", borderRadius: 6, border: "none", background: BRAND_COLOR, color: "#FFF", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              >
+                Speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: 12, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
@@ -4576,11 +4803,11 @@ export default function App() {
     if (hash === "#/rules") return "rules";
     if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") return "feed-analyse";
     if (hash === "#/produkt-optimierung") return "produkt-optimierung";
-    if (hash === "#/mapping") return "mapping";
     if (hash === "#/analytics") return "analytics";
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
     if (hash === "#/checker-mc") return "checker-mc";
+    if (hash === "#/ergebnistabelle") return "ergebnistabelle";
     return "feed-analyse";
   });
   const supabase = useMemo(() => getSupabaseClient(), []);
@@ -4599,11 +4826,11 @@ export default function App() {
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") setRoute("feed-analyse");
       else if (hash === "#/produkt-optimierung") setRoute("produkt-optimierung");
-      else if (hash === "#/mapping") setRoute("mapping");
       else if (hash === "#/analytics") setRoute("analytics");
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
       else if (hash === "#/checker-mc") setRoute("checker-mc");
+      else if (hash === "#/ergebnistabelle") setRoute("ergebnistabelle");
       else setRoute("feed-analyse");
     };
     window.addEventListener("hashchange", onHash);
@@ -4657,60 +4884,6 @@ export default function App() {
   const [analyticsStats, setAnalyticsStats] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState("");
-
-  // Mapping page state
-  const [mappingFileName, setMappingFileName] = useState("");
-  const [mappingHeaders, setMappingHeaders] = useState([]);
-  const [mappingRows, setMappingRows] = useState([]);
-  const [mappingError, setMappingError] = useState("");
-  const [produktIdentifikationMappings, setProduktIdentifikationMappings] = useState({});
-  const [attributeMappings, setAttributeMappings] = useState({});
-  const [imageMappings, setImageMappings] = useState({});
-  const mappingFileInputRef = useRef(null);
-
-  function onPickMappingFile(file) {
-    if (!file) {
-      setMappingFileName("");
-      setMappingHeaders([]);
-      setMappingRows([]);
-      setMappingError("");
-      setProduktIdentifikationMappings({});
-      setAttributeMappings({});
-      setImageMappings({});
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target.result;
-        const parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
-        if (!parsed.data || parsed.data.length < 1) {
-          setMappingError("Datei ist leer");
-          setMappingFileName("");
-          setMappingHeaders([]);
-          setMappingRows([]);
-          return;
-        }
-        setMappingFileName(file.name);
-        setMappingHeaders(parsed.data[0] || []);
-        setMappingRows(parsed.data.slice(1) || []);
-        setMappingError("");
-      } catch (err) {
-        setMappingError(String(err?.message || err || "Parse error"));
-        setMappingFileName("");
-        setMappingHeaders([]);
-        setMappingRows([]);
-      }
-    };
-    reader.onerror = () => {
-      setMappingError("Datei konnte nicht gelesen werden");
-      setMappingFileName("");
-      setMappingHeaders([]);
-      setMappingRows([]);
-    };
-    reader.readAsText(file);
-  }
 
   async function loadProductOptimizationAnalytics() {
     setAnalyticsError("");
@@ -6420,8 +6593,8 @@ export default function App() {
 
   const NAV_ITEMS = [
     { id: "feed-analyse",         label: "Feed Analyse",       icon: "🔍" },
+    { id: "ergebnistabelle",      label: "Ergebnistabelle",    icon: "📊" },
     { id: "checker-mc",           label: "Merchant Center Prototype", icon: "🏪" },
-    { id: "mapping",              label: "Mapping",            icon: "🗂️" },
     { id: "produkt-optimierung",  label: "Produkt Optimierung (WIP)",icon: "⚡" },
     ...(adminToken ? [{ id: "analytics", label: "Analytics", icon: "📈" }] : []),
   ];
@@ -7498,6 +7671,15 @@ export default function App() {
     </div>
   );
 
+  if (route === "ergebnistabelle") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <ResultsTable />
+      </div>
+    );
+  }
+
   if (route === "rules") {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
@@ -7642,670 +7824,6 @@ export default function App() {
       <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
         {topNav}
         <Onboarding />
-      </div>
-    );
-  }
-
-  if (route === "mapping") {
-    const check24Attributes = [
-      "Allgemein > Name (1) text",
-      "Allgemein > Beschreibung (2) text",
-      "Allgemein > Modell (3) text",
-      "Allgemein > Herstellernummer (4) text",
-      "Maße & Gewicht > Höhe (5) in mm",
-      "Maße & Gewicht > Tiefe (6) in mm",
-      "Maße & Gewicht > Breite (7) in mm",
-      "Maße & Gewicht > Durchmesser (8) in mm",
-      "Maße & Gewicht > Gewicht (9) in kg",
-      "Maße & Gewicht > Volumen (10) in l",
-      "Lieferung > Lieferumfang (11) text",
-      "Farbe & Design > Farbe (12) text",
-      "Farbe & Design > Stil (13) text",
-      "Maße & Gewicht > Abmessungen (14) text",
-      "Maße & Gewicht > Liegefläche (15) text",
-      "Maße & Gewicht > Max. Belastbarkeit (16) in kg",
-      "Maße & Gewicht > Sitzhöhe (19) in mm",
-      "Allgemein > Serie (21) text",
-      "Allgemein > Herstellungsland (22) text",
-      "Material > Material (23) text",
-      "Material > Holzqualität (24) text",
-      "Material > Holzart (25) text",
-      "Material > Oberfläche (26) text",
-      "Material > Oberflächenbehandlung (27) text",
-      "Eigenschaften > Verstellbare Tischhöhe (30) text",
-      "Eigenschaften > Verstellbare Sitzhöhe (31) text",
-      "Eigenschaften > Griffart (36) text",
-      "Eigenschaften > Soft-Close (37) text",
-      "Set-Details > Set-Bestandteile (38) text",
-      "Set-Details > Maße Bett (39) text",
-      "Set-Details > Maße Kommode (40) text",
-      "Set-Details > Maße Schrank (41) text",
-      "Set-Details > Maße Regal (42) text",
-      "Set-Details > Maße Schreibtisch (43) text",
-      "Set-Details > Maße Stuhl (44) text",
-      "Set-Details > Maße Nachttisch (45) text",
-      "Maße & Gewicht > Gewicht (46) in kg",
-      "Material > Textilien (49) text",
-      "Allgemein > Marke (50) text",
-      "Farbe & Design > Textilfarbe (51) text",
-      "Material > Füße (67) text",
-      "Material > Rahmen (68) text",
-      "Material > Gestell (72) text",
-      "Maße & Gewicht > Höhenverstellbar (von - bis) (73) in mm",
-      "Farbe & Design > Kissen (82) text",
-      "Material > Sitzfläche (83) text",
-      "Eigenschaften > Klappbar (87) text",
-      "Maße & Gewicht > Klappmäße (88) text",
-      "Farbe & Design > Design (89) text",
-      "Material > Korpus (90) text",
-      "Material > Griff (91) text",
-      "Eigenschaften > Anzahl Schubladen (92) text",
-      "Eigenschaften > Anzahl Türen (93) text",
-      "Eigenschaften > Anzahl Fächer (94) text",
-      "Farbe & Design > Griff (95) text",
-      "Allgemein > Prüfsiegel (96) text",
-      "Eigenschaften > Umbaubar zum Einzelbett (97) text",
-      "Maße & Gewicht > Höhe unter dem Bett (98) in mm",
-      "Maße & Gewicht > Pfostenstärke (99) text",
-      "Maße & Gewicht > Empfohlene Matratzenhöhe (101) text",
-      "Maße & Gewicht > Höhe zwischen den Liegeflächen (103) in mm",
-      "Maße & Gewicht > Höhe Fußteil (105) in mm",
-      "Maße & Gewicht > Höhe Kopfteil (106) in mm",
-      "Ausstattung > mit Schreibtisch (107) text",
-      "Allgemein > Pfleghinweis (109) text",
-      "Eigenschaften > Verstellbare Rückenlehne (114) text",
-      "Eigenschaften > Wendbar (117) text",
-      "Eigenschaften > Abnehmbarer Bezug (118) text",
-      "Eigenschaften > Waschbarer Bezug (119) text",
-      "Eigenschaften > Geeignet für Allergiker (120) text",
-    ];
-
-    // Auto-detect CHECK24 attribute for a feed column name
-    function autoDetectCheck24Attr(col) {
-      const n = col.toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/[^a-z0-9]/g,"_").replace(/_+/g,"_");
-      // Offer ID / Seller Offer ID
-      if (/^(offer_id|seller_offer_id|offerId|angebotsid)$/.test(n)) return "offer_id";
-      // EAN / GTIN14
-      if (/^(ean|gtin|gtin14|gtin_14|ean14|ean_14|barcode)$/.test(n)) return "EAN (GTIN14)";
-      // Price / Supplied Price
-      if (/^(price|preis|seller_supplied_price|supplied_price|verkaufspreis)$/.test(n)) return "price";
-      // Category / Deeplink
-      if (/^(category|kategorie|seller_category|category_path|warengruppe)$/.test(n)) return "category_path";
-      if (/^(deeplink|link|seller_deeplink|url|product_url|shop_url)$/.test(n)) return "deeplink";
-      // Delivery time
-      if (/^(delivery_time|lieferzeit|versandzeit|delivery_speed)$/.test(n)) return "delivery_time";
-      // Size variants (using size_ prefix)
-      if (/^size$|^size_$/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
-      if (/size_height|size_h$|^h$/.test(n)) return "Maße & Gewicht > Höhe (5) in mm";
-      if (/size_depth|size_tiefe|size_t$|^t$/.test(n)) return "Maße & Gewicht > Tiefe (6) in mm";
-      if (/size_width|size_breite|size_b$|^b$/.test(n)) return "Maße & Gewicht > Breite (7) in mm";
-      if (/size_seat_height|seat_height|sitzhoeche|sitzhöhe/.test(n)) return "Maße & Gewicht > Sitzhöhe (19) in mm";
-      if (/size_lying_surface|lying_surface|liegeflaeche|liegeflache/.test(n)) return "Maße & Gewicht > Liegefläche (15) text";
-      // Name / Title
-      if (/^(name|title|product_name|produkt_name|produktname|bezeichnung|artikelname)$/.test(n)) return "Allgemein > Name (1) text";
-      // Description
-      if (/beschreibung|description|produktbeschreibung|produkt_beschreibung/.test(n)) return "Allgemein > Beschreibung (2) text";
-      // Model
-      if (/^(modell|model|model_number|modellnummer)$/.test(n)) return "Allgemein > Modell (3) text";
-      // Manufacturer number
-      if (/herstellernummer|hersteller_nummer|manufacturer_number|mpn|sku/.test(n)) return "Allgemein > Herstellernummer (4) text";
-      // Delivery includes
-      if (/delivery_includes|lieferumfang|lieferinhalt|lieferung_inhalt|scope_of_delivery/.test(n)) return "Lieferung > Lieferumfang (11) text";
-      // Color
-      if (/^(farbe|color|colour|product_color|produktfarbe)$/.test(n)) return "Farbe & Design > Farbe (12) text";
-      // Brand / Marke
-      if (/^(brand|marke|hersteller|manufacturer|manufacturer_name)$/.test(n)) return "Allgemein > Marke (50) text";
-      // Material
-      if (/^(material|materials|werkstoff)$/.test(n)) return "Material > Material (23) text";
-      // Material Surface
-      if (/material_surface|oberflaeche|oberfläche/.test(n)) return "Material > Oberfläche (26) text";
-      // Dimensions combined
-      if (/abmessungen|dimensions|abmessung|masse$|maße$|groesse$|groesse_produkt/.test(n)) return "Maße & Gewicht > Abmessungen (14) text";
-      // Height
-      if (/^(hoehe|height|height_mm|product_height|h_mm|hoehe_mm)$/.test(n) || /^h$/.test(n)) return "Maße & Gewicht > Höhe (5) in mm";
-      // Depth
-      if (/^(tiefe|depth|depth_mm|product_depth|t_mm|tiefe_mm)$/.test(n) || /^t$/.test(n)) return "Maße & Gewicht > Tiefe (6) in mm";
-      // Width
-      if (/^(breite|width|width_mm|product_width|b_mm|breite_mm)$/.test(n) || /^b$/.test(n)) return "Maße & Gewicht > Breite (7) in mm";
-      // Diameter
-      if (/durchmesser|diameter|diameter_mm/.test(n)) return "Maße & Gewicht > Durchmesser (8) in mm";
-      // Weight
-      if (/^(gewicht|weight|weight_kg|product_weight|g_kg)$/.test(n)) return "Maße & Gewicht > Gewicht (9) in kg";
-      // Volume
-      if (/^(volumen|volume|capacity|inhalt_l)$/.test(n)) return "Maße & Gewicht > Volumen (10) in l";
-      // Style
-      if (/^(stil|style|design_stil)$/.test(n)) return "Farbe & Design > Stil (13) text";
-      // Surface
-      if (/oberflaeche$|oberflaechenbehandlung/.test(n)) return "Material > Oberflächenbehandlung (27) text";
-      // Care
-      if (/pflegehinweis|pflege_hinweis|care_instruction/.test(n)) return "Allgemein > Pfleghinweis (109) text";
-      // Series
-      if (/^(serie|series|produktserie|product_series)$/.test(n)) return "Allgemein > Serie (21) text";
-      // Country of origin
-      if (/herstellungsland|country_of_origin|made_in/.test(n)) return "Allgemein > Herstellungsland (22) text";
-      return null;
-    }
-
-    const attributeMappingFields = mappingHeaders.length > 0 ? mappingHeaders.map((header, idx) => ({
-      label: header,
-      feedValue: mappingRows[0] ? mappingRows[0][idx] : "",
-      autoAttr: autoDetectCheck24Attr(header),
-    })) : [];
-
-    // Get contextual normalizer tip for a field
-    function getNormalizerTip(fieldLabel) {
-      const n = fieldLabel.toLowerCase().replace(/[^a-z0-9]/g, "_");
-      if (/beschreibung|description/.test(n)) {
-        return { text: "HTML vorhanden? → \"HTML in Markdown umwandeln\" (formatiert besser) · Nur Text? → \"HTML entfernen\"", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
-      }
-      if (/size_|abmessungen|dimensions|masse|maße|hoehe|height|tiefe|depth|breite|width|durchmesser|diameter|groesse|gewicht|weight|volumen|volume|liegeflaeche|liegeflache/.test(n)) {
-        return { text: "\"Interpretiere als numerisch\" (konvertiert in mm)", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
-      }
-      if (/versand|delivery|lieferzeit|liefermode|shipping/.test(n)) {
-        return { text: "\"Versandart ermitteln\" (für delivery_mode)", bg: "#FFFBEB", border: "#FCD34D", color: "#92400E" };
-      }
-      return null;
-    }
-
-    // Auto-detect image column for image number
-    function autoDetectImageColumn(imgNum) {
-      const patterns = [
-        imgNum === 1 ? /^image_url$|^img_url$|^bild$|^bild_1$|^image$/ : new RegExp(`^image_url\\s+${imgNum}$|^image_url_${imgNum}$|^img_url\\s+${imgNum}$|^img_url_${imgNum}$|^bild_${imgNum}$|^bild\\s+${imgNum}$`),
-      ];
-      for (const pattern of patterns) {
-        for (const header of mappingHeaders) {
-          if (pattern.test(header.toLowerCase())) {
-            return header;
-          }
-        }
-      }
-      return null;
-    }
-
-    const produktIdentifikationFields = [
-      { label: "seller_offer_id", required: true },
-      { label: "amazon_sales_rank", required: false },
-      { label: "delivery_time", required: false },
-      { label: "gtin14", required: false },
-      { label: "seller_category", required: false },
-      { label: "seller_deeplink", required: false },
-      { label: "seller_supplied_price", required: false },
-      { label: "brand", required: false },
-    ];
-
-    return (
-      <div style={{ display: "flex", height: "100vh", flexDirection: "column", background: "#FFFFFF" }}>
-        {topNav}
-        <div style={{ flex: 1, overflowY: "auto", padding: "32px 20px" }}>
-          {/* File Upload */}
-          <div style={{ marginBottom: 40, paddingBottom: 24, borderBottom: "2px solid #E5E7EB" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 12 }}>Feed-Datei</div>
-            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <button
-                type="button"
-                onClick={() => mappingFileInputRef.current?.click()}
-                style={{ padding: "10px 20px", borderRadius: 6, border: "none", background: "#1E40AF", fontSize: 13, fontWeight: 600, color: "#FFFFFF", cursor: "pointer", transition: "background 0.2s" }}
-                onMouseOver={(e) => e.target.style.background = "#1a37a0"}
-                onMouseOut={(e) => e.target.style.background = "#1E40AF"}
-              >
-                📁 Datei auswählen
-              </button>
-              <span style={{ fontSize: 13, color: mappingFileName ? "#111827" : "#9CA3AF", fontWeight: mappingFileName ? 600 : 400 }}>
-                {mappingFileName ? mappingFileName : "Noch keine Datei geladen"}
-              </span>
-              <input
-                ref={mappingFileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={(e) => onPickMappingFile(e.target.files?.[0] || null)}
-                style={{ display: "none" }}
-              />
-            </div>
-            {mappingError && <div style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{mappingError}</div>}
-          </div>
-
-          {/* Page Intro */}
-          <div style={{ marginBottom: 40 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Content Import Mapping</div>
-            <div style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.6, maxWidth: 760 }}>
-              Dieses Tool hilft Ihnen dabei, Ihren Produktfeed mit dem CHECK24 Content-System zu verbinden. Das Mapping legt fest, welche Spalten aus Ihrem Feed welchen Feldern bei CHECK24 entsprechen — von der Produktidentifikation bis zu allen sichtbaren Attributen auf der Produktdetailseite.
-            </div>
-            <div style={{ display: "flex", gap: 24, marginTop: 20 }}>
-              {[
-                { step: "1", title: "Feed hochladen", desc: "CSV- oder Excel-Datei (.xlsx) mit Ihren Produktdaten", icon: "📁" },
-                { step: "2", title: "Produktidentifikation", desc: "Technische Pflichtfelder mappen", icon: "🔑" },
-                { step: "3", title: "Attributmapping", desc: "Sichtbare Produktattribute zuordnen", icon: "🏷️" },
-                { step: "4", title: "Bilder & Dokumente", desc: "Bildquellen und Dateien mappen", icon: "🖼️" },
-              ].map((s) => (
-                <div key={s.step} style={{ display: "flex", alignItems: "flex-start", gap: 10, flex: 1, background: "#F9FAFB", borderRadius: 8, padding: "12px 14px", border: "1px solid #E5E7EB" }}>
-                  <div style={{ fontSize: 18 }}>{s.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Schritt {s.step}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{s.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {mappingHeaders.length === 0 && (
-            <div style={{ background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "16px 20px", marginBottom: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#1E40AF" }}>💡 So starten Sie</div>
-              <div style={{ fontSize: 12, color: "#1E40AF", marginTop: 4 }}>
-                Laden Sie Ihre CSV- oder Excel-Datei (.xlsx) oben hoch. Das System erkennt die Spalten automatisch und schlägt passende Zuordnungen vor. Je mehr Attribute korrekt gemappt sind, desto besser werden Ihre Produkte bei CHECK24 angezeigt.
-              </div>
-            </div>
-          )}
-
-          {(mappingHeaders.length > 0 || true) && (
-            <>
-              {/* Content Import Mapping Section */}
-              <div style={{ marginBottom: 48 }}>
-
-                {/* Produktidentifikation */}
-                <div style={{ marginBottom: 40 }}>
-                  <div style={{ background: "#F8FAFF", border: "1px solid #DBEAFE", borderRadius: 8, padding: "16px 20px", marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1E40AF", marginBottom: 6 }}>🔑 Schritt 2 — Produktidentifikation</div>
-                    <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.6 }}>
-                      Diese Felder sind technische Pflichtfelder für den Import. Sie werden <strong>nicht direkt auf der Produktseite angezeigt</strong>, aber sind notwendig damit CHECK24 das Produkt korrekt verarbeiten und eindeutig identifizieren kann.
-                    </div>
-                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {[
-                        { field: "seller_offer_id", desc: "Ihre interne Produkt-ID (Pflicht)" },
-                        { field: "gtin14", desc: "EAN / Barcode" },
-                        { field: "delivery_time", desc: "Lieferzeit in Werktagen" },
-                        { field: "seller_supplied_price", desc: "Ihr Verkaufspreis" },
-                        { field: "brand", desc: "Markenname des Produkts" },
-                      ].map(({ field, desc }) => (
-                        <div key={field} style={{ fontSize: 11, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 4, padding: "3px 8px", color: "#1E40AF" }} title={desc}>
-                          <code>{field}</code> <span style={{ color: "#60A5FA" }}>— {desc}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Produktidentifikation</div>
-                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>
-                        <span style={{ display: "inline-block", width: 10, height: 10, background: "#16A34A", borderRadius: 2, marginRight: 4, verticalAlign: "middle" }}></span>Grün = automatisch erkannt
-                        <span style={{ display: "inline-block", width: 10, height: 10, background: "#1E40AF", borderRadius: 2, marginLeft: 12, marginRight: 4, verticalAlign: "middle" }}></span>Blau = manuell gesetzt
-                      </div>
-                    </div>
-                    <button type="button" onClick={() => setProduktIdentifikationMappings({})} style={{ fontSize: 11, padding: "4px 12px", border: "1px solid #D1D5DB", background: "#FFFFFF", borderRadius: 4, cursor: "pointer", color: "#6B7280", fontWeight: 500, whiteSpace: "nowrap" }}>
-                      ↻ Reset
-                    </button>
-                  </div>
-
-                  {produktIdentifikationFields.map((field, idx) => {
-                    const autoDetectedValue = mappingHeaders.find(h => h.toLowerCase().includes(field.label.split("_")[0])) || "";
-                    const userSetValue = produktIdentifikationMappings[field.label];
-                    const isUserExplicitlyClearedIt = userSetValue === "";
-                    const selectedValue = userSetValue !== undefined ? userSetValue : autoDetectedValue;
-                    const isUserSet = userSetValue !== undefined && userSetValue !== "";
-                    const isAutoDetected = !isUserSet && !isUserExplicitlyClearedIt && autoDetectedValue;
-
-                    return (
-                      <div key={field.label} style={{
-                        display: "grid",
-                        gridTemplateColumns: "200px 1fr 80px 1fr 40px",
-                        gap: 16,
-                        padding: "12px 16px",
-                        background: isUserSet ? "#F0F4FF" : isAutoDetected && !isUserExplicitlyClearedIt ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"),
-                        alignItems: "center",
-                        borderBottom: isUserSet ? "1px solid #BFDBFE" : isAutoDetected && !isUserExplicitlyClearedIt ? "1px solid #BBF7D0" : "1px solid #E5E7EB",
-                        borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected && !isUserExplicitlyClearedIt ? "3px solid #16A34A" : "3px solid transparent"
-                      }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
-                          {field.label} {field.required ? <span style={{ color: "#DC2626" }}>*</span> : ""} <span style={{ marginLeft: 4, cursor: "pointer" }}>ⓘ</span>
-                          {isUserSet && <span style={{ marginLeft: 8, fontSize: 11, background: "#1E40AF", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ SET</span>}
-                          {isAutoDetected && !isUserExplicitlyClearedIt && <span style={{ marginLeft: 8, fontSize: 11, background: "#16A34A", color: "#FFF", padding: "2px 6px", borderRadius: 3 }}>✓ AUTO</span>}
-                        </div>
-                        <select value={selectedValue || ""} onChange={(e) => setProduktIdentifikationMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 12px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", fontWeight: selectedValue ? 600 : 400, color: selectedValue ? "#111827" : "#9CA3AF" }}>
-                          <option value="">{isUserExplicitlyClearedIt ? "-- Wählen --" : (autoDetectedValue || "-- Wählen --")}</option>
-                          {mappingHeaders.map((h) => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                        {selectedValue && <button type="button" onClick={() => setProduktIdentifikationMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>}
-                        {!selectedValue && <div></div>}
-                        <select style={{ padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                          <option value=""></option>
-                        </select>
-                        <span style={{ cursor: "pointer", color: "#9CA3AF" }}>ⓘ</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Attributmapping Section */}
-              <div style={{ marginBottom: 48 }}>
-                {/* Explanation with live example */}
-                <div style={{ background: "#F8FAFF", border: "1px solid #DBEAFE", borderRadius: 8, padding: "20px 24px", marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1E40AF", marginBottom: 8 }}>🏷️ Schritt 3 — Attributmapping: Was Kunden auf CHECK24 sehen</div>
-                  <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.7, marginBottom: 16 }}>
-                    Das Attributmapping bestimmt, welche Produkteigenschaften aus Ihrem Feed als strukturierte Attribute auf der <strong>Produktdetailseite bei CHECK24</strong> angezeigt werden. Kunden nutzen diese Informationen aktiv, um Produkte zu vergleichen und Kaufentscheidungen zu treffen — je vollständiger das Mapping, desto besser die Konversion.
-                  </div>
-
-                  {/* Two-column: explanation + live example */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 24, alignItems: "start" }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 8 }}>Wie funktioniert das Mapping?</div>
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {[
-                          { icon: "1️⃣", text: "Jede Zeile = eine Spalte aus Ihrem Feed (z.B. \"material\", \"color\", \"height_mm\")" },
-                          { icon: "2️⃣", text: "Wählen Sie das passende CHECK24 Attribut rechts (z.B. \"Material > Material (23)\")" },
-                          { icon: "3️⃣", text: "Das System überträgt die Werte aus Ihrem Feed in die entsprechenden Felder bei CHECK24" },
-                          { icon: "4️⃣", text: "Nicht gemappte Felder erscheinen nicht auf der Produktseite — also so viele wie möglich mappen!" },
-                        ].map(({ icon, text }) => (
-                          <div key={icon} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12, color: "#374151" }}>
-                            <span style={{ flexShrink: 0 }}>{icon}</span>
-                            <span>{text}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ marginTop: 14, padding: "10px 14px", background: "#FEF9C3", border: "1px solid #FDE68A", borderRadius: 6, fontSize: 11, color: "#78350F" }}>
-                        <strong>💡 Tipp:</strong> Mappen Sie besonders: Maße, Material, Farbe, Lieferumfang und Marke — das sind die am häufigsten genutzten Filterattribute bei CHECK24.
-                      </div>
-                    </div>
-
-                    {/* Live example from CHECK24 frontend */}
-                    <div style={{ flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 8, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.05em" }}>So sieht es auf CHECK24 aus →</div>
-                      <div style={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px", minWidth: 300, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                        {[
-                          { label: "Maße (HxTxB)", value: "81,5 x 19 x 152 cm", attr: "Maße & Gewicht > Abmessungen" },
-                          { label: "Material", value: "MDF mit wasserbasierter Lackierung", attr: "Material > Material" },
-                          { label: "Lieferumfang", value: "1 x Heizkörperverkleidung", attr: "Lieferung > Lieferumfang" },
-                          { label: "Marke", value: "vidaXL", attr: "Allgemein > Marke" },
-                        ].map(({ label, value, attr }) => (
-                          <div key={label} style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8, paddingBottom: 10, marginBottom: 10, borderBottom: "1px solid #F3F4F6" }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{label}</div>
-                            <div style={{ fontSize: 13, color: "#374151" }}>{value}</div>
-                          </div>
-                        ))}
-                        <div style={{ fontSize: 12, color: "#1E40AF", marginTop: 4, fontWeight: 500 }}>Weitere Produktdetails</div>
-                      </div>
-                      <div style={{ marginTop: 8, display: "grid", rowGap: 4 }}>
-                        {[
-                          { label: "Maße (HxTxB)", attr: "Maße & Gewicht > Abmessungen (14)" },
-                          { label: "Material", attr: "Material > Material (23)" },
-                          { label: "Lieferumfang", attr: "Lieferung > Lieferumfang (11)" },
-                          { label: "Marke", attr: "Allgemein > Marke (50)" },
-                        ].map(({ label, attr }) => (
-                          <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "#6B7280" }}>
-                            <span style={{ color: "#9CA3AF" }}>↑</span>
-                            <span style={{ fontWeight: 600 }}>{label}</span>
-                            <span>→ CHECK24 Attribut:</span>
-                            <code style={{ background: "#EFF6FF", color: "#1E40AF", padding: "1px 5px", borderRadius: 3, fontSize: 10 }}>{attr}</code>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #E5E7EB" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Attributmapping</div>
-                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>Ordnen Sie jede Feed-Spalte dem entsprechenden CHECK24-Attribut zu. Das System erkennt passende Attribute automatisch — überprüfen und ergänzen Sie die Zuordnungen manuell.</div>
-                </div>
-                {mappingHeaders.length === 0 && (
-                  <div style={{ background: "#F0F9FF", border: "1px solid #BFDBFE", borderRadius: 6, padding: "12px 16px", marginBottom: 16, fontSize: 12, color: "#1E40AF" }}>
-                    Laden Sie eine CSV-Datei hoch, um Ihre Feed-Spalten zu sehen und zuzuordnen.
-                  </div>
-                )}
-
-
-                {/* Table Header */}
-                <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB", background: mappingHeaders.length === 0 ? "#F9FAFB" : "#FFFFFF" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
-                  <div style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>Preview</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Mapping auf CHECK24 Attribut</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer</div>
-                  <div></div>
-                </div>
-
-                {/* Table Rows */}
-                {attributeMappingFields.length > 0 && attributeMappingFields.map((field, idx) => {
-                  const userVal = attributeMappings[field.label];
-                  const isUserSet = userVal !== undefined && userVal !== "";
-                  const isCleared = userVal === "";
-                  const displayVal = isUserSet ? userVal : (!isCleared && field.autoAttr) ? field.autoAttr : "";
-                  const isAutoDetected = !isUserSet && !isCleared && !!field.autoAttr;
-                  const tip = getNormalizerTip(field.label);
-                  return (
-                    <div key={field.label}>
-                      <div style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF"), alignItems: "center", borderBottom: "1px solid #E5E7EB", borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent" }}>
-                        <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
-                          {field.label}
-                          {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
-                          {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
-                        </div>
-                        <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-                          {field.feedValue ? String(field.feedValue).substring(0, 35) + (String(field.feedValue).length > 35 ? "..." : "") : "-"}
-                        </div>
-                        <input type="text" list={`attr-options-${field.label}`} placeholder="CHECK24 Attribut suchen..." value={displayVal} onChange={(e) => setAttributeMappings(prev => ({ ...prev, [field.label]: e.target.value }))} style={{ padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", width: "100%", fontWeight: displayVal ? 500 : 400 }} />
-                        <datalist id={`attr-options-${field.label}`}>
-                          {check24Attributes.map((attr) => <option key={attr} value={attr} />)}
-                        </datalist>
-                        <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
-                          <option value=""></option>
-                        </select>
-                        <span onClick={() => setAttributeMappings(prev => ({ ...prev, [field.label]: "" }))} style={{ cursor: displayVal ? "pointer" : "default", color: displayVal ? "#DC2626" : "#D1D5DB", fontSize: 14, fontWeight: 700 }} title="Mapping zurücksetzen">{displayVal ? "✕" : ""}</span>
-                      </div>
-                      {tip && (
-                        <div style={{ background: tip.bg, borderLeft: `3px solid ${tip.border}`, borderRight: `1px solid ${tip.border}`, borderBottom: `1px solid ${tip.border}`, padding: "8px 12px", fontSize: 11, color: tip.color, marginBottom: 0 }}>
-                          💡 {tip.text}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {attributeMappingFields.length === 0 && [1, 2, 3, 4, 5].map((idx) => (
-                  <div key={`placeholder-${idx}`} style={{ display: "grid", gridTemplateColumns: "200px 140px 1fr 180px 40px", gap: 16, padding: "12px 16px", background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF", alignItems: "center", borderBottom: "1px solid #E5E7EB", opacity: 0.5 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF" }}>-</div>
-                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
-                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
-                    <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
-                    <span style={{ cursor: "default", color: "#D1D5DB" }}>ⓘ</span>
-                  </div>
-                ))}
-
-                {/* Additional image_url fields (not in feed headers) */}
-                {mappingHeaders.length > 0 && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => {
-                  const imageLabel = num === 1 ? "image_url" : `image_url ${num}`;
-                  const isInHeaders = mappingHeaders.includes(imageLabel);
-                  if (isInHeaders) return null; // Skip if already shown above
-                  const idx = attributeMappingFields.length + num - 1;
-                  return (
-                    <div key={imageLabel} style={{
-                      display: "grid",
-                      gridTemplateColumns: "200px 140px 1fr 180px 40px",
-                      gap: 16,
-                      padding: "12px 16px",
-                      background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-                      alignItems: "center",
-                      borderBottom: "1px solid #E5E7EB"
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>{imageLabel}</div>
-                      <div style={{ fontSize: 12, color: "#9CA3AF" }}>-</div>
-                      <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
-                        <option value=""></option>
-                        {check24Attributes.map((attr) => (
-                          <option key={attr} value={attr}>{attr}</option>
-                        ))}
-                      </select>
-                      <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF", width: "100%" }}>
-                        <option value=""></option>
-                      </select>
-                      <span style={{ cursor: "pointer", color: "#9CA3AF", fontSize: 14 }}>ⓘ</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Bilder Mapping Section */}
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>Bilder Mapping</div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 1fr", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Offer Bild</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Normalizer <span style={{ color: "#1E40AF" }}>Glossar</span></div>
-                </div>
-
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
-                  const listId = `image-options-${num}`;
-                  const userVal = imageMappings[num] || "";
-                  const autoDetectedCol = autoDetectImageColumn(num);
-                  const displayVal = userVal || autoDetectedCol || "";
-                  const isAutoDetected = !userVal && !!autoDetectedCol;
-                  const isUserSet = !!userVal;
-
-                  return (
-                    <div key={num} style={{
-                      display: "grid",
-                      gridTemplateColumns: "240px 1fr 1fr",
-                      gap: 16,
-                      padding: "12px 16px",
-                      background: isUserSet ? "#F0F4FF" : isAutoDetected ? "#F0FDF4" : (num % 2 === 1 ? "#F9FAFB" : "#FFFFFF"),
-                      alignItems: "center",
-                      borderBottom: "1px solid #E5E7EB",
-                      borderLeft: isUserSet ? "3px solid #1E40AF" : isAutoDetected ? "3px solid #16A34A" : "3px solid transparent"
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>
-                        {num === 1 ? "Bild 1 oder gesamter Bilder Feed" : `Bild ${num}`}
-                        {isAutoDetected && <span style={{ marginLeft: 6, fontSize: 10, background: "#16A34A", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>AUTO</span>}
-                        {isUserSet && <span style={{ marginLeft: 6, fontSize: 10, background: "#1E40AF", color: "#FFF", padding: "1px 5px", borderRadius: 3 }}>SET</span>}
-                      </div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <input type="text" list={listId} placeholder="Spalte suchen..." value={displayVal} onChange={(e) => setImageMappings(prev => ({ ...prev, [num]: e.target.value }))} style={{ flex: 1, padding: "8px 10px", border: isUserSet ? "1.5px solid #1E40AF" : isAutoDetected ? "1.5px solid #16A34A" : "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: isUserSet ? "#EFF6FF" : isAutoDetected ? "#F0FDF4" : "#FFFFFF", fontWeight: displayVal ? 500 : 400 }} />
-                        <datalist id={listId}>
-                          {mappingHeaders.map((h) => <option key={h} value={h} />)}
-                        </datalist>
-                        {displayVal && (
-                          <span onClick={() => setImageMappings(prev => ({ ...prev, [num]: "" }))} style={{ cursor: "pointer", color: "#DC2626", fontSize: 14, fontWeight: 700, flexShrink: 0 }} title="Mapping zurücksetzen">✕</span>
-                        )}
-                      </div>
-                      <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                        <option value=""></option>
-                      </select>
-                    </div>
-                  );
-                })}
-
-                {/* Weiteres Bild mappen link */}
-                <div style={{ padding: "12px 16px" }}>
-                  <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", fontSize: 12, cursor: "pointer", padding: 0, fontWeight: 600 }}>
-                    ⊕ Weiteres Bild mappen
-                  </button>
-                </div>
-              </div>
-
-              {/* 3D-Modelle Mapping Section */}
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>3D-Modelle Mapping</div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>3D-Modell Dateiformat</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
-                </div>
-
-                {["GLB", "USDZ"].map((format, idx) => (
-                  <div key={format} style={{
-                    display: "grid",
-                    gridTemplateColumns: "200px 1fr",
-                    gap: 16,
-                    padding: "12px 16px",
-                    background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-                    alignItems: "center",
-                    borderBottom: "1px solid #E5E7EB"
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>{format}</div>
-                    <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                      <option value=""></option>
-                      {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-
-              {/* Dokumente Mapping Section */}
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #E5E7EB" }}>Dokumente Mapping</div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Dokumenttyp</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Quellspalte des Feeds</div>
-                </div>
-
-                {["Aufbauanleitung", "Energieeffizienzlabel", "Produktdatenblatt"].map((docType, idx) => (
-                  <div key={docType} style={{
-                    display: "grid",
-                    gridTemplateColumns: "200px 1fr",
-                    gap: 16,
-                    padding: "12px 16px",
-                    background: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-                    alignItems: "center",
-                    borderBottom: "1px solid #E5E7EB"
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>{docType}</div>
-                    <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                      <option value=""></option>
-                      {mappingHeaders.map((h) => <option key={h}>{h}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-
-              {/* Save Button */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 48, marginTop: 40, paddingTop: 20, borderTop: "2px solid #E5E7EB" }}>
-                <button type="button" style={{ padding: "12px 28px", borderRadius: 6, border: "none", background: "#16A34A", color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  💾 Mapping speichern
-                </button>
-              </div>
-
-              {/* Feed Import Filter Section */}
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ fontSize: 16, fontWeight: 600, color: "#1E40AF", marginBottom: 24 }}>Feed Import Filter</div>
-
-                {/* Table Header */}
-                <div style={{ display: "grid", gridTemplateColumns: "80px 150px 200px 150px 100px", gap: 16, marginBottom: 0, paddingBottom: 12, paddingTop: 8, paddingLeft: 16, paddingRight: 16, borderBottom: "1px solid #E5E7EB" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Priorität</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Name</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Beschreibung</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Angewendet auf</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Aktionen</div>
-                </div>
-
-                {/* Sample row */}
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "80px 150px 200px 150px 100px",
-                  gap: 16,
-                  padding: "12px 16px",
-                  background: "#F9FAFB",
-                  alignItems: "center",
-                  borderBottom: "1px solid #E5E7EB"
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>1</div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: "#111827" }}>uniquify_rows</div>
-                  <div style={{ fontSize: 12, color: "#6B7280" }}>uniquify_rows</div>
-                  <select style={{ padding: "8px 10px", border: "1px solid #D1D5DB", borderRadius: 4, fontSize: 12, background: "#FFFFFF" }}>
-                    <option value="">1 Content</option>
-                  </select>
-                  <button type="button" style={{ padding: "4px 8px", border: "1px solid #DC2626", borderRadius: 4, background: "#FEF2F2", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>X</button>
-                </div>
-
-                {/* Import Filter hinzufügen link */}
-                <div style={{ padding: "12px 16px" }}>
-                  <button type="button" style={{ background: "none", border: "none", color: "#1E40AF", fontSize: 12, cursor: "pointer", padding: 0, fontWeight: 600 }}>
-                    ⊕ Import Filter hinzufügen
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
       </div>
     );
   }
