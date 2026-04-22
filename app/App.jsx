@@ -17,6 +17,7 @@ import ShopPerformance from "./shop-performance";
 import Onboarding from "./onboarding";
 import Tooltip from "./Tooltip";
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabaseClient";
+import ResultsTable, { saveResultToStorage } from "./ResultsTable";
    
 
 const BRAND_COLOR = "#1553B6";
@@ -1746,6 +1747,16 @@ function QsPage({ headers, rows }) {
     anzahlbilder: 0,
   });
 
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveForm, setSaveForm] = useState({
+    coreId: "", sellerKey: "", name: "", kommentar: "",
+    coreStatus: 1,
+    crossSelling: "ok", beschreibungHtml: "ok",
+    duplikate: "ok", stammArtikel: "ok", encoding: "ok", bware: "ok",
+    todo: "APA-Freigabe", mailPartner: "Nein",
+  });
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   const [autoEnabled, setAutoEnabled] = useState(true);
 
   const [imageSampleLimit, setImageSampleLimit] = useState(5);
@@ -2623,6 +2634,222 @@ function QsPage({ headers, rows }) {
           </div>
         </div>
       ) : null}
+
+      {total > 0 ? (
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => {
+              const okIf = (s) => s > 0 ? "ok" : "Problem";
+              const eligible = apaEligible;
+              setSaveForm((f) => ({
+                ...f,
+                todo: eligible ? "APA-Freigabe" : "Nein",
+                mailPartner: eligible ? "Nein" : "Feedanpassung beim Partner anfragen",
+              }));
+              setSaveModalOpen(true);
+              setSaveSuccess(false);
+            }}
+            style={{
+              padding: "10px 20px", borderRadius: 8, border: `2px solid ${BRAND_COLOR}`,
+              background: BRAND_COLOR, color: "#FFF", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+            }}
+          >
+            + Zu Tabelle hinzufügen
+          </button>
+        </div>
+      ) : null}
+
+      {saveModalOpen && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 999,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setSaveModalOpen(false); }}
+        >
+          <div style={{
+            background: "#FFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 560,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto",
+          }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", marginBottom: 4 }}>Zu Ergebnistabelle hinzufügen</div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 18 }}>
+              Scores werden automatisch übernommen. Bitte Pflichtfelder ergänzen.
+            </div>
+
+            {/* Auto-filled preview */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: "#F3F4F6", border: "1px solid #E5E7EB" }}>
+              {[
+                { label: "Attribute Score", value: attributeScore + " / 90" },
+                { label: "Image Score", value: imageScore + " / 90" },
+                { label: "APA Eignung", value: apaEligible ? "✅ Ja" : "❌ Nein" },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[
+                { key: "coreId", label: "Core ID *", placeholder: "z. B. 9CYE" },
+                { key: "sellerKey", label: "Seller Key", placeholder: "z. B. tempur" },
+                { key: "name", label: "Name (Bearbeiter)", placeholder: "z. B. Isa" },
+                { key: "kommentar", label: "Kommentar", placeholder: "Optional" },
+              ].map(({ key, label, placeholder }) => (
+                <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>{label}</span>
+                  <input
+                    type="text"
+                    value={saveForm[key]}
+                    placeholder={placeholder}
+                    onChange={(e) => setSaveForm((f) => ({ ...f, [key]: e.target.value }))}
+                    style={{
+                      padding: "8px 10px", borderRadius: 6, border: "1px solid #D1D5DB",
+                      fontSize: 13, color: "#111827", outline: "none",
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 8 }}>Manuelle APA-Felder</div>
+            <div style={{ display: "grid", gap: 6, marginBottom: 16 }}>
+              {[
+                { key: "crossSelling",     label: "kein Cross-Selling in Beschreibung" },
+                { key: "beschreibungHtml", label: "Beschreibung in HTML" },
+                { key: "duplikate",        label: "Doppelte Offer Prüfung" },
+                { key: "stammArtikel",     label: "keine Stamm-/Parentartikel" },
+                { key: "encoding",         label: "Encoding falsch/Feed zerschossen" },
+                { key: "bware",            label: "B-Ware" },
+              ].map(({ key, label }) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                  <span style={{ fontSize: 12, color: "#374151" }}>{label}</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["ok", "Problem"].map((opt) => (
+                      <button key={opt} type="button"
+                        onClick={() => setSaveForm((f) => ({ ...f, [key]: opt }))}
+                        style={{
+                          padding: "3px 10px", borderRadius: 5, border: "1px solid",
+                          borderColor: saveForm[key] === opt ? (opt === "ok" ? "#16A34A" : "#DC2626") : "#D1D5DB",
+                          background: saveForm[key] === opt ? (opt === "ok" ? "#DCFCE7" : "#FEE2E2") : "#FFF",
+                          color: saveForm[key] === opt ? (opt === "ok" ? "#166534" : "#991B1B") : "#6B7280",
+                          fontSize: 11, fontWeight: 600, cursor: "pointer",
+                        }}
+                      >{opt}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* TO DO */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <span style={{ fontSize: 12, color: "#374151" }}>TO DO</span>
+                <select
+                  value={saveForm.todo}
+                  onChange={(e) => setSaveForm((f) => ({ ...f, todo: e.target.value }))}
+                  style={{ padding: "4px 8px", borderRadius: 5, border: "1px solid #D1D5DB", fontSize: 12, background: "#FFF", cursor: "pointer" }}
+                >
+                  <option>APA-Freigabe</option>
+                  <option>Nein</option>
+                </select>
+              </div>
+
+              {/* Mail an Partner */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <span style={{ fontSize: 12, color: "#374151" }}>Mail an Partner</span>
+                <select
+                  value={saveForm.mailPartner}
+                  onChange={(e) => setSaveForm((f) => ({ ...f, mailPartner: e.target.value }))}
+                  style={{ padding: "4px 8px", borderRadius: 5, border: "1px solid #D1D5DB", fontSize: 12, background: "#FFF", cursor: "pointer" }}
+                >
+                  <option>Nein</option>
+                  <option>APA-Freigabe</option>
+                  <option>Feedanpassung beim Partner anfragen</option>
+                </select>
+              </div>
+            </div>
+
+            {saveSuccess && (
+              <div style={{ padding: "10px 14px", borderRadius: 8, background: "#DCFCE7", border: "1px solid #86EFAC", color: "#166534", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                ✓ Eintrag gespeichert! Gehe zu "Ergebnistabelle" um alle Einträge zu sehen.
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setSaveModalOpen(false)}
+                style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#FFF", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!saveForm.coreId.trim()) {
+                    alert("Bitte Core ID eingeben.");
+                    return;
+                  }
+                  const okIf = (s) => s > 0 ? "ok" : "Problem";
+                  const today = new Date();
+                  const datum = `${String(today.getDate()).padStart(2, "0")}.${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getFullYear()).slice(2)}`;
+                  const gtin = eanCol ? (rows.filter((r) => safeStr(r[eanCol]).trim()).length / rows.length > 0.9 ? "ok" : "Problem") : "Problem";
+                  saveResultToStorage({
+                    id: Date.now() + Math.random().toString(36).slice(2),
+                    coreId: saveForm.coreId.trim(),
+                    sellerKey: saveForm.sellerKey.trim(),
+                    name: saveForm.name.trim(),
+                    kommentar: saveForm.kommentar.trim(),
+                    datum,
+                    // QS scores
+                    herstellerfeed: scores.herstellerfeed,
+                    titel: scores.titel,
+                    beschreibung: scores.beschreibung,
+                    abmessungen: scores.abmessungen,
+                    lieferumfang: scores.lieferumfang,
+                    material: scores.material,
+                    farbe: scores.farbe,
+                    shoptexte: scores.shoptexte,
+                    bildmatch: scores.bildmatch,
+                    freisteller: scores.freisteller,
+                    millieu: scores.millieu,
+                    anzahlbilder: scores.anzahlbilder,
+                    attributeScore,
+                    imageScore,
+                    // APA fields
+                    coreStatus: saveForm.coreStatus,
+                    apaFreigabe: apaEligible ? 1 : 0,
+                    gtin,
+                    titel_apa: okIf(scores.titel),
+                    beschreibung_apa: okIf(scores.beschreibung),
+                    shoptext_apa: okIf(scores.shoptexte),
+                    crossSelling: saveForm.crossSelling,
+                    beschreibungHtml: saveForm.beschreibungHtml,
+                    masse: okIf(scores.abmessungen),
+                    material_apa: okIf(scores.material),
+                    farbe_apa: okIf(scores.farbe),
+                    lieferumfang_apa: okIf(scores.lieferumfang),
+                    bildMatch: okIf(scores.bildmatch),
+                    mangelBilder: okIf(scores.anzahlbilder),
+                    duplikate: saveForm.duplikate,
+                    stammArtikel: saveForm.stammArtikel,
+                    encoding: saveForm.encoding,
+                    bware: saveForm.bware,
+                    todo: saveForm.todo,
+                    mailPartner: saveForm.mailPartner,
+                  });
+                  setSaveSuccess(true);
+                  setSaveForm((f) => ({ ...f, coreId: "", sellerKey: "", name: "", kommentar: "" }));
+                }}
+                style={{ padding: "10px 20px", borderRadius: 6, border: "none", background: BRAND_COLOR, color: "#FFF", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              >
+                Speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: 12, padding: 16, borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Attribute Qualität</div>
@@ -4581,6 +4808,7 @@ export default function App() {
     if (hash === "#/shop-performance") return "shop-performance";
     if (hash === "#/onboarding") return "onboarding";
     if (hash === "#/checker-mc") return "checker-mc";
+    if (hash === "#/ergebnistabelle") return "ergebnistabelle";
     return "feed-analyse";
   });
   const supabase = useMemo(() => getSupabaseClient(), []);
@@ -4604,6 +4832,7 @@ export default function App() {
       else if (hash === "#/shop-performance") setRoute("shop-performance");
       else if (hash === "#/onboarding") setRoute("onboarding");
       else if (hash === "#/checker-mc") setRoute("checker-mc");
+      else if (hash === "#/ergebnistabelle") setRoute("ergebnistabelle");
       else setRoute("feed-analyse");
     };
     window.addEventListener("hashchange", onHash);
@@ -6420,6 +6649,7 @@ export default function App() {
 
   const NAV_ITEMS = [
     { id: "feed-analyse",         label: "Feed Analyse",       icon: "🔍" },
+    { id: "ergebnistabelle",      label: "Ergebnistabelle",    icon: "📊" },
     { id: "checker-mc",           label: "Merchant Center Prototype", icon: "🏪" },
     { id: "mapping",              label: "Mapping",            icon: "🗂️" },
     { id: "produkt-optimierung",  label: "Produkt Optimierung (WIP)",icon: "⚡" },
@@ -7497,6 +7727,15 @@ export default function App() {
       ) : null}
     </div>
   );
+
+  if (route === "ergebnistabelle") {
+    return (
+      <div style={{ background: "#F3F4F6", minHeight: "100vh", overflowX: "hidden" }}>
+        {topNav}
+        <ResultsTable />
+      </div>
+    );
+  }
 
   if (route === "rules") {
     return (
