@@ -7674,126 +7674,113 @@ export default function App() {
   const isFeedAnalyse = !["ergebnistabelle", "rules", "analytics", "produkt-optimierung", "shop-performance", "onboarding", "checker-mc"].includes(route);
 
   return (
-    <div style={{ background: route === "checker-mc" ? "#F2F4F7" : "#F3F4F6", height: "100vh", overflow: "hidden", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ background: "#F3F4F6", height: "100vh", overflow: "hidden", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
       {topNav}
 
-      {/* Feed Analyse — always mounted so QsPage never loses its scores */}
+      {/* Every page is always mounted — display:none hides it. State is never lost on tab switch. */}
+
       <div style={{ flex: 1, minHeight: 0, display: isFeedAnalyse ? "block" : "none" }}>
         {page}
       </div>
 
-      {route === "ergebnistabelle" && (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <ResultsTable />
-        </div>
-      )}
+      <div style={{ flex: 1, overflowY: "auto", display: route === "ergebnistabelle" ? "block" : "none" }}>
+        <ResultsTable />
+      </div>
 
-      {route === "rules" && (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <RulesPage rules={rules} setRules={setRules} onSave={saveRules} saving={rulesSaving} saveError={rulesSaveError} savedAt={rulesSavedAt} adminToken={adminToken} updateAdminToken={updateAdminToken} />
-        </div>
-      )}
+      <div style={{ flex: 1, overflowY: "auto", display: route === "rules" ? "block" : "none" }}>
+        <RulesPage rules={rules} setRules={setRules} onSave={saveRules} saving={rulesSaving} saveError={rulesSaveError} savedAt={rulesSavedAt} adminToken={adminToken} updateAdminToken={updateAdminToken} />
+      </div>
 
-      {route === "analytics" && (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
-            {!adminToken ? (
-              <StepCard title="Analytics (Admin)" status="warn" subtitle="Bitte zuerst als Admin einloggen.">
-                <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
-                  Kein Admin-Token vorhanden.
-                </div>
-              </StepCard>
-            ) : (
-              <StepCard
-                title="Analytics (Admin)"
-                status={analyticsStats ? "ok" : analyticsLoading ? "warn" : "idle"}
-                subtitle="Statistiken zur Produkt Optimierung"
-              >
-                <div style={{ display: "grid", gap: 10 }}>
-                  <label style={{ display: "grid", gap: 4 }}>
-                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 700 }}>Admin-Status</span>
-                    <div style={{ fontSize: 13, color: "#111827", fontWeight: 800, padding: "10px 12px", borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
-                      Admin ist eingeloggt.
-                    </div>
-                  </label>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    <button
-                      type="button"
-                      onClick={loadProductOptimizationAnalytics}
-                      disabled={analyticsLoading}
-                      style={{ padding: "10px 16px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, color: "#FFFFFF", fontSize: 12, fontWeight: 800, cursor: analyticsLoading ? "not-allowed" : "pointer" }}
-                    >
-                      {analyticsLoading ? <span style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}><Spinner size={14} color="#FFF" /> Lade...</span> : "Analytics laden"}
-                    </button>
-                    <SmallText>Die Daten werden nur gespeichert, wenn die Feature-Route genutzt wird.</SmallText>
+      <div style={{ flex: 1, overflowY: "auto", display: route === "analytics" ? "block" : "none" }}>
+        <div style={{ width: "100%", maxWidth: 1000, margin: "0 auto", padding: 24, boxSizing: "border-box" }}>
+          {!adminToken ? (
+            <StepCard title="Analytics (Admin)" status="warn" subtitle="Bitte zuerst als Admin einloggen.">
+              <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
+                Kein Admin-Token vorhanden.
+              </div>
+            </StepCard>
+          ) : (
+            <StepCard
+              title="Analytics (Admin)"
+              status={analyticsStats ? "ok" : analyticsLoading ? "warn" : "idle"}
+              subtitle="Statistiken zur Produkt Optimierung"
+            >
+              <div style={{ display: "grid", gap: 10 }}>
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span style={{ fontSize: 12, color: "#374151", fontWeight: 700 }}>Admin-Status</span>
+                  <div style={{ fontSize: 13, color: "#111827", fontWeight: 800, padding: "10px 12px", borderRadius: 12, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                    Admin ist eingeloggt.
                   </div>
-                  {analyticsError ? (
-                    <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
-                      {analyticsError}
-                    </div>
-                  ) : null}
-                  {analyticsStats ? (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <Pill tone="info">Gesamt: {analyticsStats.totalRuns ?? 0} Läufe</Pill>
-                        <Pill tone={analyticsStats.totalClaudeUsed ? "warn" : "ok"}>Claude: {analyticsStats.totalClaudeUsed ?? 0}</Pill>
-                        <Pill tone="info">Claude-Quote: {analyticsStats.claudeRatePct ?? 0}%</Pill>
-                      </div>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <Pill tone="ok">Genug Bilder: {analyticsStats.imageEnoughTrue ?? 0}</Pill>
-                        <Pill tone="warn">Zu wenig Bilder: {analyticsStats.imageEnoughFalse ?? 0}</Pill>
-                        {typeof analyticsStats.offerCountAvg === "number" ? (
-                          <Pill tone="info">Angebote im Schnitt: {analyticsStats.offerCountAvg.toFixed(1)}</Pill>
-                        ) : null}
-                      </div>
-                      <div style={{ padding: 12, borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
-                        <div style={{ fontSize: 13, fontWeight: 900, color: "#111827", marginBottom: 8 }}>Letzte Tage</div>
-                        {Array.isArray(analyticsStats.last30Days) && analyticsStats.last30Days.length ? (
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                            {analyticsStats.last30Days.map((d) => (
-                              <div key={d.date} style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: d.total ? "#F9FAFB" : "#FFFFFF" }}>
-                                <div style={{ fontSize: 12, fontWeight: 800, color: "#111827" }}>{d.date}</div>
-                                <div style={{ fontSize: 12, color: "#374151" }}>Runs: {d.total}</div>
-                                <div style={{ fontSize: 12, color: "#92400E" }}>Claude: {d.claude}</div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <SmallText>Keine Daten vorhanden.</SmallText>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
+                </label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    onClick={loadProductOptimizationAnalytics}
+                    disabled={analyticsLoading}
+                    style={{ padding: "10px 16px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: BRAND_COLOR, color: "#FFFFFF", fontSize: 12, fontWeight: 800, cursor: analyticsLoading ? "not-allowed" : "pointer" }}
+                  >
+                    {analyticsLoading ? <span style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}><Spinner size={14} color="#FFF" /> Lade...</span> : "Analytics laden"}
+                  </button>
+                  <SmallText>Die Daten werden nur gespeichert, wenn die Feature-Route genutzt wird.</SmallText>
                 </div>
-              </StepCard>
-            )}
-          </div>
+                {analyticsError ? (
+                  <div style={{ padding: 10, borderRadius: 12, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#B91C1C", fontSize: 13 }}>
+                    {analyticsError}
+                  </div>
+                ) : null}
+                {analyticsStats ? (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <Pill tone="info">Gesamt: {analyticsStats.totalRuns ?? 0} Läufe</Pill>
+                      <Pill tone={analyticsStats.totalClaudeUsed ? "warn" : "ok"}>Claude: {analyticsStats.totalClaudeUsed ?? 0}</Pill>
+                      <Pill tone="info">Claude-Quote: {analyticsStats.claudeRatePct ?? 0}%</Pill>
+                    </div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <Pill tone="ok">Genug Bilder: {analyticsStats.imageEnoughTrue ?? 0}</Pill>
+                      <Pill tone="warn">Zu wenig Bilder: {analyticsStats.imageEnoughFalse ?? 0}</Pill>
+                      {typeof analyticsStats.offerCountAvg === "number" ? (
+                        <Pill tone="info">Angebote im Schnitt: {analyticsStats.offerCountAvg.toFixed(1)}</Pill>
+                      ) : null}
+                    </div>
+                    <div style={{ padding: 12, borderRadius: 10, border: "1px solid #E5E7EB", background: "#FFFFFF" }}>
+                      <div style={{ fontSize: 13, fontWeight: 900, color: "#111827", marginBottom: 8 }}>Letzte Tage</div>
+                      {Array.isArray(analyticsStats.last30Days) && analyticsStats.last30Days.length ? (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                          {analyticsStats.last30Days.map((d) => (
+                            <div key={d.date} style={{ padding: 10, borderRadius: 12, border: "1px solid #E5E7EB", background: d.total ? "#F9FAFB" : "#FFFFFF" }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: "#111827" }}>{d.date}</div>
+                              <div style={{ fontSize: 12, color: "#374151" }}>Runs: {d.total}</div>
+                              <div style={{ fontSize: 12, color: "#92400E" }}>Claude: {d.claude}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <SmallText>Keine Daten vorhanden.</SmallText>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </StepCard>
+          )}
         </div>
-      )}
+      </div>
 
-      {route === "produkt-optimierung" && (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <ProduktOptimierungPage />
-        </div>
-      )}
+      <div style={{ flex: 1, overflowY: "auto", display: route === "produkt-optimierung" ? "block" : "none" }}>
+        <ProduktOptimierungPage />
+      </div>
 
-      {route === "shop-performance" && (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <ShopPerformance />
-        </div>
-      )}
+      <div style={{ flex: 1, overflowY: "auto", display: route === "shop-performance" ? "block" : "none" }}>
+        <ShopPerformance />
+      </div>
 
-      {route === "onboarding" && (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <Onboarding />
-        </div>
-      )}
+      <div style={{ flex: 1, overflowY: "auto", display: route === "onboarding" ? "block" : "none" }}>
+        <Onboarding />
+      </div>
 
-      {route === "checker-mc" && (
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-          <CheckerMCPage />
-        </div>
-      )}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#F2F4F7", display: route === "checker-mc" ? "block" : "none" }}>
+        <CheckerMCPage />
+      </div>
     </div>
   );
 }
