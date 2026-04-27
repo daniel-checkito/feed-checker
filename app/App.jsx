@@ -3251,6 +3251,9 @@ function McAngebotsfeed() {
 
     const missingPflichtCols = MC_PFLICHT_COLS.filter((c) => {
       if (c === "image_url") return mcImageColumns.length === 0;
+      // Dimension columns are a group: any one of them satisfies the requirement
+      const DIM_PFLICHT = ["size", "size_height", "size_depth", "size_diameter"];
+      if (DIM_PFLICHT.includes(c)) return !DIM_PFLICHT.some((k) => !!mcMapping[k]);
       return !mcMapping[c];
     });
     const missingOptionalCols = MC_OPTIONAL_COLS.filter((c) => !mcMapping[c]);
@@ -3306,6 +3309,22 @@ function McAngebotsfeed() {
       totalOptionalFieldsPresent += optionalFieldsPresent;
     });
 
+    // Stufe 1: Check for mixed units (mm/cm) within individual dimension columns
+    const UNIT_EXTRACT_RE = /\b\d+(?:[.,]\d+)?\s*(mm|cm)\b/gi;
+    const mixedUnitErrors = [];
+    for (const key of ["size", "size_height", "size_depth", "size_diameter"]) {
+      const col = mcMapping[key];
+      if (!col) continue;
+      const unitsFound = new Set();
+      for (const r of rows) {
+        UNIT_EXTRACT_RE.lastIndex = 0;
+        let m;
+        while ((m = UNIT_EXTRACT_RE.exec(String(r[col] ?? ""))) !== null) unitsFound.add(m[1].toLowerCase());
+        if (unitsFound.size > 1) break;
+      }
+      if (unitsFound.size > 1) mixedUnitErrors.push({ col, units: [...unitsFound] });
+    }
+
     // Stufe 1: EAN duplicates are a hard gate error
     const dupEanCount = Object.values(duplicateEans).filter((r) => r.length > 1).reduce((s, r) => s + r.length, 0);
     const eanDupRows = new Set(Object.values(duplicateEans).filter((r) => r.length > 1).flat());
@@ -3349,6 +3368,7 @@ function McAngebotsfeed() {
       totalOptionalFieldsPresent, optionalFieldCount,
       dupEanCount, dupNameEanCount,
       pflichtCategoryErrors,
+      mixedUnitErrors,
       pflichtScore, optionalScore, optionalFillRatio, totalScore,
     };
   }, [rows, headers, mcMapping, mcImageColumns]);
@@ -3698,6 +3718,16 @@ function McAngebotsfeed() {
                       <span style={{ width: 44, padding: "2px 0", borderRadius: 4, background: "#DC2626", color: "#FFF", fontWeight: 700, textAlign: "center", fontSize: 10, flexShrink: 0 }}>{g.count}</span>
                       <span style={{ fontWeight: 700, color: "#111827" }}>{g.label}</span>
                       <span style={{ color: "#6B7280", fontStyle: "italic" }}>— {g.hint}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {issues.mixedUnitErrors?.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  {issues.mixedUnitErrors.map(({ col, units }) => (
+                    <div key={col} style={{ fontSize: 11, padding: "5px 8px", borderRadius: 5, background: "#FEF9C3", border: "1px solid #FDE047", color: "#854D0E", marginBottom: 4 }}>
+                      ⚠️ <strong>{col}</strong>: Gemischte Einheiten ({units.join(" + ")}) — bitte einheitlich {units[0] === "mm" ? "mm" : "cm"} verwenden
                     </div>
                   ))}
                 </div>
@@ -4914,7 +4944,15 @@ export default function App() {
       // Template values
       for (const field in templateColumnsMap) { const v = String(r[templateColumnsMap[field].col] ?? "").trim(); if (v && templateColumnsMap[field].examples.has(v.toLowerCase())) templateValueHits.push({ ean, column: field, value: v }); }
       // Lighting energy
-      if (hasEnergyCols && mapping.name) { const t = String(r[mapping.name] ?? "").toLowerCase(); if (t && lampTokens.some((tok) => t.includes(tok))) { if ((energyCol && isBlank(r[energyCol])) || (lightingInclCol && isBlank(r[lightingInclCol])) || (eprelCol && isBlank(r[eprelCol]))) lightingEnergyMissing.push(ean); } }
+      if (hasEnergyCols && mapping.name) {
+        const t = String(r[mapping.name] ?? "").toLowerCase();
+        const noLightingInTitle = /ohne\s+(beleuchtung|lichter?|licht)\b/i.test(t) || /nicht\s+beleuchtet/i.test(t);
+        const liVal = lightingInclCol ? String(r[lightingInclCol] ?? "").trim().toLowerCase() : "";
+        const declaredNoLighting = !!liVal && ["nein", "0", "no", "false", "ohne", "nicht"].includes(liVal);
+        if (t && !noLightingInTitle && !declaredNoLighting && lampTokens.some((tok) => t.includes(tok))) {
+          if ((energyCol && isBlank(r[energyCol])) || (lightingInclCol && isBlank(r[lightingInclCol])) || (eprelCol && isBlank(r[eprelCol]))) lightingEnergyMissing.push(ean);
+        }
+      }
     }
 
     // Deduplicate missing fields
@@ -5929,6 +5967,14 @@ export default function App() {
             boxSizing: "border-box",
           }}
         />
+        {eanSearch && (
+          <button
+            type="button"
+            onClick={() => setEanSearch("")}
+            title="Filter löschen"
+            style={{ padding: "6px 9px", borderRadius: 999, border: "1px solid #D1D5DB", background: "#FFF", fontSize: 13, cursor: "pointer", color: "#6B7280", lineHeight: 1, flexShrink: 0 }}
+          >×</button>
+        )}
         <button
           type="button"
           onClick={() => setColumnFilterOpen((v) => !v)}
