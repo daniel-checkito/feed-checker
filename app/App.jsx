@@ -4458,6 +4458,7 @@ export default function App() {
   const [parseWarnings, setParseWarnings] = useState([]);
   const [parsing, setParsing] = useState(false);
   const fileInputRef = useRef(null);
+  const [feedDragging, setFeedDragging] = useState(false);
 
   const [shopName, setShopName] = useState("");
   const [eanSearch, setEanSearch] = useState("");
@@ -6267,23 +6268,19 @@ export default function App() {
 
             {/* UPLOAD */}
             <StepCard title="Datei hochladen" status={headers.length ? "ok" : "idle"} subtitle="">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ padding: "8px 12px", borderRadius: 999, border: `1px solid ${BRAND_COLOR}`, background: "#FFFFFF", fontSize: 12, fontWeight: 700, color: BRAND_COLOR, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
-                >
-                  Datei auswählen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.open("http://media-partner.moebel.check24.de/feedvorlagen/Feedleitfaden_Anhang_2026/CHECK24_Feedvorlage_V2025.xlsx", "_blank", "noopener,noreferrer")}
-                  style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #CBD5E1", background: "#F9FAFB", fontSize: 11, fontWeight: 600, color: "#111827", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
-                >
-                  Feedvorlage (Excel) herunterladen
-                </button>
-                <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>
-                  {fileName ? `Aktuelle Datei: ${fileName}` : ""}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setFeedDragging(true); }}
+                onDragEnter={(e) => { e.preventDefault(); setFeedDragging(true); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFeedDragging(false); }}
+                onDrop={(e) => { e.preventDefault(); setFeedDragging(false); const f = e.dataTransfer.files?.[0]; if (f) onPickFile(f); }}
+                onClick={() => fileInputRef.current?.click()}
+                style={{ marginTop: 8, background: feedDragging ? "#EEF4FF" : "#F9FAFB", border: `2px dashed ${feedDragging ? BRAND_COLOR : "#D1D5DB"}`, borderRadius: 8, padding: "18px 16px", textAlign: "center", cursor: "pointer", transition: "background 0.15s, border-color 0.15s" }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: feedDragging ? BRAND_COLOR : "#111827", marginBottom: 3 }}>
+                  {feedDragging ? "Datei loslassen zum Hochladen" : "Datei hierher ziehen oder klicken"}
+                </div>
+                <div style={{ fontSize: 11, color: "#6B7280" }}>
+                  {fileName ? `Aktuelle Datei: ${fileName}` : "CSV, XLSX oder XLS"}
                 </div>
                 <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
               </div>
