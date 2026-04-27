@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import {
+  COLUMN_SYNONYMS, DIM_RE, DELIVERY_RE,
+  ATTRIBUTE_CRITERIA, IMAGE_CRITERIA,
+  detectColumns, computeAutoScores, calcScores, checkApaEligibility,
+} from "./lib/contentScoring";
 
 // Inline spinner component
 function Spinner({ size = 16, color = "#1553B6" }) {
@@ -1686,24 +1691,8 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
 function QsPage({ headers, rows }) {
   const total = rows.length;
 
-  const colByName = (candidates) => {
-    const set = new Set(headers.map((h) => String(h).toLowerCase().trim()));
-    for (const cand of candidates) {
-      const key = String(cand).toLowerCase().trim();
-      if (set.has(key)) return headers.find((h) => String(h).toLowerCase().trim() === key);
-    }
-    return "";
-  };
-
-  const titleCol = colByName(["name", "product_name", "titel", "title"]);
-  const descCol = colByName(["description", "beschreibung", "desc"]);
-  const dimCol = colByName(["abmessungen", "size", "dimensions"]);
-  const deliveryCol = colByName(["lieferumfang", "delivery_includes"]);
-  const brandCol = colByName(["herstellerfeed", "manufacturer", "brand", "marke"]);
-  const eanCol = colByName(["ean", "gtin", "gtin14", "ean13", "barcode"]);
-  const materialCol = colByName(["material", "materials"]);
-  const colorCol = colByName(["color", "farbe"]);
-  const shopCol = colByName(["shopbezogene texte", "shop_text", "marketing_text", "promo_text"]);
+  const { titleCol, descCol, dimCol, deliveryCol, brandCol, eanCol, materialCol, colorCol, shopCol } =
+    useMemo(() => detectColumns(headers), [headers]);
 
   const safeStr = (v) => (v === null || v === undefined ? "" : String(v));
 
@@ -1890,205 +1879,10 @@ function QsPage({ headers, rows }) {
     return () => { cancelled = true; };
   }, [qsImageSamples]);
 
-  const autoSuggested = useMemo(() => {
-    if (!headers.length || !rows.length) return null;
-
-    const n = rows.length || 1;
-
-    const herstRate = filledRate(brandCol);
-    const herstellerfeed = herstRate >= 0.8 ? 20 : 0;
-
-    let titel = 0;
-    if (titleCol) {
-      const vals = rows.map((r) => safeStr(r[titleCol]).trim().toLowerCase());
-      const filled = vals.filter((v) => v).length;
-      const fillRate = filled / n;
-      const uniq = new Set(vals.filter(Boolean));
-      const dupRate = filled ? 1 - uniq.size / filled : 0;
-      const avg = avgLen(titleCol);
-      if (fillRate >= 0.9 && avg >= 40 && dupRate <= 0.08) titel = 20;
-      else if (fillRate >= 0.8 && avg >= 25) titel = 10;
-      else titel = 0;
-    }
-
-    let beschreibung = 0;
-    if (descCol) {
-      const fillRate = filledRate(descCol);
-      const avg = avgLen(descCol);
-      if (fillRate >= 0.85 && avg >= 80) beschreibung = 10;
-      else if (fillRate >= 0.75 && avg >= 40) beschreibung = 5;
-      else beschreibung = 0;
-    }
-
-    const dimCandidates = [dimCol, titleCol, descCol].filter(Boolean);
-    let abmessungen = 0;
-    if (dimCandidates.length) {
-      const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
-      let hits = 0;
-      let meaningful = 0;
-      for (const r of rows) {
-        const blob = dimCandidates.map((c) => safeStr(r[c])).join(" ");
-        const s = blob.trim();
-        if (!s) continue;
-        meaningful += 1;
-        if (DIM_RE.test(s)) hits += 1;
-      }
-      const rate = meaningful ? hits / meaningful : 0;
-      if (rate >= 0.6) abmessungen = 10;
-      else if (rate >= 0.3) abmessungen = 5;
-      else abmessungen = 0;
-    }
-
-    let lieferumfang = 0;
-    if (deliveryCol) {
-      const DELIVERY_RE = /^\s*(\d+)\s*[xX]\s+.+/;
-      let nonEmpty = 0;
-      let formatOk = 0;
-      for (const r of rows) {
-        const v = safeStr(r[deliveryCol]).trim();
-        if (!v) continue;
-        nonEmpty += 1;
-        if (DELIVERY_RE.test(v)) formatOk += 1;
-      }
-      const filled = nonEmpty / n;
-      const fmt = nonEmpty ? formatOk / nonEmpty : 0;
-      if (filled >= 0.7 && fmt >= 0.7) lieferumfang = 20;
-      else if (filled >= 0.4 && fmt >= 0.35) lieferumfang = 10;
-      else lieferumfang = 0;
-    }
-
-    let material = 0;
-    if (materialCol) {
-      const rate = filledRate(materialCol);
-      if (rate >= 0.9) {
-        material = 10;
-      } else if (rate > 0) {
-        material = 5;
-      } else {
-        material = 0;
-      }
-    }
-
-    let farbe = 0;
-    if (colorCol) {
-      let nonEmpty = 0;
-      let valid = 0;
-      for (const r of rows) {
-        const raw = safeStr(r[colorCol]).trim();
-        if (!raw) continue;
-        nonEmpty += 1;
-        const val = raw.toLowerCase();
-        const isBlacklist =
-          val === "-" ||
-          val === "na" ||
-          val === "n/a" ||
-          val === "none" ||
-          val === "kein" ||
-          val === "keine" ||
-          val === "k.a." ||
-          val === "ka";
-        const isTooLong = raw.length > 50;
-        if (!isBlacklist && !isTooLong) {
-          valid += 1;
-        }
-      }
-      const filledRateColor = rows.length ? nonEmpty / rows.length : 0;
-      const validRate = nonEmpty ? valid / nonEmpty : 0;
-      if (filledRateColor >= 0.9 && validRate >= 0.9) {
-        farbe = 10;
-      } else if (filledRateColor >= 0.6 && validRate >= 0.6) {
-        farbe = 5;
-      } else {
-        farbe = 0;
-      }
-    }
-
-    let anzahlbilder = 0;
-    if (headers.length && rows.length) {
-      const norms = headers.map((h) => ({ raw: h, norm: normalizeKey(h) }));
-      const imgCols = norms
-        .filter((h) => h.norm.startsWith("image_url") || h.norm.startsWith("image") || h.norm.startsWith("img_url"))
-        .map((h) => h.raw);
-      if (imgCols.length) {
-        let totalImgs = 0;
-        let rn = 0;
-        for (const r of rows) {
-          let c = 0;
-          for (const col of imgCols) {
-            const v = safeStr(r[col]).trim();
-            if (!v) continue;
-            c += 1;
-          }
-          totalImgs += c;
-          rn += 1;
-        }
-        const avg = rn ? totalImgs / rn : 0;
-        if (avg >= 5) anzahlbilder = 10;
-        else if (avg >= 2) anzahlbilder = 5;
-        else anzahlbilder = 0;
-      }
-    }
-
-    let shoptexte = 10;
-    if (shopCol) {
-      const fill = filledRate(shopCol);
-      if (fill > 0) {
-        shoptexte = 0;
-      }
-    }
-
-    let freisteller = 0;
-    let millieu = 0;
-    let bildmatch = 20;
-    if (qsImageSamples.length && freistellerChecks && Object.keys(freistellerChecks).length) {
-      const samples = qsImageSamples.slice(0, 20);
-      let checkedProducts = 0;
-      let withFreisteller = 0;
-      let withMilieu = 0;
-      samples.forEach((s) => {
-        const r = freistellerChecks[s.id];
-        if (!r || !r.checkedCount) return;
-        checkedProducts += 1;
-        if (r.hasFreisteller) withFreisteller += 1;
-        if (r.hasMilieu) withMilieu += 1;
-      });
-      if (checkedProducts > 0) {
-        const freiShare = withFreisteller / checkedProducts;
-        if (freiShare >= 0.7) freisteller = 10;
-        else if (freiShare >= 0.3) freisteller = 5;
-        else freisteller = 0;
-
-        const milieuShare = withMilieu / checkedProducts;
-        if (milieuShare >= 0.6) millieu = 10;
-        else if (milieuShare >= 0.25) millieu = 5;
-        else millieu = 0;
-      }
-
-      // Bildmatch: check for duplicate first images
-      const firstUrls = qsImageSamples.map((s) => (s.urls && s.urls[0]) || "").filter(Boolean);
-      if (firstUrls.length >= 5) {
-        const urlCounts = {};
-        firstUrls.forEach((u) => { urlCounts[u] = (urlCounts[u] || 0) + 1; });
-        const dupCount = Object.values(urlCounts).filter((c) => c > 1).reduce((sum, c) => sum + c, 0);
-        if (firstUrls.length && dupCount / firstUrls.length > 0.15) bildmatch = 0;
-      }
-    }
-
-    return {
-      herstellerfeed,
-      titel,
-      beschreibung,
-      abmessungen,
-      lieferumfang,
-      material,
-      farbe,
-      shoptexte,
-      bildmatch,
-      freisteller,
-      millieu,
-      anzahlbilder,
-    };
-  }, [headers, rows, titleCol, descCol, dimCol, deliveryCol, brandCol, qsImageSamples, freistellerChecks]);
+  const autoSuggested = useMemo(
+    () => computeAutoScores({ headers, rows, qsImageSamples, freistellerChecks }),
+    [headers, rows, qsImageSamples, freistellerChecks],
+  );
 
   useEffect(() => {
     if (!autoEnabled || !autoSuggested) return;
@@ -2102,42 +1896,11 @@ function QsPage({ headers, rows }) {
     });
   }, [autoEnabled, autoSuggested]);
 
-  const attributeRaw =
-    scores.herstellerfeed +
-    scores.titel +
-    scores.beschreibung +
-    scores.abmessungen +
-    scores.lieferumfang +
-    scores.material +
-    scores.farbe +
-    scores.shoptexte;
-
-  const imageRaw =
-    scores.bildmatch +
-    scores.freisteller +
-    scores.millieu +
-    scores.anzahlbilder;
-
-  const attributeScore = scores.titel === 0 ? 0 : Math.round((attributeRaw / 95) * 90);
-  const imageScore = scores.bildmatch === 0 ? 0 : Math.ceil((imageRaw / 50) * 90);
+  const { attributeScore, imageScore } = calcScores(scores);
   const total180 = attributeScore + imageScore;
   const totalPercent = (total180 / 180) * 100;
 
-  const apaEligible =
-    attributeScore >= 70 &&
-    imageScore >= 60 &&
-    scores.herstellerfeed === 20 &&
-    scores.titel >= 10 &&
-    scores.beschreibung >= 5 &&
-    scores.abmessungen >= 5 &&
-    scores.lieferumfang >= 10 &&
-    scores.material >= 5 &&
-    scores.farbe >= 5 &&
-    scores.shoptexte >= 5 &&
-    scores.bildmatch === 20 &&
-    scores.freisteller >= 5 &&
-    scores.millieu >= 5 &&
-    scores.anzahlbilder >= 5;
+  const apaEligible = checkApaEligibility(scores, attributeScore, imageScore);
 
   const avgImageCount = useMemo(() => {
     if (!rows.length) return 0;
@@ -2203,7 +1966,6 @@ function QsPage({ headers, rows }) {
     if (!dimCandidates.length) {
       reasons.abmessungen = "Keine erkennbaren Abmessungs-Angaben – 0 Punkte.";
     } else {
-      const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
       let hits = 0;
       let meaningful = 0;
       for (const r of rows) {
@@ -2226,7 +1988,6 @@ function QsPage({ headers, rows }) {
     if (!deliveryCol) {
       reasons.lieferumfang = "Keine Lieferumfang-Spalte erkannt – 0 Punkte.";
     } else {
-      const DELIVERY_RE = /^\s*(\d+)\s*[xX]\s+.+/;
       let nonEmpty = 0;
       let formatOk = 0;
       for (const r of rows) {
@@ -2439,77 +2200,9 @@ function QsPage({ headers, rows }) {
       },
     ];
 
-    const criteria = {
-      herstellerfeed: {
-        synonyms: ["herstellerfeed", "manufacturer", "brand", "marke"],
-        tiers: [
-          "20 P: Fill-Rate ≥ 80%",
-          "0 P: Fill-Rate < 80%",
-        ],
-      },
-      titel: {
-        synonyms: ["name", "product_name", "titel", "title"],
-        tiers: [
-          "20 P: Fill-Rate ≥ 90% · Ø Länge ≥ 40 Zeichen · Duplikat-Rate ≤ 8%",
-          "10 P: Fill-Rate ≥ 80% · Ø Länge ≥ 25 Zeichen",
-          "0 P: Schwellenwerte nicht erreicht",
-        ],
-      },
-      beschreibung: {
-        synonyms: ["description", "beschreibung", "desc"],
-        tiers: [
-          "10 P: Fill-Rate ≥ 85% · Ø Länge ≥ 80 Zeichen",
-          "5 P: Fill-Rate ≥ 75% · Ø Länge ≥ 40 Zeichen",
-          "0 P: Schwellenwerte nicht erreicht",
-        ],
-      },
-      abmessungen: {
-        synonyms: ["abmessungen", "size", "dimensions"],
-        note: 'Regex: Zahl + Einheit/Operator — z.B. "90x200 cm", "1.5m", "30×40", "200 mm"',
-        tiers: [
-          "10 P: Regex-Treffer in ≥ 60% der befüllten Zeilen",
-          "5 P: Regex-Treffer in ≥ 30% der befüllten Zeilen",
-          "0 P: Regex-Treffer < 30%",
-        ],
-      },
-      lieferumfang: {
-        synonyms: ["lieferumfang", "delivery_includes"],
-        note: 'Format "Nx Produkt": Zahl + x/X + Leerzeichen + Text — z.B. "2x Kissen", "1x Matratze"',
-        tiers: [
-          "20 P: Fill-Rate ≥ 70% · Format-Rate ≥ 70%",
-          "10 P: Fill-Rate ≥ 40% · Format-Rate ≥ 35%",
-          "0 P: Schwellenwerte nicht erreicht",
-        ],
-      },
-      material: {
-        synonyms: ["material", "materials"],
-        tiers: [
-          "10 P: Fill-Rate ≥ 90%",
-          "5 P: Fill-Rate > 0%",
-          "0 P: Spalte leer oder nicht vorhanden",
-        ],
-      },
-      farbe: {
-        synonyms: ["color", "farbe"],
-        note: 'Ungültige Werte (zählen nicht): -, na, n/a, none, kein, keine, k.a., ka · oder Länge > 50 Zeichen',
-        tiers: [
-          "10 P: Fill-Rate ≥ 90% · davon ≥ 90% gültige Werte",
-          "5 P: Fill-Rate ≥ 60% · davon ≥ 60% gültig",
-          "0 P: Schwellenwerte nicht erreicht",
-        ],
-      },
-      shoptexte: {
-        synonyms: ["shopbezogene texte", "shop_text", "marketing_text", "promo_text"],
-        tiers: [
-          "10 P: Spalte nicht gefunden oder komplett leer",
-          "0 P: Spalte mit Inhalt gefunden (shopbezogene Texte erkannt)",
-        ],
-      },
-    };
-
     return base.map((item) => ({
       ...item,
-      criteria: criteria[item.id] || null,
+      criteria: ATTRIBUTE_CRITERIA[item.id] || null,
     }));
   }, [scores, brandCol, titleCol, descCol, dimCol, deliveryCol, materialCol, colorCol, shopCol, scoreReasons]);
 
@@ -2557,43 +2250,9 @@ function QsPage({ headers, rows }) {
       },
     ];
 
-    const crit = {
-      bildmatch: {
-        note: "Geprüft: URL des ersten Bildes — jede URL die > 1× vorkommt zählt als Duplikat · Stichprobe: alle Produkte mit Bild-URL",
-        tiers: [
-          "20 P: Doppelte Erstbilder ≤ 15% der Stichprobe",
-          "0 P: Doppelte Erstbilder > 15%",
-        ],
-      },
-      freisteller: {
-        note: "Erkennung: Ø Helligkeit des Randbereichs (10 px) > 240/255 — Stichprobe: erste 20 Produkte",
-        tiers: [
-          "10 P: ≥ 70% der Stichprobe hat Freisteller (weißer Hintergrund, Bild 1)",
-          "5 P: ≥ 30% mit Freisteller",
-          "0 P: < 30% Freisteller erkannt",
-        ],
-      },
-      millieu: {
-        note: "Erkennung: Bild 2+ mit Ø Randbereich-Helligkeit < 240 (nicht weiß) — Stichprobe: erste 20 Produkte",
-        tiers: [
-          "10 P: ≥ 60% der Stichprobe hat Milieu-Bild (Bild 2+, farbiger Hintergrund)",
-          "5 P: ≥ 25% mit Milieu-Bild",
-          "0 P: < 25% Milieu-Bilder erkannt",
-        ],
-      },
-      anzahlbilder: {
-        note: "Gezählte Spalten: alle Spalten die mit image_url, image oder img_url beginnen",
-        tiers: [
-          "10 P: Ø ≥ 5 Bilder pro Produkt",
-          "5 P: Ø ≥ 2 Bilder pro Produkt",
-          "0 P: Ø < 2 Bilder",
-        ],
-      },
-    };
-
     return base.map((item) => ({
       ...item,
-      criteria: crit[item.id] || null,
+      criteria: IMAGE_CRITERIA[item.id] || null,
     }));
   }, [scores, scoreReasons]);
 
@@ -2615,7 +2274,6 @@ function QsPage({ headers, rows }) {
   const dimExamples = useMemo(() => {
     if (dimCol) return sampleUniqueValues(rows, dimCol, 20);
     if (!titleCol && !descCol) return [];
-    const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
     const texts = [];
     for (const r of rows) {
       const blob = [titleCol, descCol].filter(Boolean).map((c) => safeStr(r[c])).join(" ");
