@@ -297,7 +297,6 @@ export function detectColumns(headers) {
     eanCol:      pick("ean"),
     materialCol: pick("material"),
     colorCol:    pick("farbe"),
-    shopCol:     pick("shoptexte"),
   };
 }
 

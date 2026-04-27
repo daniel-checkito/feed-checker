@@ -1691,7 +1691,7 @@ function RulesPage({ rules, setRules, onSave, saving, saveError, savedAt, adminT
 function QsPage({ headers, rows }) {
   const total = rows.length;
 
-  const { titleCol, descCol, dimCol, deliveryCol, brandCol, eanCol, materialCol, colorCol, shopCol } =
+  const { titleCol, descCol, dimCol, deliveryCol, brandCol, eanCol, materialCol, colorCol } =
     useMemo(() => detectColumns(headers), [headers]);
 
   const safeStr = (v) => (v === null || v === undefined ? "" : String(v));
