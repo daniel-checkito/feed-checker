@@ -224,7 +224,7 @@ export const IMAGE_CRITERIA = {
     ],
   },
   anzahlbilder: {
-    note: "Gezählte Spalten: alle Spalten die mit image_url, image oder img_url beginnen",
+    note: "Gezählte Spalten: Spaltenname enthält image_url, image, img_url, bild oder image (z.B. Bildlink_1, image_url_1)",
     tiers: [
       "10 P: Ø ≥ 5 Bilder pro Produkt",
       "5 P: Ø ≥ 2 Bilder pro Produkt",
@@ -268,7 +268,7 @@ export function detectColumns(headers) {
 // Compute raw score suggestions from feed data (pure — no React).
 // qsImageSamples: [{ id, urls: string[] }]
 // freistellerChecks: { [id]: { hasFreisteller, hasMilieu, checkedCount } }
-export function computeAutoScores({ headers, rows, qsImageSamples = [], freistellerChecks = {} }) {
+export function computeAutoScores({ headers, rows, qsImageSamples = [], freistellerChecks = {}, imageColumns }) {
   if (!headers.length || !rows.length) return null;
 
   const n = rows.length;
@@ -388,11 +388,12 @@ export function computeAutoScores({ headers, rows, qsImageSamples = [], freistel
   let shoptexte = POINTS.shoptexte.clean;
   if (shopCol && filledRate(shopCol) > 0) shoptexte = POINTS.shoptexte.dirty;
 
-  // Anzahl Bilder — detect image columns by normalised prefix
+  // Anzahl Bilder — use imageColumns passed from the component (same detection as Feed Checker)
+  // Falls back to prefix detection if not provided.
   let anzahlbilder = POINTS.anzahlbilder.none;
-  const imgCols = headers.filter((h) => {
+  const imgCols = imageColumns ?? headers.filter((h) => {
     const norm = String(h).toLowerCase().trim().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-    return IMAGE_COL_PREFIXES.some((p) => norm.startsWith(p));
+    return IMAGE_COL_PREFIXES.some((p) => norm.startsWith(p)) || norm.includes("bild") || norm.includes("image");
   });
   if (imgCols.length) {
     let totalImgs = 0, rn = 0;

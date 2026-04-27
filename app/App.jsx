@@ -1880,8 +1880,8 @@ function QsPage({ headers, rows }) {
   }, [qsImageSamples]);
 
   const autoSuggested = useMemo(
-    () => computeAutoScores({ headers, rows, qsImageSamples, freistellerChecks }),
-    [headers, rows, qsImageSamples, freistellerChecks],
+    () => computeAutoScores({ headers, rows, qsImageSamples, freistellerChecks, imageColumns }),
+    [headers, rows, qsImageSamples, freistellerChecks, imageColumns],
   );
 
   useEffect(() => {
