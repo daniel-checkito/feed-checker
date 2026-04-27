@@ -2440,19 +2440,76 @@ function QsPage({ headers, rows }) {
     ];
 
     const criteria = {
-      herstellerfeed: ["20 P: Brand-Spalte Fill-Rate >= 80%", "0 P: Fill-Rate < 80%"],
-      titel: ["20 P: Fill-Rate >= 90%, Durchschn. Laenge >= 40 Zeichen, Duplikat-Rate <= 8%", "10 P: Fill-Rate >= 80%, Durchschn. Laenge >= 25 Zeichen", "0 P: Schwellenwerte nicht erreicht"],
-      beschreibung: ["10 P: Fill-Rate >= 85%, Durchschn. Laenge >= 80 Zeichen", "5 P: Fill-Rate >= 75%, Durchschn. Laenge >= 40 Zeichen", "0 P: Schwellenwerte nicht erreicht"],
-      abmessungen: ["10 P: Masse-Erkennung (z.B. 90x200 cm) in >= 60% der Zeilen", "5 P: Masse-Erkennung in >= 30% der Zeilen", "0 P: Masse-Erkennung < 30%"],
-      lieferumfang: ["20 P: Fill-Rate >= 70% und Format 'Nx Produkt' in >= 70% der Zeilen", "10 P: Fill-Rate >= 40% und Format-Rate >= 35%", "0 P: Schwellenwerte nicht erreicht"],
-      material: ["10 P: Fill-Rate >= 90%", "5 P: Fill-Rate > 0%", "0 P: Spalte leer oder nicht vorhanden"],
-      farbe: ["10 P: Fill-Rate >= 90%, davon >= 90% gueltige Werte (keine Platzhalter)", "5 P: Fill-Rate >= 60%, davon >= 60% gueltig", "0 P: Schwellenwerte nicht erreicht"],
-      shoptexte: ["10 P: Keine shopbezogenen Texte im Feed (Spalte leer/nicht vorhanden)", "0 P: Shopbezogene Texte vorhanden (wird als negativ gewertet)"],
+      herstellerfeed: {
+        synonyms: ["herstellerfeed", "manufacturer", "brand", "marke"],
+        tiers: [
+          "20 P: Fill-Rate ≥ 80%",
+          "0 P: Fill-Rate < 80%",
+        ],
+      },
+      titel: {
+        synonyms: ["name", "product_name", "titel", "title"],
+        tiers: [
+          "20 P: Fill-Rate ≥ 90% · Ø Länge ≥ 40 Zeichen · Duplikat-Rate ≤ 8%",
+          "10 P: Fill-Rate ≥ 80% · Ø Länge ≥ 25 Zeichen",
+          "0 P: Schwellenwerte nicht erreicht",
+        ],
+      },
+      beschreibung: {
+        synonyms: ["description", "beschreibung", "desc"],
+        tiers: [
+          "10 P: Fill-Rate ≥ 85% · Ø Länge ≥ 80 Zeichen",
+          "5 P: Fill-Rate ≥ 75% · Ø Länge ≥ 40 Zeichen",
+          "0 P: Schwellenwerte nicht erreicht",
+        ],
+      },
+      abmessungen: {
+        synonyms: ["abmessungen", "size", "dimensions"],
+        note: 'Regex: Zahl + Einheit/Operator — z.B. "90x200 cm", "1.5m", "30×40", "200 mm"',
+        tiers: [
+          "10 P: Regex-Treffer in ≥ 60% der befüllten Zeilen",
+          "5 P: Regex-Treffer in ≥ 30% der befüllten Zeilen",
+          "0 P: Regex-Treffer < 30%",
+        ],
+      },
+      lieferumfang: {
+        synonyms: ["lieferumfang", "delivery_includes"],
+        note: 'Format "Nx Produkt": Zahl + x/X + Leerzeichen + Text — z.B. "2x Kissen", "1x Matratze"',
+        tiers: [
+          "20 P: Fill-Rate ≥ 70% · Format-Rate ≥ 70%",
+          "10 P: Fill-Rate ≥ 40% · Format-Rate ≥ 35%",
+          "0 P: Schwellenwerte nicht erreicht",
+        ],
+      },
+      material: {
+        synonyms: ["material", "materials"],
+        tiers: [
+          "10 P: Fill-Rate ≥ 90%",
+          "5 P: Fill-Rate > 0%",
+          "0 P: Spalte leer oder nicht vorhanden",
+        ],
+      },
+      farbe: {
+        synonyms: ["color", "farbe"],
+        note: 'Ungültige Werte (zählen nicht): -, na, n/a, none, kein, keine, k.a., ka · oder Länge > 50 Zeichen',
+        tiers: [
+          "10 P: Fill-Rate ≥ 90% · davon ≥ 90% gültige Werte",
+          "5 P: Fill-Rate ≥ 60% · davon ≥ 60% gültig",
+          "0 P: Schwellenwerte nicht erreicht",
+        ],
+      },
+      shoptexte: {
+        synonyms: ["shopbezogene texte", "shop_text", "marketing_text", "promo_text"],
+        tiers: [
+          "10 P: Spalte nicht gefunden oder komplett leer",
+          "0 P: Spalte mit Inhalt gefunden (shopbezogene Texte erkannt)",
+        ],
+      },
     };
 
     return base.map((item) => ({
       ...item,
-      criteria: criteria[item.id] || [],
+      criteria: criteria[item.id] || null,
     }));
   }, [scores, brandCol, titleCol, descCol, dimCol, deliveryCol, materialCol, colorCol, shopCol, scoreReasons]);
 
@@ -2501,30 +2558,42 @@ function QsPage({ headers, rows }) {
     ];
 
     const crit = {
-      bildmatch: [
-        "20 P: Weniger als 15% der Produkte teilen dasselbe Erstbild (automatisch)",
-        "0 P: Mehr als 15% doppelte Erstbilder erkannt",
-      ],
-      freisteller: [
-        "10 P: >= 70% der Stichprobe mit weissem Hintergrund (automatisch)",
-        "5 P: >= 30% mit weissem Hintergrund",
-        "0 P: < 30% Freisteller erkannt",
-      ],
-      millieu: [
-        "10 P: >= 60% der Stichprobe mit farbigem Hintergrund in Bild 2+ (automatisch)",
-        "5 P: >= 25% mit Milieu-Bildern",
-        "0 P: < 25% Milieu-Bilder erkannt",
-      ],
-      anzahlbilder: [
-        "10 P: Durchschnitt >= 5 Bilder pro Produkt",
-        "5 P: Durchschnitt >= 2 Bilder pro Produkt",
-        "0 P: Durchschnitt < 2 Bilder",
-      ],
+      bildmatch: {
+        note: "Geprüft: URL des ersten Bildes — jede URL die > 1× vorkommt zählt als Duplikat · Stichprobe: alle Produkte mit Bild-URL",
+        tiers: [
+          "20 P: Doppelte Erstbilder ≤ 15% der Stichprobe",
+          "0 P: Doppelte Erstbilder > 15%",
+        ],
+      },
+      freisteller: {
+        note: "Erkennung: Ø Helligkeit des Randbereichs (10 px) > 240/255 — Stichprobe: erste 20 Produkte",
+        tiers: [
+          "10 P: ≥ 70% der Stichprobe hat Freisteller (weißer Hintergrund, Bild 1)",
+          "5 P: ≥ 30% mit Freisteller",
+          "0 P: < 30% Freisteller erkannt",
+        ],
+      },
+      millieu: {
+        note: "Erkennung: Bild 2+ mit Ø Randbereich-Helligkeit < 240 (nicht weiß) — Stichprobe: erste 20 Produkte",
+        tiers: [
+          "10 P: ≥ 60% der Stichprobe hat Milieu-Bild (Bild 2+, farbiger Hintergrund)",
+          "5 P: ≥ 25% mit Milieu-Bild",
+          "0 P: < 25% Milieu-Bilder erkannt",
+        ],
+      },
+      anzahlbilder: {
+        note: "Gezählte Spalten: alle Spalten die mit image_url, image oder img_url beginnen",
+        tiers: [
+          "10 P: Ø ≥ 5 Bilder pro Produkt",
+          "5 P: Ø ≥ 2 Bilder pro Produkt",
+          "0 P: Ø < 2 Bilder",
+        ],
+      },
     };
 
     return base.map((item) => ({
       ...item,
-      criteria: crit[item.id] || [],
+      criteria: crit[item.id] || null,
     }));
   }, [scores, scoreReasons]);
 
@@ -2626,12 +2695,37 @@ function QsPage({ headers, rows }) {
             >Kopieren</button>
           </div>
 
-          <div style={{ padding: "10px 14px", borderRadius: 10, border: apaEligible ? "1px solid #A7F3D0" : "1px solid #FCA5A5", background: apaEligible ? "#ECFDF3" : "#FEF2F2", display: "flex", alignItems: "center", gap: 8 }}>
-            <div>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: apaEligible ? "#047857" : "#B91C1C", fontWeight: 600 }}>APA Eignung</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginTop: 2 }}>{apaEligible ? "✅ Geeignet" : "❌ Nicht geeignet"}</div>
-            </div>
-          </div>
+          {(() => {
+            const apaFailures = apaEligible ? [] : [
+              attributeScore < 70 && `Attribute Score ${attributeScore}/90 — mind. 70 benötigt`,
+              imageScore < 60 && `Bild Score ${imageScore}/90 — mind. 60 benötigt`,
+              scores.herstellerfeed !== 20 && `Herstellerfeed: ${scores.herstellerfeed}/20 — Pflicht: 20`,
+              scores.titel < 10 && `Titel: ${scores.titel}/20 — mind. 10`,
+              scores.beschreibung < 5 && `Beschreibung: ${scores.beschreibung}/10 — mind. 5`,
+              scores.abmessungen < 5 && `Abmessungen: ${scores.abmessungen}/10 — mind. 5`,
+              scores.lieferumfang < 10 && `Lieferumfang: ${scores.lieferumfang}/20 — mind. 10`,
+              scores.material < 5 && `Material: ${scores.material}/10 — mind. 5`,
+              scores.farbe < 5 && `Farbe: ${scores.farbe}/10 — mind. 5`,
+              scores.shoptexte < 5 && `Shoptexte: ${scores.shoptexte}/10 — muss 10 sein (keine Shoptexte)`,
+              scores.bildmatch !== 20 && `1. Bild & keine Dopplungen: ${scores.bildmatch}/20 — Pflicht: 20`,
+              scores.freisteller < 5 && `Freisteller: ${scores.freisteller}/10 — mind. 5`,
+              scores.millieu < 5 && `Milieu: ${scores.millieu}/10 — mind. 5`,
+              scores.anzahlbilder < 5 && `Anzahl Bilder: ${scores.anzahlbilder}/10 — mind. 5`,
+            ].filter(Boolean);
+            return (
+              <div style={{ padding: "10px 14px", borderRadius: 10, border: apaEligible ? "1px solid #A7F3D0" : "1px solid #FCA5A5", background: apaEligible ? "#ECFDF3" : "#FEF2F2" }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: apaEligible ? "#047857" : "#B91C1C", fontWeight: 600 }}>APA Eignung</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginTop: 2 }}>{apaEligible ? "✅ Geeignet" : "❌ Nicht geeignet"}</div>
+                {apaFailures.length > 0 ? (
+                  <ul style={{ margin: "6px 0 0 0", paddingLeft: 16, display: "flex", flexDirection: "column", gap: 2 }}>
+                    {apaFailures.map((reason, i) => (
+                      <li key={i} style={{ fontSize: 11, color: "#B91C1C", lineHeight: "16px" }}>{reason}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            );
+          })()}
         </div>
       ) : null}
 
@@ -2905,25 +2999,38 @@ function QsPage({ headers, rows }) {
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
                 {/* Per-item criteria dropdown */}
-                {item.criteria && item.criteria.length ? (
+                {item.criteria?.tiers?.length ? (
                   <>
                     {expandedCriteria[item.id] ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                        {item.criteria.map((line, idx) => {
-                          const pts = line.match(/^(\d+)\s*P/);
-                          const isActive = pts && Number(pts[1]) === item.value;
-                          return (
-                            <div key={idx} style={{
-                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                              background: isActive ? toneBg : "#F3F4F6",
-                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                              color: isActive ? toneColor : "#6B7280",
-                              fontWeight: isActive ? 600 : 400,
-                            }}>
-                              {line}
-                            </div>
-                          );
-                        })}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
+                        {item.criteria.synonyms?.length ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, alignItems: "center" }}>
+                            <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, marginRight: 2 }}>Spalten:</span>
+                            {item.criteria.synonyms.map((s) => (
+                              <code key={s} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#F3F4F6", border: "1px solid #E5E7EB", color: "#374151", fontFamily: "monospace" }}>{s}</code>
+                            ))}
+                          </div>
+                        ) : null}
+                        {item.criteria.note ? (
+                          <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "15px" }}>{item.criteria.note}</div>
+                        ) : null}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {item.criteria.tiers.map((line, idx) => {
+                            const pts = line.match(/^(\d+)\s*P/);
+                            const isActive = pts && Number(pts[1]) === item.value;
+                            return (
+                              <div key={idx} style={{
+                                fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                                background: isActive ? toneBg : "#F3F4F6",
+                                border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                                color: isActive ? toneColor : "#6B7280",
+                                fontWeight: isActive ? 600 : 400,
+                              }}>
+                                {line}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     ) : null}
                     <button
@@ -2986,25 +3093,38 @@ function QsPage({ headers, rows }) {
                 {/* Description */}
                 {item.description ? <div style={{ fontSize: 11, color: "#4B5563", lineHeight: "16px" }}>{item.description}</div> : null}
                 {/* Per-item criteria dropdown */}
-                {item.criteria && item.criteria.length ? (
+                {item.criteria?.tiers?.length ? (
                   <>
                     {expandedCriteria[item.id] ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                        {item.criteria.map((line, idx) => {
-                          const pts = line.match(/^(\d+)\s*P/);
-                          const isActive = pts && Number(pts[1]) === item.value;
-                          return (
-                            <div key={idx} style={{
-                              fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
-                              background: isActive ? toneBg : "#F3F4F6",
-                              border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
-                              color: isActive ? toneColor : "#6B7280",
-                              fontWeight: isActive ? 600 : 400,
-                            }}>
-                              {line}
-                            </div>
-                          );
-                        })}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
+                        {item.criteria.synonyms?.length ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, alignItems: "center" }}>
+                            <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600, marginRight: 2 }}>Spalten:</span>
+                            {item.criteria.synonyms.map((s) => (
+                              <code key={s} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#F3F4F6", border: "1px solid #E5E7EB", color: "#374151", fontFamily: "monospace" }}>{s}</code>
+                            ))}
+                          </div>
+                        ) : null}
+                        {item.criteria.note ? (
+                          <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "15px" }}>{item.criteria.note}</div>
+                        ) : null}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {item.criteria.tiers.map((line, idx) => {
+                            const pts = line.match(/^(\d+)\s*P/);
+                            const isActive = pts && Number(pts[1]) === item.value;
+                            return (
+                              <div key={idx} style={{
+                                fontSize: 10, lineHeight: "14px", padding: "3px 8px", borderRadius: 6,
+                                background: isActive ? toneBg : "#F3F4F6",
+                                border: isActive ? `1px solid ${toneColor}44` : "1px solid #E5E7EB",
+                                color: isActive ? toneColor : "#6B7280",
+                                fontWeight: isActive ? 600 : 400,
+                              }}>
+                                {line}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     ) : null}
                     <button
