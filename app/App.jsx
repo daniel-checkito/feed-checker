@@ -1744,8 +1744,11 @@ function QsPage({ headers, rows }) {
     crossSelling: "ok", beschreibungHtml: "ok",
     duplikate: "ok", stammArtikel: "ok", encoding: "ok", bware: "ok",
     todo: "APA-Freigabe", mailPartner: "Nein",
+    apaOverride: null,
   });
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [modalScores, setModalScores] = useState(null);
+  const [modalShowScores, setModalShowScores] = useState(false);
 
   const [autoEnabled, setAutoEnabled] = useState(true);
 
@@ -1902,6 +1905,10 @@ function QsPage({ headers, rows }) {
   const totalPercent = (total180 / 180) * 100;
 
   const apaEligible = checkApaEligibility(scores, attributeScore, imageScore);
+
+  const mS = modalScores || scores;
+  const { attributeScore: mAttr, imageScore: mImg } = calcScores(mS);
+  const mApa = saveForm.apaOverride !== null ? saveForm.apaOverride : checkApaEligibility(mS, mAttr, mImg);
 
   const avgImageCount = useMemo(() => {
     if (!rows.length) return 0;
@@ -2431,13 +2438,14 @@ function QsPage({ headers, rows }) {
         <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
           <button
             onClick={() => {
-              const okIf = (s) => s > 0 ? "ok" : "Problem";
-              const eligible = apaEligible;
               setSaveForm((f) => ({
                 ...f,
-                todo: eligible ? "APA-Freigabe" : "Nein",
-                mailPartner: eligible ? "Nein" : "Feedanpassung beim Partner anfragen",
+                todo: apaEligible ? "APA-Freigabe" : "Nein",
+                mailPartner: apaEligible ? "Nein" : "Feedanpassung beim Partner anfragen",
+                apaOverride: null,
               }));
+              setModalScores({ ...scores });
+              setModalShowScores(false);
               setSaveModalOpen(true);
               setSaveSuccess(false);
             }}
@@ -2468,18 +2476,81 @@ function QsPage({ headers, rows }) {
               Scores werden automatisch übernommen. Bitte Pflichtfelder ergänzen.
             </div>
 
-            {/* Auto-filled preview */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: "#F3F4F6", border: "1px solid #E5E7EB" }}>
-              {[
-                { label: "Attribute Score", value: attributeScore + " / 90" },
-                { label: "Image Score", value: imageScore + " / 90" },
-                { label: "APA Eignung", value: apaEligible ? "✅ Ja" : "❌ Nein" },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>{value}</div>
+            {/* Score preview + overrides */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, padding: "10px 12px", borderRadius: 8, background: "#F3F4F6", border: "1px solid #E5E7EB", marginBottom: 6 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Attribute Score</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>{mAttr} / 90</div>
                 </div>
-              ))}
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Image Score</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginTop: 2 }}>{mImg} / 90</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>APA Eignung</div>
+                  <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 4 }}>
+                    {[{ val: true, label: "✅ Ja" }, { val: false, label: "❌ Nein" }].map(({ val, label }) => {
+                      const isActive = saveForm.apaOverride !== null ? saveForm.apaOverride === val : mApa === val;
+                      const isOverride = saveForm.apaOverride === val;
+                      return (
+                        <button key={label} type="button"
+                          onClick={() => setSaveForm((f) => ({ ...f, apaOverride: f.apaOverride === val ? null : val }))}
+                          style={{
+                            padding: "2px 8px", borderRadius: 4, border: "1px solid",
+                            borderColor: isActive ? (val ? "#16A34A" : "#DC2626") : "#D1D5DB",
+                            background: isActive ? (val ? "#DCFCE7" : "#FEE2E2") : "#FFF",
+                            color: isActive ? (val ? "#166534" : "#991B1B") : "#9CA3AF",
+                            fontSize: 11, fontWeight: isOverride ? 800 : 600, cursor: "pointer",
+                            outline: isOverride ? `2px solid ${val ? "#16A34A" : "#DC2626"}` : "none",
+                          }}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                  {saveForm.apaOverride !== null && (
+                    <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>manuell überschrieben</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Score editor toggle */}
+              <button type="button"
+                onClick={() => setModalShowScores((v) => !v)}
+                style={{ fontSize: 11, color: "#1553B6", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}
+              >
+                {modalShowScores ? "▲ Scores ausblenden" : "▼ Scores manuell anpassen"}
+              </button>
+
+              {modalShowScores && (
+                <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {[
+                    { key: "titel",        label: "Titel",         opts: [0, 10, 20] },
+                    { key: "beschreibung", label: "Beschreibung",  opts: [0, 5, 10] },
+                    { key: "abmessungen",  label: "Abmessungen",   opts: [0, 5, 10] },
+                    { key: "lieferumfang", label: "Lieferumfang",  opts: [0, 10, 20] },
+                    { key: "material",     label: "Material",      opts: [0, 5, 10] },
+                    { key: "farbe",        label: "Farbe",         opts: [0, 5, 10] },
+                    { key: "shoptexte",    label: "Shoptexte",     opts: [0, 5, 10] },
+                    { key: "bware",        label: "B-Ware",        opts: [0, 10] },
+                    { key: "bildmatch",    label: "Bild Match",    opts: [0, 20] },
+                    { key: "freisteller",  label: "Freisteller",   opts: [0, 5, 10] },
+                    { key: "millieu",      label: "Milieu",        opts: [0, 5, 10] },
+                    { key: "anzahlbilder", label: "Anzahl Bilder", opts: [0, 5, 10] },
+                  ].map(({ key, label, opts }) => (
+                    <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 8px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                      <span style={{ fontSize: 11, color: "#374151" }}>{label}</span>
+                      <select
+                        value={mS[key]}
+                        onChange={(e) => setModalScores((s) => ({ ...s, [key]: Number(e.target.value) }))}
+                        style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid #D1D5DB", fontSize: 11, background: "#FFF", cursor: "pointer" }}
+                      >
+                        {opts.map((o) => <option key={o} value={o}>{o} P</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
@@ -2594,38 +2665,38 @@ function QsPage({ headers, rows }) {
                     name: saveForm.name.trim(),
                     kommentar: saveForm.kommentar.trim(),
                     datum,
-                    // QS scores
-                    herstellerfeed: scores.herstellerfeed,
-                    titel: scores.titel,
-                    beschreibung: scores.beschreibung,
-                    abmessungen: scores.abmessungen,
-                    lieferumfang: scores.lieferumfang,
-                    material: scores.material,
-                    farbe: scores.farbe,
-                    shoptexte: scores.shoptexte,
-                    bware: scores.bware,
-                    bildmatch: scores.bildmatch,
-                    freisteller: scores.freisteller,
-                    millieu: scores.millieu,
-                    anzahlbilder: scores.anzahlbilder,
-                    attributeScore,
-                    imageScore,
+                    // QS scores (use modal-adjusted values)
+                    herstellerfeed: mS.herstellerfeed,
+                    titel: mS.titel,
+                    beschreibung: mS.beschreibung,
+                    abmessungen: mS.abmessungen,
+                    lieferumfang: mS.lieferumfang,
+                    material: mS.material,
+                    farbe: mS.farbe,
+                    shoptexte: mS.shoptexte,
+                    bware: mS.bware,
+                    bildmatch: mS.bildmatch,
+                    freisteller: mS.freisteller,
+                    millieu: mS.millieu,
+                    anzahlbilder: mS.anzahlbilder,
+                    attributeScore: mAttr,
+                    imageScore: mImg,
                     // APA fields
                     coreStatus: saveForm.coreStatus,
-                    apaFreigabe: apaEligible ? 1 : 0,
+                    apaFreigabe: mApa ? 1 : 0,
                     gtin,
-                    titel_apa: okIf(scores.titel),
-                    beschreibung_apa: okIf(scores.beschreibung),
-                    shoptext_apa: okIf(scores.shoptexte),
-                    bware_apa: okIf(scores.bware),
+                    titel_apa: okIf(mS.titel),
+                    beschreibung_apa: okIf(mS.beschreibung),
+                    shoptext_apa: okIf(mS.shoptexte),
+                    bware_apa: okIf(mS.bware),
                     crossSelling: saveForm.crossSelling,
                     beschreibungHtml: saveForm.beschreibungHtml,
-                    masse: okIf(scores.abmessungen),
-                    material_apa: okIf(scores.material),
-                    farbe_apa: okIf(scores.farbe),
-                    lieferumfang_apa: okIf(scores.lieferumfang),
-                    bildMatch: okIf(scores.bildmatch),
-                    mangelBilder: okIf(scores.anzahlbilder),
+                    masse: okIf(mS.abmessungen),
+                    material_apa: okIf(mS.material),
+                    farbe_apa: okIf(mS.farbe),
+                    lieferumfang_apa: okIf(mS.lieferumfang),
+                    bildMatch: okIf(mS.bildmatch),
+                    mangelBilder: okIf(mS.anzahlbilder),
                     duplikate: saveForm.duplikate,
                     stammArtikel: saveForm.stammArtikel,
                     encoding: saveForm.encoding,
