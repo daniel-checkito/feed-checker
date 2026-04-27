@@ -328,18 +328,18 @@ function normalizePreviewText(value) {
 }
 
 function buildEmail({ shopName, issues, tips, canStart }) {
-  const subject = "CHECK24: Verbessern Sie Ihre Produktdaten für mehr Sichtbarkeit";
+  const subject = "CHECK24: Handlungsbedarf bei Ihren Produktdaten";
 
-  // Clean text: remove counts, normalize
+  // Clean text: strip trailing counts like "in 12 Zeilen"
   const clean = (s) => s
     .replace(/\s*in \d+[\w\s-]*\.?/g, ".")
     .replace(/\s*bei \d+[\w\s-]*\.?/g, ".")
     .replace(/\.\./g, ".").trim();
 
-  // Merge issues + tips, clean, and categorize
-  const all = [...issues, ...tips].map(clean);
+  const allIssues = issues.map(clean).filter(Boolean);
+  const allTips = tips.map(clean).filter(Boolean);
+  const all = [...allIssues, ...allTips];
 
-  // Detect which categories have problems
   const has = (kw) => all.some((s) => s.toLowerCase().includes(kw));
   const hasTitel = has("titel") || has("produktname");
   const hasDesc = has("beschreibung") || has("extern") || has("platzhalter");
@@ -347,52 +347,66 @@ function buildEmail({ shopName, issues, tips, canStart }) {
   const hasVersand = has("shipping") || has("versand") || has("lieferumfang") || has("lieferzeit");
   const hasMaterial = has("material") || has("farbe");
   const hasHersteller = has("hersteller");
+  const hasEan = has("ean") || has("gtin");
+  const hasPreis = has("preis") || has("price");
+  const hasBestand = has("bestand");
 
-  let body = "Guten Tag,\n\n";
-  body += "wir haben gerade Ihren Feed geprüft und Möglichkeiten gefunden, wie Sie Ihre Produktdaten verbessern können, um mehr Sichtbarkeit auf unserem Marktplatz zu bekommen. Passen Sie dazu folgende Punkte an:\n";
+  const name = shopName ? `${shopName}` : "Ihr Shop";
+
+  let body = `Guten Tag,\n\n`;
+  body += `ich habe den Feed von ${name} geprüft und dabei folgende Punkte festgestellt, die einer Überarbeitung bedürfen, um die Sichtbarkeit auf CHECK24 zu verbessern:\n`;
+
+  if (allIssues.length > 0) {
+    body += "\nFEHLER (müssen behoben werden)\n";
+    for (const issue of allIssues) {
+      body += `- ${issue}\n`;
+    }
+  }
+
+  if (allTips.length > 0) {
+    body += "\nHINWEISE (empfohlen)\n";
+    for (const tip of allTips) {
+      body += `- ${tip}\n`;
+    }
+  }
+
+  body += "\nKONKRETE ANFORDERUNGEN\n";
 
   if (hasTitel) {
-    body += "\nTITEL\n";
-    body += "- Einige Produkttitel sind doppelt oder zu kurz. Verwenden Sie aussagekräftige Titel mit Marke, Produkttyp und wichtigsten Merkmalen.\n";
+    body += "- Titel: Bitte aussagekräftige Titel mit Marke, Produkttyp, Farbe und wichtigsten Maßen verwenden. Doppelte oder zu kurze Titel verringern die Auffindbarkeit.\n";
   }
-
   if (hasDesc) {
-    body += "\nBESCHREIBUNG\n";
-    if (has("zu kurz") || has("platzhalter") || has("ausführlicher")) {
-      body += "- Beschreibungen sind zu kurz oder wirken wie Platzhalter. Bitte mind. 80 Zeichen mit Vorteilen, Material und Einsatzbereich.\n";
-    }
-    if (has("extern")) {
-      body += "- Bitte keine externen Links oder Werbung in Beschreibungen verwenden.\n";
-    }
+    body += "- Beschreibung: Mindestens 80 Zeichen, keine Platzhalter oder externen Links. Beschreiben Sie Vorteile, Material und Einsatzbereiche des Produkts.\n";
   }
-
   if (hasBilder) {
-    body += "\nBILDER\n";
-    body += "- Bitte mind. 3 Bilder pro Produkt liefern. Erstes Bild als Freisteller (weißer Hintergrund), dazu Milieu- und Detailbilder.\n";
+    body += "- Bilder: Mindestens 3 Bilder pro Artikel. Das erste Bild als Freisteller auf weißem Hintergrund, weitere als Milieu- und Detailaufnahmen.\n";
   }
-
   if (hasVersand) {
-    body += "\nVERSAND & LIEFERUMFANG\n";
-    if (has("lieferumfang")) {
-      body += "- Lieferumfang bitte im Format \"1x Tisch, 4x Stuhl\" angeben.\n";
-    }
-    if (has("shipping")) {
-      body += "- Versandart muss \"Paket\" oder \"Spedition\" sein.\n";
-    }
-    if (has("lieferzeit")) {
-      body += "- Lieferzeit bitte als z.B. \"3-5 Werktage\" angeben.\n";
-    }
+    if (has("lieferumfang")) body += "- Lieferumfang: Bitte im Format \"1x Tisch, 4x Stuhl\" angeben.\n";
+    if (has("lieferzeit")) body += "- Lieferzeit: Bitte als Werktage-Bereich angeben, z.B. \"3-5 Werktage\".\n";
+    if (has("shipping") || has("versand")) body += "- Versandart: Nur \"Paket\" oder \"Spedition\" sind gültige Werte.\n";
   }
-
-  if (hasMaterial || hasHersteller) {
-    body += "\nWEITERE ANGABEN\n";
-    if (hasMaterial) body += "- Material und Farbe sollten je Artikel vollständig gepflegt sein.\n";
-    if (hasHersteller) body += "- Herstellerangaben bitte ergänzen.\n";
+  if (hasMaterial) {
+    body += "- Material & Farbe: Bitte für jeden Artikel vollständig angeben.\n";
+  }
+  if (hasHersteller) {
+    body += "- Herstellerangaben: Bitte Hersteller und Herstellernummer ergänzen.\n";
+  }
+  if (hasEan) {
+    body += "- EAN/GTIN: Bitte gültige 8- bis 14-stellige EAN-Nummern angeben.\n";
+  }
+  if (hasPreis) {
+    body += "- Preis: Bitte Preise ohne Währungssymbol angeben (nur Zahl, z.B. \"49.99\").\n";
+  }
+  if (hasBestand) {
+    body += "- Bestand: Bitte nur ganze Zahlen verwenden.\n";
   }
 
   body += canStart
-    ? "\nWir können mit dem Feed starten. Vielen Dank!"
-    : "\nBitte senden Sie uns den korrigierten Feed zu. Bei Fragen stehen wir gerne zur Verfügung.";
+    ? "\nIch freue mich, dass der Feed grundsätzlich bereit ist. Bitte beheben Sie die oben genannten Hinweise, um das volle Potenzial auszuschöpfen. Für Rückfragen stehe ich gerne zur Verfügung."
+    : "\nBitte beheben Sie die oben genannten Punkte und senden mir den korrigierten Feed zu. Für Rückfragen stehe ich gerne zur Verfügung.";
+
+  body += "\n\nMit freundlichen Grüßen\nIhr CHECK24-Partnerbetreuer";
 
   return { subject, body };
 }
@@ -1312,7 +1326,7 @@ function runSelfTests() {
   assert(imgs.length === 2 && imgs[0] === "u1" && imgs[1] === "u2", "firstImageUrls works");
 
   const mail = buildEmail({ shopName: "Testshop", issues: ["A"], tips: ["B"], canStart: false });
-  assert(typeof mail === "string" && mail.includes("Betreff"), "buildEmail returns a string");
+  assert(mail && typeof mail.subject === "string" && typeof mail.body === "string", "buildEmail returns { subject, body }");
 
   const okShip = (DEFAULT_RULES.allowed_shipping_mode || []).map((x) => String(x).toLowerCase());
   assert(okShip.includes("paket") && okShip.includes("spedition"), "DEFAULT_RULES includes allowed shipping");
@@ -4465,6 +4479,12 @@ export default function App() {
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailContent, setEmailContent] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
+  const [mcUnlocked, setMcUnlocked] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("mc_auth") === "1";
+  });
+  const [mcPasswordInput, setMcPasswordInput] = useState("");
+  const [mcPasswordError, setMcPasswordError] = useState(false);
   const [csvExporting, setCsvExporting] = useState(false);
   const [csvProgress, setCsvProgress] = useState(0);
 
@@ -7247,7 +7267,40 @@ export default function App() {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#F2F4F7", display: route === "checker-mc" ? "block" : "none" }}>
-        <CheckerMCPage />
+        {mcUnlocked ? (
+          <CheckerMCPage />
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100%", padding: 32 }}>
+            <div style={{ background: "#fff", borderRadius: 12, padding: "40px 48px", boxShadow: "0 2px 16px rgba(0,0,0,0.10)", maxWidth: 360, width: "100%", textAlign: "center" }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🔒</div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 6, color: "#1a1a2e" }}>Passwortgeschützter Bereich</div>
+              <div style={{ color: "#666", fontSize: 14, marginBottom: 24 }}>Bitte geben Sie das Passwort ein, um fortzufahren.</div>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (mcPasswordInput === "check24") {
+                  sessionStorage.setItem("mc_auth", "1");
+                  setMcUnlocked(true);
+                  setMcPasswordError(false);
+                  setMcPasswordInput("");
+                } else {
+                  setMcPasswordError(true);
+                  setMcPasswordInput("");
+                }
+              }}>
+                <input
+                  type="password"
+                  value={mcPasswordInput}
+                  onChange={(e) => { setMcPasswordInput(e.target.value); setMcPasswordError(false); }}
+                  placeholder="Passwort"
+                  autoFocus
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: mcPasswordError ? "1.5px solid #e53935" : "1.5px solid #ddd", fontSize: 15, marginBottom: 8, boxSizing: "border-box", outline: "none" }}
+                />
+                {mcPasswordError && <div style={{ color: "#e53935", fontSize: 13, marginBottom: 8 }}>Falsches Passwort. Bitte erneut versuchen.</div>}
+                <button type="submit" style={{ width: "100%", padding: "10px 0", borderRadius: 8, background: BRAND_COLOR, color: "#fff", border: "none", fontWeight: 600, fontSize: 15, cursor: "pointer", marginTop: 4 }}>Entsperren</button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
