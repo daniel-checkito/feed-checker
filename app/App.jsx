@@ -18,8 +18,6 @@ function Spinner({ size = 16, color = "#1553B6" }) {
     </span>
   );
 }
-import ShopPerformance from "./shop-performance";
-import Onboarding from "./onboarding";
 import Tooltip from "./Tooltip";
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabaseClient";
 import ResultsTable, { saveResultToStorage } from "./ResultsTable";
@@ -4382,8 +4380,6 @@ export default function App() {
     if (hash === "#/rules") return "rules";
     if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") return "feed-analyse";
     if (hash === "#/analytics") return "analytics";
-    if (hash === "#/shop-performance") return "shop-performance";
-    if (hash === "#/onboarding") return "onboarding";
     if (hash === "#/checker-mc") return "checker-mc";
     if (hash === "#/ergebnistabelle") return "ergebnistabelle";
     return "feed-analyse";
@@ -4404,8 +4400,6 @@ export default function App() {
       if (hash === "#/rules") setRoute("rules");
       else if (hash === "#/feed-analyse" || hash === "#/qs" || hash === "#/feed-checker" || hash === "#/checker") setRoute("feed-analyse");
       else if (hash === "#/analytics") setRoute("analytics");
-      else if (hash === "#/shop-performance") setRoute("shop-performance");
-      else if (hash === "#/onboarding") setRoute("onboarding");
       else if (hash === "#/checker-mc") setRoute("checker-mc");
       else if (hash === "#/ergebnistabelle") setRoute("ergebnistabelle");
       else setRoute("feed-analyse");
@@ -7235,7 +7229,7 @@ export default function App() {
     </div>
   );
 
-  const isFeedAnalyse = !["ergebnistabelle", "rules", "shop-performance", "onboarding", "checker-mc"].includes(route);
+  const isFeedAnalyse = !["ergebnistabelle", "rules", "checker-mc"].includes(route);
 
   return (
     <div style={{ background: "#F3F4F6", height: "100vh", overflow: "hidden", overflowX: "hidden", display: "flex", flexDirection: "column" }}>
@@ -7255,13 +7249,6 @@ export default function App() {
         <RulesPage rules={rules} setRules={setRules} onSave={saveRules} saving={rulesSaving} saveError={rulesSaveError} savedAt={rulesSavedAt} adminToken={adminToken} updateAdminToken={updateAdminToken} />
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", display: route === "shop-performance" ? "block" : "none" }}>
-        <ShopPerformance />
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", display: route === "onboarding" ? "block" : "none" }}>
-        <Onboarding />
-      </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "#F2F4F7", display: route === "checker-mc" ? "block" : "none" }}>
         {mcUnlocked ? (
