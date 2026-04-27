@@ -3096,6 +3096,7 @@ const MC_PFLICHT_ALIASES = {
   seller_offer_id: ["seller_offer_id", "offer_id", "sku", "merchant_sku", "eindeutige_id", "eindeutige id", "unique_id"],
   color: ["color", "farbe", "colour"],
   material: ["material", "materials"],
+  material: ["material", "materials", "werkstoff", "rohstoff", "materialart", "material_art", "material_type"],
   size: ["size", "abmessung", "dimension", "größe", "groesse", "maße", "masse"],
   size_depth: ["size_depth", "tiefe", "depth"],
   size_diameter: ["size_diameter", "durchmesser", "diameter"],
@@ -3194,6 +3195,7 @@ function McAngebotsfeed() {
         Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
+          relaxColumnCount: true,
           complete: (res) => {
             const r = Array.isArray(res.data) ? res.data : [];
             const h = res.meta?.fields || Object.keys(r[0] || {});
@@ -3280,13 +3282,21 @@ function McAngebotsfeed() {
         if (!col) continue;
         const val = String(row[col] ?? "").trim();
         if (!val) { pflichtErrors.push({ row: rn, ean, field: key, type: "missing" }); pflichtOk = false; continue; }
-        if (key === "price") { const n = parseFloat(val.replace(",", ".")); if (isNaN(n) || n <= 0) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; } }
+        if (key === "ean" && !/^\d{8,14}$/.test(val)) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
+        if (key === "price") {
+          if (/^[€$£]/.test(val)) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid_currency", value: val }); pflichtOk = false; }
+          else { const n = parseFloat(val.replace(",", ".")); if (isNaN(n) || n <= 0) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; } }
+        }
         if (key === "stock_amount" && !/^\d+$/.test(val)) { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
         if (key === "shipping_mode" && val.toLowerCase() !== "paket" && val.toLowerCase() !== "spedition") { pflichtErrors.push({ row: rn, ean, field: key, type: "invalid", value: val }); pflichtOk = false; }
       }
       if (mcImageColumns.length > 0) {
         const imgCount = mcImageColumns.reduce((c, col) => c + (String(row[col] ?? "").trim() ? 1 : 0), 0);
         if (imgCount === 0) { pflichtErrors.push({ row: rn, ean, field: "image_url", type: "missing" }); pflichtOk = false; }
+        else {
+          const firstImgVal = String(row[mcImageColumns[0]] ?? "").trim();
+          if (firstImgVal && !/^https?:\/\//i.test(firstImgVal)) { pflichtErrors.push({ row: rn, ean, field: "image_url", type: "invalid_url", value: firstImgVal }); pflichtOk = false; }
+        }
       }
 
       // Stufe 2: recommended field fill rate
@@ -3792,7 +3802,7 @@ function McAngebotsfeed() {
               type="button"
               onClick={() => {
                 const pflichtByRow = {}, optionalByRow = {};
-                issues.pflichtErrors.forEach((e) => { if (!pflichtByRow[e.row]) pflichtByRow[e.row] = []; pflichtByRow[e.row].push(e.field + (e.type === "invalid" ? ` ungültig` : " fehlt")); });
+                issues.pflichtErrors.forEach((e) => { if (!pflichtByRow[e.row]) pflichtByRow[e.row] = []; const msg = e.type === "invalid_currency" ? `${e.field} enthält Währungssymbol` : e.type === "invalid" ? `${e.field} ungültig` : `${e.field} fehlt`; pflichtByRow[e.row].push(msg); });
                 issues.optionalHints.forEach((e) => { if (!optionalByRow[e.row]) optionalByRow[e.row] = []; optionalByRow[e.row].push(e.field + " fehlt"); });
                 const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
                 const sep = ";";
@@ -4431,6 +4441,7 @@ export default function App() {
   const [rawRows, setRawRows] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [parseError, setParseError] = useState("");
+  const [parseWarnings, setParseWarnings] = useState([]);
   const [parsing, setParsing] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -5280,7 +5291,7 @@ export default function App() {
         // With a category path we can filter out irrelevant products anyway,
         // so duplicate titles are just a warning.
         duplicates.titleDup.forEach((idx) => warningRowIdx.add(idx));
-        addTip(`Doppelte Produkttitel in ${duplicates.titleDup.size} Zeilen. Bei vorhandenem Kategoriepfad werden unpassende Produkte ohnehin herausgefiltert.`, titleDupTarget);
+        addTip(`Doppelte Produkttitel in ${duplicates.titleDup.size} Zeilen. Verschiedene Varianten (z. B. Farbe, Größe) sollten sich im Titel unterscheiden.`, titleDupTarget);
       } else {
         duplicates.titleDup.forEach((idx) => criticalRowIdx.add(idx));
         addIssue(`Doppelte Produkttitel erkannt in ${duplicates.titleDup.size} Zeilen.`, titleDupTarget);
@@ -5312,29 +5323,19 @@ export default function App() {
       ? optionalFindings.lightingEnergyMissing.length
       : 0;
 
-    if (optionalMissingCount > 0) {
-      addRowsByEans(
-        [
-          ...optionalFindings.missingEansByField.material,
-          ...optionalFindings.missingEansByField.color,
-          ...optionalFindings.missingEansByField.delivery_includes,
-        ],
-        warningRowIdx
-      );
-      addTip("Material, Farbe oder Lieferumfang fehlt.", { ...findTargetsByEans([
-        ...optionalFindings.missingEansByField.material,
-        ...optionalFindings.missingEansByField.color,
-        ...optionalFindings.missingEansByField.delivery_includes,
-      ]), column: mapping.material || mapping.color || mapping.delivery_includes });
-    }
+    [
+      { label: "Material", eans: optionalFindings.missingEansByField.material, col: mapping.material },
+      { label: "Farbe",    eans: optionalFindings.missingEansByField.color,    col: mapping.color },
+      { label: "Lieferumfang", eans: optionalFindings.missingEansByField.delivery_includes, col: mapping.delivery_includes },
+    ].forEach(({ label, eans, col }) => {
+      if (!eans.length) return;
+      addRowsByEans(eans, warningRowIdx);
+      addTip(`${label} fehlt bei ${eans.length} Artikel${eans.length === 1 ? "" : "n"}.`, { ...findTargetsByEans(eans), column: col });
+    });
 
     if (missingPriceCount > 0) {
       addRowsByEans(optionalFindings.missingEansByField.price, criticalRowIdx);
       addIssue(`Preis fehlt bei ${missingPriceCount} Artikeln.`);
-    }
-    if (missingHsCodeCount > 0) {
-      addRowsByEans(optionalFindings.missingEansByField.hs_code, warningRowIdx);
-      addTip("HS-Code fehlt.", { ...findTargetsByEans(optionalFindings.missingEansByField.hs_code), column: mapping.hs_code });
     }
     if (missingManufacturerNameCount > 0 || missingManufacturerCountryCount > 0) {
       addRowsByEans(optionalFindings.missingEansByField.manufacturer_name, warningRowIdx);
@@ -5397,7 +5398,6 @@ export default function App() {
         `Lieferumfang-Format ungültig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`,
         findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean))
       );
-      addTip("Lieferumfang-Format ungültig.", { ...findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean)), column: mapping.delivery_includes });
       score -= 5;
     }
 
@@ -5408,7 +5408,6 @@ export default function App() {
         `Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`,
         findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean))
       );
-      addTip("Lieferzeit-Format ungültig.", { ...findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean)), column: mapping.delivery_time });
       score -= 5;
     }
 
@@ -5544,7 +5543,7 @@ export default function App() {
       }
 
       // #21 – suggest categories that likely don't fit the CHECK24 furniture range
-      const nonFurnitureRe = /(auto|kfz|motorrad|reifen|fahrrad|e-bike|spielzeug|baby(?!bett)|lebensmittel|getränk|elektronik|smartphone|handy|laptop|tablet|kamera|fernseher|kleidung|textil|mode|schuhe|schmuck|uhren|buch|dvd|cd|software|werkzeug|baumarkt|garten(?:möbel)?s|pflanze|dünger|samen|haustier|tierfutter|kosmetik|parfum|drogerie|medikament|apotheke|sport(?:geräte|bekleidung)?|fitness|outdoor(?:bekleidung)?|camping|angeln|jagd)/i;
+      const nonFurnitureRe = /(auto|kfz|motorrad|reifen|fahrrad|e-bike|spielzeug|baby(?!bett)|lebensmittel|getränk|elektronik|smartphone|handy|laptop|tablet|kamera|fernseher|kleidung|mode|schuhe|schmuck|uhren|buch|dvd|cd|software|werkzeug|baumarkt|garten(?:möbel)?s|pflanze|dünger|samen|haustier|tierfutter|kosmetik|parfum|drogerie|medikament|apotheke|sport(?:geräte|bekleidung)?|fitness|outdoor(?:bekleidung)?|camping|angeln|jagd)/i;
       const irrelevant = [];
       for (const [cat, count] of catCounts.entries()) {
         if (nonFurnitureRe.test(cat)) irrelevant.push({ cat, count });
@@ -5857,6 +5856,7 @@ export default function App() {
 
   function onPickFile(file) {
     setParseError("");
+    setParseWarnings([]);
     setFileName(file?.name || "");
     setEanSearch("");
     setRawRows([]);
@@ -5915,11 +5915,24 @@ export default function App() {
           header: true,
           skipEmptyLines: true,
           dynamicTyping: false,
+          relaxColumnCount: true,
           complete: (res) => {
             const errs = res.errors || [];
-            if (errs.length) setParseError(errs[0]?.message || "CSV parsing error");
+            const fatalErrs = errs.filter((e) => e.type !== "FieldMismatch");
+            const fieldErrs = errs.filter((e) => e.type === "FieldMismatch");
+            if (fatalErrs.length) { setParseError(fatalErrs[0]?.message || "CSV parsing error"); setParsing(false); return; }
+            const warns = [];
+            if (fieldErrs.length > 0) warns.push(`${fieldErrs.length} Zeile${fieldErrs.length === 1 ? "" : "n"} haben mehr Felder als die Kopfzeile — diese Zeilen werden trotzdem geprüft.`);
             const data = Array.isArray(res.data) ? res.data : [];
             const h = res.meta?.fields || Object.keys(data[0] || {});
+            // Two-header-row detection: check if first data row looks like column headers
+            if (data.length > 0) {
+              const KNOWN_COL_WORDS = new Set(["ean","gtin","gtin14","barcode","price","preis","name","title","titel","description","beschreibung","brand","marke","material","farbe","color","image_url","image","bild","delivery_time","lieferzeit","delivery_includes","lieferumfang","availability","stock_amount","category","category_path"]);
+              const firstRowVals = Object.values(data[0]).map((v) => String(v ?? "").trim().toLowerCase().replace(/[^a-z0-9_]/g, ""));
+              const matches = firstRowVals.filter((v) => v && KNOWN_COL_WORDS.has(v)).length;
+              if (matches >= 3) warns.push("Zeile 1 scheint eine Datei-Überschrift zu enthalten — die Spaltenbezeichner stehen möglicherweise in Zeile 2. Bitte Zeile 1 entfernen und erneut hochladen.");
+            }
+            setParseWarnings(warns);
             setHeaders(h);
             setRawRows(data);
             setParsing(false);
@@ -6255,6 +6268,9 @@ export default function App() {
                 <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
               </div>
               {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
+              {parseWarnings.map((w, i) => (
+                <div key={i} style={{ marginTop: 8, padding: "7px 10px", borderRadius: 6, background: "#FEF9C3", border: "1px solid #FDE047", color: "#854D0E", fontSize: 12 }}>⚠️ {w}</div>
+              ))}
               {parsing && <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, color: BRAND_COLOR, fontSize: 13, fontWeight: 600 }}><Spinner /> Datei wird analysiert...</div>}
             </StepCard>
 
