@@ -2397,7 +2397,6 @@ function QsPage({ headers, rows }) {
             const apaFailures = apaEligible ? [] : [
               attributeScore < 70 && `Attribute Score ${attributeScore}/90 — mind. 70 benötigt`,
               imageScore < 60 && `Bild Score ${imageScore}/90 — mind. 60 benötigt`,
-              scores.herstellerfeed !== 20 && `Herstellerfeed: ${scores.herstellerfeed}/20 — Pflicht: 20`,
               scores.titel < 10 && `Titel: ${scores.titel}/20 — mind. 10`,
               scores.beschreibung < 5 && `Beschreibung: ${scores.beschreibung}/10 — mind. 5`,
               scores.abmessungen < 5 && `Abmessungen: ${scores.abmessungen}/10 — mind. 5`,

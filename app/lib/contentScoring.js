@@ -144,7 +144,6 @@ export const NORMALIZATION = {
 export const APA_MINIMUMS = {
   attributeScore:  70,   // computed score
   imageScore:      60,   // computed score
-  herstellerfeed:  20,   // must be exactly 20
   titel:           10,
   beschreibung:     5,
   abmessungen:      5,
@@ -520,7 +519,6 @@ export function checkApaEligibility(scores, attributeScore, imageScore) {
   return (
     attributeScore          >= m.attributeScore  &&
     imageScore              >= m.imageScore       &&
-    scores.herstellerfeed   === m.herstellerfeed  &&
     scores.titel            >= m.titel            &&
     scores.beschreibung     >= m.beschreibung     &&
     scores.abmessungen      >= m.abmessungen      &&
