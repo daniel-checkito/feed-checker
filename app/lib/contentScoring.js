@@ -13,7 +13,6 @@ export const COLUMN_SYNONYMS = {
   ean:            ["ean", "gtin", "gtin14", "ean13", "barcode"],
   material:       ["material", "materials"],
   farbe:          ["color", "farbe"],
-  shoptexte:      ["shopbezogene texte", "shop_text", "marketing_text", "promo_text"],
 };
 
 // Image columns: all headers whose normalised name starts with one of these.
@@ -26,6 +25,35 @@ export const DIM_RE = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m|x|×)/i;
 
 // Matches delivery scope format: "2x Kissen", "1x Matratze" etc.
 export const DELIVERY_RE = /^\s*(\d+)\s*[xX]\s+.+/;
+
+// ─── Shop text patterns (checked in description column) ───────────────────────
+// Any match → shopbezogene Texte detected → 0 P
+
+export const SHOP_TEXT_PATTERNS = [
+  /in unserem (online[- ]?)?shop/i,
+  /auf unserer (web[- ]?site|webseite)/i,
+  /besuchen sie (uns|unsere)/i,
+  /in unserem sortiment/i,
+  /andere (farben|varianten|größen|ausführungen|produkte)/i,
+  /weitere (farben|varianten|größen|ausführungen)/i,
+  /auch erhältlich in/i,
+  /klicken sie (hier|auf)/i,
+  /finden sie (weitere|mehr|uns|unser|hier)/i,
+  /in verschiedenen (farben|größen|varianten)/i,
+  /passend dazu|dazu passend/i,
+  /passende (produkte|artikel|zubehör|schutzhülle|hülle|unterlage|bezug)/i,
+];
+
+// ─── B-Ware / Gebraucht patterns (checked in title + description) ─────────────
+// Any match → B-Ware detected → 0 P
+
+export const BWARE_PATTERNS = [
+  /\bb[- ]?ware\b/i,
+  /\bgebraucht(es?|em|en|er)?\b/i,
+  /\brefurbished\b/i,
+  /\bgeneralüberholt\b/i,
+  /\bgebrauchtware\b/i,
+];
 
 // ─── Colour validity ──────────────────────────────────────────────────────────
 
@@ -92,6 +120,7 @@ export const POINTS = {
   material:       { full: 10,  partial: 5,  none: 0 },
   farbe:          { full: 10,  partial: 5,  none: 0 },
   shoptexte:      { clean: 10, dirty: 0  },
+  bware:          { ok: 10,    found: 0  },
   bildmatch:      { ok: 20,    dup: 0    },
   freisteller:    { full: 10,  partial: 5,  none: 0 },
   millieu:        { full: 10,  partial: 5,  none: 0 },
@@ -99,12 +128,12 @@ export const POINTS = {
 };
 
 // ─── Score normalisation ──────────────────────────────────────────────────────
-// attributeScore = Math.round((attributeRaw / 95) * 90)   → capped at 90
+// attributeScore = Math.round((attributeRaw / 105) * 90)  → capped at 90
 // imageScore     = Math.ceil((imageRaw / 50) * 90)        → capped at 90
 // Guard: attributeScore = 0 when titel = 0; imageScore = 0 when bildmatch = 0
 
 export const NORMALIZATION = {
-  attributeMaxRaw: 95,
+  attributeMaxRaw: 105,  // 95 base + 10 bware
   imageMaxRaw:     50,
   maxOut:          90,
 };
@@ -123,6 +152,7 @@ export const APA_MINIMUMS = {
   material:         5,
   farbe:            5,
   shoptexte:        5,   // in practice requires 10 (no shop texts found)
+  bware:           10,   // must be exactly 10 (no B-Ware / Gebraucht found)
   bildmatch:       20,   // must be exactly 20
   freisteller:      5,
   millieu:          5,
@@ -191,10 +221,17 @@ export const ATTRIBUTE_CRITERIA = {
     ],
   },
   shoptexte: {
-    synonyms: COLUMN_SYNONYMS.shoptexte,
+    note: 'Scannt die Beschreibungs-Spalte nach Phrasen wie "in unserem Shop", "auf unserer Website", "andere Farben", "passend dazu", "finden Sie weitere" etc.',
     tiers: [
-      "10 P: Spalte nicht gefunden oder komplett leer",
-      "0 P: Spalte mit Inhalt gefunden (shopbezogene Texte erkannt)",
+      "10 P: Keine shopbezogenen Phrasen in Beschreibungen gefunden",
+      "0 P: Mindestens eine shopbezogene Phrase erkannt",
+    ],
+  },
+  bware: {
+    note: 'Scannt Titel und Beschreibung nach "B-Ware", "gebraucht", "refurbished", "generalüberholt"',
+    tiers: [
+      "10 P: Keine B-Ware / Gebraucht-Hinweise gefunden",
+      "0 P: B-Ware oder Gebraucht-Hinweis erkannt",
     ],
   },
 };
@@ -384,9 +421,28 @@ export function computeAutoScores({ headers, rows, qsImageSamples = [], freistel
     else if (fillRate >= t.partial.fillRate && validRate >= t.partial.validRate) farbe = POINTS.farbe.partial;
   }
 
-  // Shoptexte — presence of shop texts is penalised
+  // Shoptexte — scan description for cross-selling / shop-reference phrases
   let shoptexte = POINTS.shoptexte.clean;
-  if (shopCol && filledRate(shopCol) > 0) shoptexte = POINTS.shoptexte.dirty;
+  if (descCol) {
+    for (const r of rows) {
+      if (SHOP_TEXT_PATTERNS.some((re) => re.test(safeStr(r[descCol])))) {
+        shoptexte = POINTS.shoptexte.dirty;
+        break;
+      }
+    }
+  }
+
+  // B-Ware — scan title + description for second-hand / used-goods indicators
+  let bware = POINTS.bware.ok;
+  const bwareCols = [titleCol, descCol].filter(Boolean);
+  outer: for (const r of rows) {
+    for (const col of bwareCols) {
+      if (BWARE_PATTERNS.some((re) => re.test(safeStr(r[col])))) {
+        bware = POINTS.bware.found;
+        break outer;
+      }
+    }
+  }
 
   // Anzahl Bilder — use imageColumns passed from the component (same detection as Feed Checker)
   // Falls back to prefix detection if not provided.
@@ -441,7 +497,7 @@ export function computeAutoScores({ headers, rows, qsImageSamples = [], freistel
     }
   }
 
-  return { herstellerfeed, titel, beschreibung, abmessungen, lieferumfang, material, farbe, shoptexte, bildmatch, freisteller, millieu, anzahlbilder };
+  return { herstellerfeed, titel, beschreibung, abmessungen, lieferumfang, material, farbe, shoptexte, bware, bildmatch, freisteller, millieu, anzahlbilder };
 }
 
 // Derive attributeScore and imageScore from raw per-criterion scores.
@@ -449,7 +505,7 @@ export function calcScores(scores) {
   const attributeRaw =
     scores.herstellerfeed + scores.titel + scores.beschreibung +
     scores.abmessungen + scores.lieferumfang + scores.material +
-    scores.farbe + scores.shoptexte;
+    scores.farbe + scores.shoptexte + scores.bware;
   const imageRaw =
     scores.bildmatch + scores.freisteller + scores.millieu + scores.anzahlbilder;
   const { attributeMaxRaw, imageMaxRaw, maxOut } = NORMALIZATION;
@@ -472,6 +528,7 @@ export function checkApaEligibility(scores, attributeScore, imageScore) {
     scores.material         >= m.material         &&
     scores.farbe            >= m.farbe            &&
     scores.shoptexte        >= m.shoptexte        &&
+    scores.bware            >= m.bware            &&
     scores.bildmatch        === m.bildmatch        &&
     scores.freisteller      >= m.freisteller      &&
     scores.millieu          >= m.millieu          &&

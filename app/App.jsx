@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import {
-  COLUMN_SYNONYMS, DIM_RE, DELIVERY_RE,
+  COLUMN_SYNONYMS, DIM_RE, DELIVERY_RE, SHOP_TEXT_PATTERNS, BWARE_PATTERNS,
   ATTRIBUTE_CRITERIA, IMAGE_CRITERIA,
   detectColumns, computeAutoScores, calcScores, checkApaEligibility,
 } from "./lib/contentScoring";
@@ -1730,6 +1730,7 @@ function QsPage({ headers, rows }) {
     material: 0,
     farbe: 0,
     shoptexte: 0,
+    bware: 0,
     bildmatch: 0,
     freisteller: 0,
     millieu: 0,
@@ -2035,11 +2036,44 @@ function QsPage({ headers, rows }) {
     }
 
     if (scores.shoptexte === 10) {
-      reasons.shoptexte = "Keine oder praktisch keine separaten shopbezogenen Texte im Feed – 10 Punkte.";
+      reasons.shoptexte = "Keine shopbezogenen Phrasen in Beschreibungen gefunden – 10 Punkte.";
     } else if (scores.shoptexte === 5) {
-      reasons.shoptexte = "Nur vereinzelt shopbezogene Texte vorhanden – 5 Punkte (manuell vergeben).";
+      reasons.shoptexte = "Vereinzelt shopbezogene Phrasen – 5 Punkte (manuell vergeben).";
     } else {
-      reasons.shoptexte = "Shopbezogene Texte im Feed gefunden (z.B. Marketing-/Shop-Inhalte) – 0 Punkte.";
+      let example = "";
+      if (descCol) {
+        for (const r of rows.slice(0, 200)) {
+          const text = safeStr(r[descCol]);
+          if (SHOP_TEXT_PATTERNS.some((re) => re.test(text))) {
+            example = text.trim().slice(0, 80);
+            break;
+          }
+        }
+      }
+      reasons.shoptexte = example
+        ? `Shopbezogene Phrase erkannt: "${example}…" – 0 Punkte.`
+        : "Shopbezogene Phrasen im Feed gefunden – 0 Punkte.";
+    }
+
+    {
+      const bwareCols = [titleCol, descCol].filter(Boolean);
+      let example = "";
+      outer: for (const r of rows.slice(0, 200)) {
+        for (const col of bwareCols) {
+          const text = safeStr(r[col]);
+          if (BWARE_PATTERNS.some((re) => re.test(text))) {
+            example = text.trim().slice(0, 80);
+            break outer;
+          }
+        }
+      }
+      if (scores.bware === 10) {
+        reasons.bware = "Keine B-Ware / Gebraucht-Hinweise im Feed gefunden – 10 Punkte.";
+      } else {
+        reasons.bware = example
+          ? `B-Ware erkannt: "${example}…" – 0 Punkte.`
+          : "B-Ware oder Gebraucht-Hinweis im Feed gefunden – 0 Punkte.";
+      }
     }
 
     // Bildmatch reasons
@@ -2191,12 +2225,23 @@ function QsPage({ headers, rows }) {
         id: "shoptexte",
         label: "Shopbezogene Texte",
         status: scores.shoptexte === 0 ? "bad" : scores.shoptexte < 10 ? "warn" : "ok",
-        columnLabel: shopCol || "",
+        columnLabel: descCol ? `Scan: ${descCol}` : "",
         editable: true,
         options: [0, 5, 10],
         value: scores.shoptexte,
         onChange: (v) => setScores((s) => ({ ...s, shoptexte: v })),
         description: scoreReasons.shoptexte,
+      },
+      {
+        id: "bware",
+        label: "B-Ware / Gebraucht",
+        status: scores.bware === 0 ? "bad" : "ok",
+        columnLabel: [titleCol, descCol].filter(Boolean).map((c) => `Scan: ${c}`).join(", "),
+        editable: true,
+        options: [0, 10],
+        value: scores.bware,
+        onChange: (v) => setScores((s) => ({ ...s, bware: v })),
+        description: scoreReasons.bware,
       },
     ];
 
@@ -2204,7 +2249,7 @@ function QsPage({ headers, rows }) {
       ...item,
       criteria: ATTRIBUTE_CRITERIA[item.id] || null,
     }));
-  }, [scores, brandCol, titleCol, descCol, dimCol, deliveryCol, materialCol, colorCol, shopCol, scoreReasons]);
+  }, [scores, brandCol, titleCol, descCol, dimCol, deliveryCol, materialCol, colorCol, scoreReasons]);
 
   const imageItems = useMemo(() => {
     const base = [
@@ -2299,11 +2344,6 @@ function QsPage({ headers, rows }) {
     return sampleUniqueValues(rows, colorCol, 20);
   }, [rows, colorCol]);
 
-  const shopExamples = useMemo(() => {
-    if (!shopCol) return [];
-    return sampleUniqueValues(rows, shopCol, 20);
-  }, [rows, shopCol]);
-
   const [brandExampleLimit, setBrandExampleLimit] = useState(5);
   const [titleExampleLimit, setTitleExampleLimit] = useState(5);
   const [descExampleLimit, setDescExampleLimit] = useState(3);
@@ -2365,6 +2405,7 @@ function QsPage({ headers, rows }) {
               scores.material < 5 && `Material: ${scores.material}/10 — mind. 5`,
               scores.farbe < 5 && `Farbe: ${scores.farbe}/10 — mind. 5`,
               scores.shoptexte < 5 && `Shoptexte: ${scores.shoptexte}/10 — muss 10 sein (keine Shoptexte)`,
+              scores.bware < 10 && `B-Ware / Gebraucht: ${scores.bware}/10 — B-Ware oder Gebraucht-Hinweis erkannt`,
               scores.bildmatch !== 20 && `1. Bild & keine Dopplungen: ${scores.bildmatch}/20 — Pflicht: 20`,
               scores.freisteller < 5 && `Freisteller: ${scores.freisteller}/10 — mind. 5`,
               scores.millieu < 5 && `Milieu: ${scores.millieu}/10 — mind. 5`,
@@ -2563,6 +2604,7 @@ function QsPage({ headers, rows }) {
                     material: scores.material,
                     farbe: scores.farbe,
                     shoptexte: scores.shoptexte,
+                    bware: scores.bware,
                     bildmatch: scores.bildmatch,
                     freisteller: scores.freisteller,
                     millieu: scores.millieu,
@@ -2576,6 +2618,7 @@ function QsPage({ headers, rows }) {
                     titel_apa: okIf(scores.titel),
                     beschreibung_apa: okIf(scores.beschreibung),
                     shoptext_apa: okIf(scores.shoptexte),
+                    bware_apa: okIf(scores.bware),
                     crossSelling: saveForm.crossSelling,
                     beschreibungHtml: saveForm.beschreibungHtml,
                     masse: okIf(scores.abmessungen),
