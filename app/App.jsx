@@ -1948,7 +1948,7 @@ function QsPage({ headers, rows }) {
   const scoreReasons = useMemo(() => {
     const reasons = {};
 
-    reasons.herstellerfeed = `Herstellerfeed manuell bewertet: ${scores.herstellerfeed} Punkte (Ja = 20, Nein = 0).`;
+    reasons.herstellerfeed = `Herstellerfeed manuell bewertet: ${scores.herstellerfeed} Punkte (Ja = 5, Nein = 0).`;
 
     if (!titleCol) {
       reasons.titel = "Keine Titel-Spalte erkannt – 0 Punkte.";
@@ -2166,10 +2166,10 @@ function QsPage({ headers, rows }) {
       {
         id: "herstellerfeed",
         label: "Herstellerfeed",
-        status: scores.herstellerfeed === 0 ? "bad" : scores.herstellerfeed < 20 ? "warn" : "ok",
+        status: scores.herstellerfeed === 0 ? "bad" : "ok",
         columnLabel: "",
         editable: true,
-        options: [0, 20],
+        options: [0, 5],
         value: scores.herstellerfeed,
         onChange: (v) => setScores((s) => ({ ...s, herstellerfeed: v })),
         description: scoreReasons.herstellerfeed,
@@ -2761,8 +2761,8 @@ function QsPage({ headers, rows }) {
                   <div style={{ flexShrink: 0 }}>
                     {item.id === "herstellerfeed" ? (
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button type="button" onClick={() => item.onChange(20)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: item.value === 20 ? "1px solid #16A34A" : "1px solid #D1D5DB", background: item.value === 20 ? "#DCFCE7" : "#FFF", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        <button type="button" onClick={() => item.onChange(5)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: item.value === 5 ? "1px solid #16A34A" : "1px solid #D1D5DB", background: item.value === 5 ? "#DCFCE7" : "#FFF", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                           Ja
                         </button>
                         <button type="button" onClick={() => item.onChange(0)}
