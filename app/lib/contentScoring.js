@@ -112,7 +112,7 @@ export const THRESHOLDS = {
 // ─── Points per tier ──────────────────────────────────────────────────────────
 
 export const POINTS = {
-  herstellerfeed: { full: 20,  none: 0  },
+  herstellerfeed: { full: 5,   none: 0  },
   titel:          { full: 20,  partial: 10, none: 0 },
   beschreibung:   { full: 10,  partial: 5,  none: 0 },
   abmessungen:    { full: 10,  partial: 5,  none: 0 },
@@ -164,7 +164,7 @@ export const ATTRIBUTE_CRITERIA = {
   herstellerfeed: {
     synonyms: COLUMN_SYNONYMS.herstellerfeed,
     tiers: [
-      "20 P: Fill-Rate ≥ 80%",
+      "5 P: Fill-Rate ≥ 80%",
       "0 P: Fill-Rate < 80%",
     ],
   },
