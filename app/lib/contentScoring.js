@@ -133,7 +133,7 @@ export const POINTS = {
 // Guard: attributeScore = 0 when titel = 0; imageScore = 0 when bildmatch = 0
 
 export const NORMALIZATION = {
-  attributeMaxRaw: 105,  // 95 base + 10 bware
+  attributeMaxRaw: 95,   // herstellerfeed(5) + titel(20) + beschreibung(10) + abmessungen(10) + lieferumfang(20) + material(10) + farbe(10) + shoptexte(10)
   imageMaxRaw:     50,
   maxOut:          90,
 };
@@ -453,7 +453,13 @@ export function computeAutoScores({ headers, rows, qsImageSamples = [], freistel
     let totalImgs = 0, rn = 0;
     for (const r of rows) {
       let c = 0;
-      for (const col of imgCols) { if (safeStr(r[col]).trim()) c += 1; }
+      for (const col of imgCols) {
+        const val = safeStr(r[col]).trim();
+        if (!val) continue;
+        // Count comma-separated entries within a single cell
+        const parts = val.split(",").map((p) => p.trim()).filter(Boolean);
+        c += parts.length || 1;
+      }
       totalImgs += c; rn += 1;
     }
     const avg = rn ? totalImgs / rn : 0;
@@ -503,7 +509,7 @@ export function calcScores(scores) {
   const attributeRaw =
     scores.herstellerfeed + scores.titel + scores.beschreibung +
     scores.abmessungen + scores.lieferumfang + scores.material +
-    scores.farbe + scores.shoptexte + scores.bware;
+    scores.farbe + scores.shoptexte;
   const imageRaw =
     scores.bildmatch + scores.freisteller + scores.millieu + scores.anzahlbilder;
   const { attributeMaxRaw, imageMaxRaw, maxOut } = NORMALIZATION;
