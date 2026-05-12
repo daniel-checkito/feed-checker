@@ -3200,7 +3200,7 @@ function McAngebotsfeed() {
       reader.onload = (evt) => {
         const text = evt.target?.result;
         if (typeof text !== "string") return;
-        if (encoding === "UTF-8" && /Ã¤|Ã¶|Ã¼|Ã\x84|Ã\x96|Ã\x9C|Ã\x9F/.test(text)) {
+        if (encoding === "UTF-8" && (/Ã¤|Ã¶|Ã¼|Ã\x84|Ã\x96|Ã\x9C|Ã\x9F/.test(text) || text.includes("�"))) {
           tryParseMc("windows-1252");
           return;
         }
@@ -5225,12 +5225,10 @@ export default function App() {
         }
       }
       if (badRows.size > 0) {
-        badRows.forEach((idx) => criticalRowIdx.add(idx));
-        addIssue(
-          `Zeichencodierung fehlerhaft in ${badRows.size} Artikeln (z. B. "Ã¤" statt "ä").`,
+        addTip(
+          `Zeichencodierung: ${badRows.size} Artikel enthalten möglicherweise fehlerhafte Zeichen (z. B. "Ã¤" statt "ä"). Falls der Feed in Windows-1252 vorliegt, funktioniert er ggf. trotzdem — bitte ggf. auf UTF-8 umstellen.`,
           { rowIndices: Array.from(badRows).sort((a, b) => a - b), rowIndex: Math.min(...badRows) }
         );
-        addTip("Die Datei bitte als UTF-8 speichern und erneut hochladen. Aktuell sieht es so aus, als wäre Windows-1252-Text fälschlich als UTF-8 gelesen (oder umgekehrt) worden.");
       }
     })();
 
@@ -5411,7 +5409,7 @@ export default function App() {
       addRowsByEanObjects(optionalFindings.invalidDeliveryIncludes, warningRowIdx);
       addIssue(
         `Lieferumfang-Format ungültig in ${optionalFindings.invalidDeliveryIncludes.length} Zeilen.`,
-        findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean))
+        { ...findTargetsByEans(optionalFindings.invalidDeliveryIncludes.map((x) => x?.ean)), column: mapping.delivery_includes }
       );
       score -= 5;
     }
@@ -5421,7 +5419,7 @@ export default function App() {
       addRowsByEanObjects(optionalFindings.invalidDeliveryTime, warningRowIdx);
       addIssue(
         `Lieferzeit ungültig in ${groupByValueWithEans(optionalFindings.invalidDeliveryTime).length} verschiedenen Werten.`,
-        findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean))
+        { ...findTargetsByEans(optionalFindings.invalidDeliveryTime.map((x) => x?.ean)), column: mapping.delivery_time }
       );
       score -= 5;
     }
@@ -5459,14 +5457,14 @@ export default function App() {
         addRowsByEans(optionalFindings.missingShipping, criticalRowIdx);
         addIssue(
           `Versandart fehlt in ${optionalFindings.missingShipping.length} Artikeln.`,
-          findTargetsByEans(optionalFindings.missingShipping)
+          { ...findTargetsByEans(optionalFindings.missingShipping), column: mapping.shipping_mode }
         );
       }
       if (optionalFindings.invalidShipping.length > 0) {
         addRowsByEanObjects(optionalFindings.invalidShipping, criticalRowIdx);
         addIssue(
           `shipping_mode ungültig in ${optionalFindings.invalidShipping.length} Artikeln. Erlaubt sind Paket oder Spedition.`,
-          findTargetsByEans(optionalFindings.invalidShipping.map((x) => x?.ean))
+          { ...findTargetsByEans(optionalFindings.invalidShipping.map((x) => x?.ean)), column: mapping.shipping_mode }
         );
       }
     }
@@ -5922,7 +5920,7 @@ export default function App() {
         const text = evt.target?.result;
         if (typeof text !== "string") return;
         // Detect garbled German umlauts (UTF-8 misread of Windows-1252)
-        if (encoding === "UTF-8" && /\u00c3\u00a4|\u00c3\u00b6|\u00c3\u00bc|\u00c3\u0084|\u00c3\u0096|\u00c3\u009c|\u00c3\u009f|\u00c3\u00a9/.test(text)) {
+        if (encoding === "UTF-8" && (/\u00c3\u00a4|\u00c3\u00b6|\u00c3\u00bc|\u00c3\u0084|\u00c3\u0096|\u00c3\u009c|\u00c3\u009f|\u00c3\u00a9/.test(text) || text.includes("\ufffd"))) {
           tryParse("windows-1252");
           return;
         }
