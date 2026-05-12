@@ -3102,10 +3102,10 @@ const MC_OPTIONAL_COLS = [
 const MC_PFLICHT_ALIASES = {
   ean: ["ean", "gtin", "gtin14", "ean13", "barcode"],
   brand: ["brand", "marke"],
-  category_path: ["category_path", "kategorie", "category", "kategoriepfad"],
+  category_path: ["category_path", "kategorie", "category", "kategoriepfad", "produktgruppe"],
   description: ["description", "beschreibung", "desc"],
   name: ["name", "title", "titel", "product_name", "produktname"],
-  seller_offer_id: ["seller_offer_id", "offer_id", "sku", "merchant_sku", "eindeutige_id", "eindeutige id", "unique_id"],
+  seller_offer_id: ["seller_offer_id", "sellerofferid", "artikelnummer", "offer_id", "sku", "merchant_sku", "eindeutige_id", "eindeutige id", "unique_id"],
   color: ["color", "farbe", "colour"],
   material: ["material", "materials"],
   material: ["material", "materials", "werkstoff", "rohstoff", "materialart", "material_art", "material_type"],
@@ -3125,7 +3125,7 @@ const MC_PFLICHT_ALIASES = {
   delivery_includes: ["delivery_includes", "lieferumfang"],
   price: ["price", "preis", "vk", "selling_price"],
   stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty"],
-  shipping_mode: ["shipping_mode", "versandart", "shipping", "shipping_type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
+  shipping_mode: ["shipping_mode", "versandtyp", "versandart", "shipping", "shipping_type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
 };
 const MC_OPTIONAL_ALIASES = {
   deeplink: ["deeplink", "link", "url", "produktlink"],
@@ -4535,12 +4535,12 @@ export default function App() {
     if (!headers.length) return {};
     const candidates = {
       ean: ["ean", "gtin", "gtin14", "ean13", "barcode"],
-      seller_offer_id: ["seller_offer_id", "seller offer id", "offer_id", "offer id", "sku", "merchant_sku", "eindeutige id", "eindeutige_id", "unique_id"],
+      seller_offer_id: ["seller_offer_id", "sellerofferid", "artikelnummer", "seller offer id", "offer_id", "offer id", "sku", "merchant_sku", "eindeutige id", "eindeutige_id", "unique_id"],
       name: ["name", "product_name", "title", "produktname", "produkt titel"],
-      category_path: ["category_path", "category", "kategorie", "kategoriepfad"],
+      category_path: ["category_path", "category", "kategorie", "kategoriepfad", "produktgruppe"],
       description: ["description", "beschreibung", "desc"],
       stock_amount: ["stock_amount", "stock", "bestand", "quantity", "qty", "availability", "verfügbarkeit", "verfuegbarkeit"],
-      shipping_mode: ["shipping_mode", "versandart", "shipping_type", "shipping type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
+      shipping_mode: ["shipping_mode", "versandtyp", "versandart", "shipping_type", "shipping type", "delivery_mode", "lieferart", "versand_art", "shipment_mode", "transport_mode"],
       delivery_time: ["delivery_time", "lieferzeit", "lead_time", "lead time", "shippingtime", "shipping_time", "shipping time"],
       price: ["price", "preis", "amount"],
       brand: ["brand", "marke"],
@@ -4894,7 +4894,7 @@ export default function App() {
     const colorAllowed = mapping.color ? (rules?.allowed_color || DEFAULT_RULES.allowed_color).map((x) => String(x).toLowerCase().trim()) : [];
     const minTitle = Number(rules?.title_min_length ?? DEFAULT_RULES.title_min_length);
     const minDesc = Number(rules?.description_min_length ?? DEFAULT_RULES.description_min_length);
-    const lampTokens = ["lampe", "leuchte", "leuchten", "licht", "beleuchtung", "led"];
+    const lampRe = /\b(lampe|leuchte[n]?|licht|beleuchtung|led)\b/i;
     const energyCol = mapping.energy_efficiency_label, lightingInclCol = mapping.lighting_included, eprelCol = mapping.eprel_registration_number;
     const hasEnergyCols = energyCol || lightingInclCol || eprelCol;
     const templateColumnsMap = {};
@@ -4975,7 +4975,7 @@ export default function App() {
         const noLightingInTitle = /ohne\s+(beleuchtung|lichter?|licht)\b/i.test(t) || /nicht\s+beleuchtet/i.test(t);
         const liVal = lightingInclCol ? String(r[lightingInclCol] ?? "").trim().toLowerCase() : "";
         const declaredNoLighting = !!liVal && ["nein", "0", "no", "false", "ohne", "nicht"].includes(liVal);
-        if (t && !noLightingInTitle && !declaredNoLighting && lampTokens.some((tok) => t.includes(tok))) {
+        if (t && !noLightingInTitle && !declaredNoLighting && lampRe.test(t)) {
           if ((energyCol && isBlank(r[energyCol])) || (lightingInclCol && isBlank(r[lightingInclCol])) || (eprelCol && isBlank(r[eprelCol]))) lightingEnergyMissing.push(ean);
         }
       }
@@ -5558,7 +5558,7 @@ export default function App() {
       }
 
       // #21 – suggest categories that likely don't fit the CHECK24 furniture range
-      const nonFurnitureRe = /(auto|kfz|motorrad|reifen|fahrrad|e-bike|spielzeug|baby(?!bett)|lebensmittel|getränk|elektronik|smartphone|handy|laptop|tablet|kamera|fernseher|kleidung|mode|schuhe|schmuck|uhren|buch|dvd|cd|software|werkzeug|baumarkt|garten(?:möbel)?s|pflanze|dünger|samen|haustier|tierfutter|kosmetik|parfum|drogerie|medikament|apotheke|sport(?:geräte|bekleidung)?|fitness|outdoor(?:bekleidung)?|camping|angeln|jagd)/i;
+      const nonFurnitureRe = /(auto|kfz|motorrad|reifen|fahrrad|e-bike|spielzeug|baby(?!bett)|lebensmittel|getränk|elektronik|smartphone|handy|laptop|tablet|kamera|fernseher|kleidung|mode|schuhe|schmuck|uhren|buch|dvd|cd|software|werkzeug|baumarkt|garten(?:möbel)?s|pflanze|dünger|samen|haustier|tierfutter|kosmetik|parfum|drogerie|medikament|apotheke|sport(?:geräte|bekleidung)?|fitness|outdoor(?:bekleidung)?|angeln|jagd)/i;
       const irrelevant = [];
       for (const [cat, count] of catCounts.entries()) {
         if (nonFurnitureRe.test(cat)) irrelevant.push({ cat, count });
