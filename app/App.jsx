@@ -5067,10 +5067,10 @@ export default function App() {
       reader.onload = (evt) => {
         try {
           const data = evt.target?.result;
-          if (!data) { setParseError("Datei konnte nicht gelesen werden."); setParsing(false); return; }
+          if (!data) { setParseError("Die Datei konnte nicht gelesen werden. Bitte prüfen, ob die Datei beschädigt ist oder gerade von einem anderen Programm geöffnet wird, und erneut versuchen."); setParsing(false); return; }
           const workbook = XLSX.read(data, { type: "array" });
           const firstSheetName = workbook.SheetNames[0];
-          if (!firstSheetName) { setParseError("Excel-Datei enthält keine Tabellenblätter."); setParsing(false); return; }
+          if (!firstSheetName) { setParseError("Die Excel-Datei enthält keine Tabellenblätter. Bitte sicherstellen, dass mindestens ein Arbeitsblatt mit Daten vorhanden ist."); setParsing(false); return; }
           const sheet = workbook.Sheets[firstSheetName];
           const json = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
           const h = json.length ? Object.keys(json[0]) : [];
@@ -5078,11 +5078,11 @@ export default function App() {
           setRawRows(json);
           setParsing(false);
         } catch (err) {
-          setParseError(String(err?.message || err || "Excel-Datei konnte nicht gelesen werden."));
+          setParseError(`Die Excel-Datei konnte nicht gelesen werden: ${String(err?.message || err || "Unbekannter Fehler")}. Bitte sicherstellen, dass es sich um eine gültige .xlsx/.xls Datei handelt.`);
           setParsing(false);
         }
       };
-      reader.onerror = () => { setParseError("Datei konnte nicht gelesen werden."); setParsing(false); };
+      reader.onerror = () => { setParseError("Die Datei konnte nicht gelesen werden. Bitte prüfen, ob die Datei beschädigt ist oder gerade von einem anderen Programm geöffnet wird, und erneut versuchen."); setParsing(false); };
       reader.readAsArrayBuffer(file);
       return;
     }
@@ -5098,6 +5098,20 @@ export default function App() {
           tryParse("windows-1252");
           return;
         }
+        const friendlyCsvError = (e) => {
+          const raw = String(e?.message || e || "");
+          const rowInfo = (typeof e?.row === "number") ? ` (etwa bei Zeile ${e.row + 2} der Datei)` : "";
+          if (/Trailing quote|MissingQuotes|Unescaped|Quotes/i.test(raw) || e?.code === "MissingQuotes" || e?.code === "InvalidQuotes") {
+            return `Die CSV enthält ein nicht korrekt geschlossenes Anführungszeichen${rowInfo}. Häufige Ursache: In einem Feld (z.B. "Beschreibung") steht HTML oder Text mit " inneren Anführungszeichen ", die nicht durch Verdoppelung ("") escaped sind. Lösung: Innere " im Feldinhalt durch "" ersetzen oder das Feld ohne umschließende Anführungszeichen exportieren.`;
+          }
+          if (/Delimiter|UndetectableDelimiter/i.test(raw) || e?.code === "UndetectableDelimiter") {
+            return `Das Trennzeichen der CSV konnte nicht erkannt werden${rowInfo}. Bitte prüfen, ob die Spalten mit Komma (,), Semikolon (;) oder Tab getrennt sind und ob die Datei wirklich eine CSV ist.`;
+          }
+          if (/TooFewFields|TooManyFields|FieldMismatch/i.test(raw)) {
+            return `Eine Zeile hat eine andere Spaltenanzahl als die Kopfzeile${rowInfo}. Das deutet meist auf ein unescaped Trennzeichen oder Anführungszeichen im Feldinhalt hin.`;
+          }
+          return `Die CSV konnte nicht gelesen werden${rowInfo}: ${raw}`;
+        };
         Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
@@ -5107,7 +5121,7 @@ export default function App() {
             const errs = res.errors || [];
             const fatalErrs = errs.filter((e) => e.type !== "FieldMismatch");
             const fieldErrs = errs.filter((e) => e.type === "FieldMismatch");
-            if (fatalErrs.length) { setParseError(fatalErrs[0]?.message || "CSV parsing error"); setParsing(false); return; }
+            if (fatalErrs.length) { setParseError(friendlyCsvError(fatalErrs[0])); setParsing(false); return; }
             const warns = [];
             if (fieldErrs.length > 0) warns.push(`${fieldErrs.length} Zeile${fieldErrs.length === 1 ? "" : "n"} haben mehr Felder als die Kopfzeile — diese Zeilen werden trotzdem geprüft.`);
             const data = Array.isArray(res.data) ? res.data : [];
@@ -5124,10 +5138,10 @@ export default function App() {
             setRawRows(data);
             setParsing(false);
           },
-          error: (err) => { setParseError(String(err || "CSV parsing error")); setParsing(false); },
+          error: (err) => { setParseError(friendlyCsvError(err)); setParsing(false); },
         });
       };
-      reader.onerror = () => setParseError("Datei konnte nicht gelesen werden.");
+      reader.onerror = () => setParseError("Die Datei konnte nicht gelesen werden. Bitte prüfen, ob die Datei beschädigt ist oder gerade von einem anderen Programm geöffnet wird, und erneut versuchen.");
       reader.readAsText(file, encoding);
     };
     tryParse("UTF-8");
@@ -5450,7 +5464,7 @@ export default function App() {
                 </div>
                 <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(e) => onPickFile(e.target.files?.[0] || null)} style={{ display: "none" }} />
               </div>
-              {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen {parseError}</div> : null}
+              {parseError ? <div style={{ marginTop: 10, color: "#B91C1C", fontSize: 13 }}>Fehler beim Einlesen der Datei: {parseError}</div> : null}
               {parseWarnings.map((w, i) => (
                 <div key={i} style={{ marginTop: 8, padding: "7px 10px", borderRadius: 6, background: "#FEF9C3", border: "1px solid #FDE047", color: "#854D0E", fontSize: 12 }}>⚠️ {w}</div>
               ))}
