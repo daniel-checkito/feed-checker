@@ -5112,7 +5112,55 @@ export default function App() {
           }
           return `Die CSV konnte nicht gelesen werden${rowInfo}: ${raw}`;
         };
-        Papa.parse(text, {
+        // Sanitize unescaped inner quotes inside quoted fields: e.g.
+        //   "<span style="x">…</span>"  →  "<span style=""x"">…</span>"
+        // Returns { text, fixes, sampleRows } where fixes is how many quotes were repaired.
+        const sanitizeQuotedQuotes = (src, delimiter) => {
+          const delims = new Set([delimiter, "\n", "\r"]);
+          let out = "";
+          let inQuoted = false;
+          let fixes = 0;
+          const fixedLines = new Set();
+          let line = 1;
+          // Determine if a `"` at position i is a field-opening quote.
+          // True when it directly follows a delimiter, newline, or is at the start.
+          for (let i = 0; i < src.length; i++) {
+            const c = src[i];
+            if (c === "\n") line++;
+            if (!inQuoted) {
+              if (c === '"') {
+                const prev = i === 0 ? "" : src[i - 1];
+                if (i === 0 || prev === delimiter || prev === "\n" || prev === "\r") {
+                  inQuoted = true;
+                }
+              }
+              out += c;
+            } else {
+              if (c === '"') {
+                const next = src[i + 1];
+                if (next === '"') {
+                  // properly escaped
+                  out += '""';
+                  i++;
+                } else if (next === undefined || delims.has(next)) {
+                  // legitimate closing quote
+                  inQuoted = false;
+                  out += '"';
+                } else {
+                  // unescaped inner quote — repair by doubling
+                  out += '""';
+                  fixes++;
+                  fixedLines.add(line);
+                }
+              } else {
+                out += c;
+              }
+            }
+          }
+          return { text: out, fixes, fixedLines: Array.from(fixedLines).slice(0, 5) };
+        };
+
+        const runParse = (parseText, repairWarning) => Papa.parse(parseText, {
           header: true,
           skipEmptyLines: true,
           dynamicTyping: false,
@@ -5121,8 +5169,25 @@ export default function App() {
             const errs = res.errors || [];
             const fatalErrs = errs.filter((e) => e.type !== "FieldMismatch");
             const fieldErrs = errs.filter((e) => e.type === "FieldMismatch");
-            if (fatalErrs.length) { setParseError(friendlyCsvError(fatalErrs[0])); setParsing(false); return; }
+            if (fatalErrs.length) {
+              const isQuoteErr = fatalErrs.some((e) => /Quote|MissingQuotes|InvalidQuotes/i.test(String(e?.code || e?.message || "")));
+              if (isQuoteErr && !repairWarning) {
+                // Auto-repair attempt
+                const delim = res.meta?.delimiter || ";";
+                const repaired = sanitizeQuotedQuotes(parseText, delim);
+                if (repaired.fixes > 0) {
+                  const linesHint = repaired.fixedLines.length ? ` (z.B. um Zeile ${repaired.fixedLines.join(", ")})` : "";
+                  const warn = `Die Datei enthielt ${repaired.fixes} nicht korrekt escaptes Anführungszeichen${linesHint} — z.B. HTML wie <span style="x"> in einem "Beschreibung"-Feld. Diese wurden automatisch repariert, damit der Feed gelesen werden kann. Bitte die Quelldatei in Zukunft so exportieren, dass innere " durch "" verdoppelt werden, oder HTML-Attribute mit einfachen Quotes (') schreiben.`;
+                  runParse(repaired.text, warn);
+                  return;
+                }
+              }
+              setParseError(friendlyCsvError(fatalErrs[0]));
+              setParsing(false);
+              return;
+            }
             const warns = [];
+            if (repairWarning) warns.push(repairWarning);
             if (fieldErrs.length > 0) warns.push(`${fieldErrs.length} Zeile${fieldErrs.length === 1 ? "" : "n"} haben mehr Felder als die Kopfzeile — diese Zeilen werden trotzdem geprüft.`);
             const data = Array.isArray(res.data) ? res.data : [];
             const h = res.meta?.fields || Object.keys(data[0] || {});
@@ -5140,6 +5205,7 @@ export default function App() {
           },
           error: (err) => { setParseError(friendlyCsvError(err)); setParsing(false); },
         });
+        runParse(text, null);
       };
       reader.onerror = () => setParseError("Die Datei konnte nicht gelesen werden. Bitte prüfen, ob die Datei beschädigt ist oder gerade von einem anderen Programm geöffnet wird, und erneut versuchen.");
       reader.readAsText(file, encoding);
